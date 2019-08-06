@@ -1,0 +1,12 @@
+[package]
+name = "light-curve"
+version = "0.0.0"
+description = "Placeholder for future package. See light-curve-* packages"
+repository = "https://github.com/hombit/light-curve"
+authors = ["Konstantin Malanchev <hombit@gmail.com>"]
+edition = "2018"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
