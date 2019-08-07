@@ -1,7 +1,7 @@
 use conv::prelude::*;
 
 mod fit;
-use fit::{Fitter, StraightLineFitter, StraightLineNoisyFitter};
+use fit::fit_straight_line;
 
 mod float_trait;
 use float_trait::Float;
@@ -276,12 +276,8 @@ where
                 T::zero(),
             ];
         }
-        let slf = StraightLineFitter::new(ts.t.sample, ts.m.sample);
-        let result = slf.fit();
-        vec![
-            result.values["slope"],
-            T::sqrt(result.cov["slope"]["slope"]),
-        ]
+        let result = fit_straight_line(ts.t.sample, ts.m.sample, None);
+        vec![result.slope, T::sqrt(result.slope_sigma2)]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -306,15 +302,14 @@ where
         if ts.err2.is_none() {
             vec![T::nan(); 3]
         } else {
-            let slnf = StraightLineNoisyFitter::new(
+            let result = fit_straight_line(
                 ts.t.sample,
                 ts.m.sample,
-                ts.err2.as_ref().unwrap().sample,
+                Some(ts.err2.as_ref().unwrap().sample),
             );
-            let result = slnf.fit();
             vec![
-                result.values["slope"],
-                T::sqrt(result.cov["slope"]["slope"]),
+                result.slope,
+                T::sqrt(result.slope_sigma2),
                 result.reduced_chi2,
             ]
         }
