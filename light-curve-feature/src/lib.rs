@@ -670,6 +670,28 @@ where
 }
 
 #[derive(Default)]
+pub struct ReducedChi2 {}
+
+impl ReducedChi2 {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for ReducedChi2
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        vec![ts.get_m_reduced_chi2().unwrap_or(T::nan())]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["chi2"]
+    }
+}
+
+#[derive(Default)]
 pub struct Skew {}
 
 impl Skew {
