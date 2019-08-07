@@ -299,19 +299,16 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        if ts.err2.is_none() {
-            vec![T::nan(); 3]
-        } else {
-            let result = fit_straight_line(
-                ts.t.sample,
-                ts.m.sample,
-                Some(ts.err2.as_ref().unwrap().sample),
-            );
-            vec![
-                result.slope,
-                T::sqrt(result.slope_sigma2),
-                result.reduced_chi2,
-            ]
+        match ts.err2.as_ref() {
+            Some(err2) => {
+                let result = fit_straight_line(ts.t.sample, ts.m.sample, Some(err2.sample));
+                vec![
+                    result.slope,
+                    T::sqrt(result.slope_sigma2),
+                    result.reduced_chi2,
+                ]
+            }
+            None => vec![T::nan(); 3],
         }
     }
 
