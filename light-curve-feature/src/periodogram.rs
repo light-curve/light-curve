@@ -67,7 +67,7 @@ where
     }
 
     pub fn ts(&self) -> TimeSeries<T> {
-        TimeSeries::new(&self.freq[..], &self.power[..])
+        TimeSeries::new(&self.freq[..], &self.power[..], None)
     }
 
     pub fn get_freq(&self) -> &[T] {

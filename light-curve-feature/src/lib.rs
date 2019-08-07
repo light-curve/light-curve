@@ -32,7 +32,7 @@ where
         Self { features }
     }
 
-    pub fn eval<'a, 'b>(&self, mut ts: TimeSeries<'a, 'b, T>) -> Vec<T> {
+    pub fn eval<'a, 'b>(&self, mut ts: TimeSeries<T>) -> Vec<T> {
         self.features.iter().flat_map(|x| x.eval(&mut ts)).collect()
     }
 
@@ -45,7 +45,7 @@ pub trait FeatureEvaluator<T>
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T>;
+    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<T>) -> Vec<T>;
     fn get_names(&self) -> Vec<&str>;
 }
 
@@ -64,7 +64,7 @@ impl<T> FeatureEvaluator<T> for Amplitude
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         vec![T::half() * (ts.m.get_max() - ts.m.get_min())]
     }
     fn get_names(&self) -> Vec<&str> {
@@ -107,7 +107,7 @@ impl<T> FeatureEvaluator<T> for BeyondNStd<T>
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let m_mean = ts.m.get_mean();
         let threshold = ts.m.get_std() * self.nstd;
         vec![
@@ -140,7 +140,7 @@ impl<T> FeatureEvaluator<T> for Cusum
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let m_mean = ts.m.get_mean();
         let cumsum: Vec<_> =
             ts.m.sample
@@ -171,7 +171,7 @@ impl<T> FeatureEvaluator<T> for Eta
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         vec![
             (1..ts.lenu())
                 .map(|i| (ts.m.sample[i] - ts.m.sample[i - 1]).powi(2))
@@ -199,7 +199,7 @@ impl<T> FeatureEvaluator<T> for EtaE
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let sq_slope_sum = (1..ts.lenu())
             .map(|i| {
                 ((ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]))
@@ -231,7 +231,7 @@ impl<T> FeatureEvaluator<T> for Kurtosis
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         assert!(ts.lenu() > 3, "Kurtosis requires at least 4 points");
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
@@ -266,7 +266,7 @@ impl<T> FeatureEvaluator<T> for LinearTrend
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         if ts.lenu() == 2 {
             return vec![
                 (ts.m.sample[1] - ts.m.sample[0]) / (ts.t.sample[1] - ts.t.sample[0]),
@@ -357,7 +357,7 @@ impl<T> FeatureEvaluator<T> for Periodogram<T>
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let pn = periodogram::Periodogram::from_time_series(ts, T::ten(), T::one());
         let freq = pn.get_freq();
         let power = pn.get_power();
@@ -435,7 +435,7 @@ impl<T> FeatureEvaluator<T> for MagnitudePercentageRatio
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let q = [
             self.quantile_numerator,
             1.0 - self.quantile_numerator,
@@ -464,7 +464,7 @@ impl<T> FeatureEvaluator<T> for MaximumSlope
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         vec![(1..ts.lenu())
             .map(|i| {
                 T::abs(
@@ -494,7 +494,7 @@ impl<T> FeatureEvaluator<T> for MedianAbsoluteDeviation
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let m_median = ts.m.get_median();
         let deviation: Vec<_> = ts.m.sample.iter().map(|&y| T::abs(y - m_median)).collect();
         vec![deviation[..].median()]
@@ -546,7 +546,7 @@ impl<T> FeatureEvaluator<T> for MedianBufferRangePercentage<T>
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let m_median = ts.m.get_median();
         let threshold = self.quantile * m_median;
         vec![
@@ -579,7 +579,7 @@ impl<T> FeatureEvaluator<T> for PercentAmplitude
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let m_min = ts.m.get_min();
         let m_max = ts.m.get_max();
         let m_median = ts.m.get_median();
@@ -629,7 +629,7 @@ impl<T> FeatureEvaluator<T> for PercentDifferenceMagnitudePercentile
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let q = [self.quantile, 1.0 - self.quantile];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
         vec![(ppf[1] - ppf[0]) / ts.m.get_median()]
@@ -653,7 +653,7 @@ impl<T> FeatureEvaluator<T> for Skew
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         assert!(ts.lenu() > 2, "Skew requires at least 3 points");
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
@@ -684,7 +684,7 @@ impl<T> FeatureEvaluator<T> for StandardDeviation
 where
     T: Float,
 {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         vec![ts.m.get_std()]
     }
 
@@ -704,24 +704,24 @@ mod tests {
     use light_curve_common::{all_close, linspace};
 
     macro_rules! feature_test{
-        ($name: ident, $fe: tt, $actual: tt, $y: tt $(,)?) => {
-            feature_test!($name, $fe, $actual, $y, $y);
+        ($name: ident, $fe: tt, $desired: tt, $y: tt $(,)?) => {
+            feature_test!($name, $fe, $desired, $y, $y);
         };
-        ($name: ident, $fe: tt, $actual: tt, $x: tt, $y: tt $(,)?) => {
+        ($name: ident, $fe: tt, $desired: tt, $x: tt, $y: tt $(,)?) => {
             #[test]
             fn $name() {
                 let fe = FeatureExtractor{
                     features: vec!$fe,
                 };
-                let actual = $actual;
+                let desired = $desired;
                 let x = $x;
                 let y = $y;
-                let mut ts = TimeSeries::new(&x[..], &y[..]);
-                let desired = fe.eval(ts);
-                all_close(&actual[..], &desired[..], 1e-6);
+                let mut ts = TimeSeries::new(&x[..], &y[..], None);
+                let actual = fe.eval(ts);
+                all_close(&desired[..], &actual[..], 1e-6);
 
                 let names = fe.get_names();
-                assert_eq!(desired.len(), names.len(),
+                assert_eq!(actual.len(), names.len(),
                     "Length of values and names should be the same");
             }
         };
@@ -793,10 +793,10 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..]);
-        let actual = [period];
-        let desired = [fe.eval(ts)[0]]; // Test period only
-        all_close(&actual[..], &desired[..], 1e-3);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let desired = [period];
+        let actual = [fe.eval(ts)[0]]; // Test period only
+        all_close(&desired[..], &actual[..], 1e-3);
     }
 
     #[test]
@@ -812,10 +812,10 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..]);
-        let actual = [period];
-        let desired = [fe.eval(ts)[0]]; // Test period only
-        all_close(&actual[..], &desired[..], 1e-3);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let desired = [period];
+        let actual = [fe.eval(ts)[0]]; // Test period only
+        all_close(&desired[..], &actual[..], 1e-3);
     }
 
     #[test]
@@ -831,7 +831,7 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..]);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let features = fe.eval(ts);
         all_close(
             &[features[0], features[1]],
@@ -858,11 +858,11 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..]);
-        let actual = [period2, period1];
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let desired = [period2, period1];
         let features = fe.eval(ts);
-        let desired = [features[0], features[2]]; // Test period only
-        all_close(&actual[..], &desired[..], 1e-2);
+        let actual = [features[0], features[2]]; // Test period only
+        all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3])
     }
 
@@ -885,11 +885,11 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..]);
-        let actual = [period2, period1];
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let desired = [period2, period1];
         let features = fe.eval(ts);
-        let desired = [features[0], features[2]]; // Test period only
-        all_close(&actual[..], &desired[..], 3e-2);
+        let actual = [features[0], features[2]]; // Test period only
+        all_close(&desired[..], &actual[..], 3e-2);
         assert!(features[1] > features[3])
     }
 
