@@ -18,6 +18,8 @@ where
     fn ppf_from_sorted(&self, q: f32) -> T;
     fn ppf_many(&self, q: &[f32]) -> Vec<T>;
     fn ppf_many_from_sorted(&self, q: &[f32]) -> Vec<T>;
+    fn peak_indices(&self) -> Vec<usize>;
+    fn peak_indices_reverse_sorted(&self) -> Vec<usize>;
 }
 
 impl<T> Statistics<T> for [T]
@@ -102,6 +104,28 @@ where
 
     fn ppf_many_from_sorted(&self, q: &[f32]) -> Vec<T> {
         q.iter().map(|&x| self.ppf_from_sorted(x)).collect()
+    }
+
+    fn peak_indices(&self) -> Vec<usize> {
+        self.iter()
+            .enumerate()
+            .fold(
+                (vec![], T::zero(), false),
+                |(mut v, prev_x, prev_is_rising), (i, &x)| {
+                    let is_rising = x > prev_x;
+                    if prev_is_rising && (!is_rising) {
+                        v.push(i - 1)
+                    }
+                    (v, x, is_rising)
+                },
+            )
+            .0
+    }
+
+    fn peak_indices_reverse_sorted(&self) -> Vec<usize> {
+        let mut v = self.peak_indices();
+        v[..].sort_unstable_by(|&b, &a| self[a].partial_cmp(&self[b]).unwrap());
+        v
     }
 }
 

@@ -132,4 +132,14 @@ where
     pub fn lenf(&self) -> T {
         self.lenu().value_as::<T>().unwrap()
     }
+
+    pub fn max_by_m(&self) -> (T, T) {
+        self.t
+            .sample
+            .iter()
+            .cloned()
+            .zip(self.m.sample.iter().cloned())
+            .max_by(|(_t_a, m_a), (_t_b, m_b)| m_a.partial_cmp(m_b).unwrap())
+            .unwrap()
+    }
 }

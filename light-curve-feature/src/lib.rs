@@ -6,6 +6,8 @@ use float_trait::Float;
 mod statistics;
 use statistics::Statistics;
 
+mod periodogram;
+
 pub mod time_series;
 use time_series::TimeSeries;
 
@@ -47,7 +49,7 @@ where
     fn get_names(&self) -> Vec<&str>;
 }
 
-pub type VecFE<T> = Vec<Box<FeatureEvaluator<T>>>;
+pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
 
 #[derive(Default)]
 pub struct Amplitude {}
@@ -343,95 +345,6 @@ where
 }
 
 impl<T> Periodogram<T> {
-    fn tau(t: &[T], omega: T) -> T
-    where
-        T: Float,
-    {
-        let two_omega: T = T::two() * omega;
-
-        let mut sum_sin = T::zero();
-        let mut sum_cos = T::zero();
-        for &x in t {
-            sum_sin += T::sin(two_omega * x);
-            sum_cos += T::cos(two_omega * x)
-        }
-        T::half() / omega * T::atan(sum_sin / sum_cos)
-    }
-
-    fn p_n(ts: &mut TimeSeries<T>, omega: T) -> T
-    where
-        T: Float,
-    {
-        let tau = Self::tau(ts.t.sample, omega);
-        let m_mean = ts.m.get_mean();
-
-        let mut sum_m_sin = T::zero();
-        let mut sum_m_cos = T::zero();
-        let mut sum_sin2 = T::zero();
-        let mut sum_cos2 = T::zero();
-        let it = ts.t.sample.iter().zip(ts.m.sample.iter());
-        for (&x, &y) in it {
-            let sin = T::sin(omega * (x - tau));
-            let cos = T::cos(omega * (x - tau));
-            sum_m_sin += (y - m_mean) * sin;
-            sum_m_cos += (y - m_mean) * cos;
-            sum_sin2 += sin.powi(2);
-            sum_cos2 += cos.powi(2);
-        }
-
-        T::half() * (sum_m_sin.powi(2) / sum_sin2 + sum_m_cos.powi(2) / sum_cos2)
-            / ts.m.get_std().powi(2)
-    }
-
-    fn periodogram(ts: &mut TimeSeries<T>) -> (Vec<T>, Vec<T>)
-    where
-        T: Float,
-    {
-        let delta_omega = T::half() / (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]);
-        let omegas: Vec<_> = (1..=ts.lenu()) // we don't need zero frequency
-            .map(|i| delta_omega * i.value_as::<T>().unwrap())
-            .collect();
-        let powers: Vec<_> = omegas.iter().map(|&omega| Self::p_n(ts, omega)).collect();
-        (omegas, powers)
-    }
-
-    fn max(omegas: &[T], powers: &[T]) -> (T, T)
-    where
-        T: Float,
-    {
-        omegas
-            .iter()
-            .cloned()
-            .zip(powers.iter().cloned())
-            .max_by(|(_omega_a, power_a), (_omega_b, power_b)| {
-                power_a.partial_cmp(power_b).unwrap()
-            })
-            .unwrap()
-    }
-
-    fn peak_indices(powers: &[T]) -> Vec<usize>
-    where
-        T: Float,
-    {
-        let mut idx = powers
-            .iter()
-            .enumerate()
-            .fold(
-                (vec![], T::zero(), -T::one()),
-                |(mut v, prev_x, prev_grad), (i, &x)| {
-                    let grad = x - prev_x;
-                    if prev_grad.is_sign_positive() && grad.is_sign_negative() {
-                        v.push(i - 1)
-                    }
-                    (v, x, grad)
-                },
-            )
-            .0;
-        // Sort indices from max to min power
-        idx[..].sort_unstable_by(|&b, &a| powers[a].partial_cmp(&powers[b]).unwrap());
-        idx
-    }
-
     fn period(omega: T) -> T
     where
         T: Float,
@@ -445,31 +358,30 @@ where
     T: Float,
 {
     fn eval<'a, 'b>(&self, ts: &mut TimeSeries<'a, 'b, T>) -> Vec<T> {
-        let (omegas, powers) = Self::periodogram(ts);
-        let mut periodogram = TimeSeries::new(&omegas[..], &powers[..]);
+        let pn = periodogram::Periodogram::from_time_series(ts, T::ten(), T::one());
+        let freq = pn.get_freq();
+        let power = pn.get_power();
+        let mut pn_as_ts = pn.ts();
         let mut features = match self.peaks {
             1 => {
-                let (omega_max, power_max) = Self::max(&omegas[..], &powers[..]);
+                let (omega_max, power_max) = pn_as_ts.max_by_m();
                 vec![
                     Self::period(omega_max),
-                    periodogram.m.signal_to_noise(power_max),
+                    pn_as_ts.m.signal_to_noise(power_max),
                 ]
             }
-            _ => Self::peak_indices(&powers[..])
+            _ => power
+                .peak_indices_reverse_sorted()
                 .iter()
                 .map(|&i| {
-                    vec![
-                        Self::period(omegas[i]),
-                        periodogram.m.signal_to_noise(powers[i]),
-                    ]
-                    .into_iter()
+                    vec![Self::period(freq[i]), pn_as_ts.m.signal_to_noise(power[i])].into_iter()
                 })
                 .flatten()
                 .chain(vec![T::zero()].into_iter().cycle())
                 .take(2 * self.peaks)
                 .collect(),
         };
-        features.extend(self.features_extractor.eval(periodogram));
+        features.extend(self.features_extractor.eval(pn_as_ts));
         features
     }
 
