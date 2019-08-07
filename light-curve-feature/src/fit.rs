@@ -153,6 +153,7 @@ where
         result.reduced_chi2 /= self.x.len().value_as::<T>().unwrap() - T::two();
         result.slope_sigma2 *= result.reduced_chi2;
         result.intercept_sigma2 *= result.reduced_chi2;
+        result.cov *= result.reduced_chi2;
     }
 }
 
@@ -219,7 +220,7 @@ mod tests {
         let names = ["intercept", "slope"];
         // scipy.optimize.curve_fit(absolute_sigma=False)
         let actual_values = [-1.3303457, 1.63021767];
-        let actual_cov = [0.44109184, -0.03329066, -0.03329066, 0.0078127];
+        let actual_cov = [0.44109184, -0.04231878, -0.04231878, 0.0078127];
         let result = StraightLineFitter::new(&x[..], &y[..]).fit();
         let result_ref = &result;
         let desired_values: Vec<_> = names.iter().map(|&name| result.values[name]).collect();
