@@ -114,7 +114,7 @@ where
     pub(super) err2: Option<DataSample<'c, T>>,
     weight_sum: Option<T>,
     m_weighted_mean: Option<T>,
-    m_chi2: Option<T>,
+    m_reduced_chi2: Option<T>,
 }
 
 macro_rules! time_series_getter {
@@ -149,7 +149,7 @@ where
             }),
             weight_sum: None,
             m_weighted_mean: None,
-            m_chi2: None,
+            m_reduced_chi2: None,
         }
     }
 
@@ -178,12 +178,12 @@ where
         self.m
             .sample
             .iter()
-            .zip(self.err2.as_mut().unwrap().sample.iter())
+            .zip(self.err2.as_ref().unwrap().sample.iter())
     }
 
     time_series_getter!(weight_sum, get_weight_sum, |ts: &mut TimeSeries<T>| {
         ts.err2
-            .as_mut()
+            .as_ref()
             .unwrap()
             .sample
             .iter()
@@ -199,7 +199,9 @@ where
         }
     );
 
-    time_series_getter!(m_chi2, get_m_chi2, |ts: &mut TimeSeries<T>| {
+    time_series_getter!(m_reduced_chi2, get_m_reduced_chi2, |ts: &mut TimeSeries<
+        T,
+    >| {
         let m_weighed_mean = ts.get_m_weighted_mean().unwrap();
         ts.m_err2_iter()
             .map(|(&y, &err2)| (y - m_weighed_mean).powi(2) / err2)
@@ -292,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn time_series_m_chi2() {
+    fn time_series_m_reduced_chi2() {
         let t: Vec<_> = (0..5).map(|i| i as f64).collect();
         let m = [
             12.77883145,
@@ -304,6 +306,6 @@ mod tests {
         let err2 = [7.7973377, 9.45495344, 3.11500361, 7.71464925, 9.30566326];
         let mut ts = TimeSeries::new(&t[..], &m[..], Some(&err2[..]));
         let desired = [1.3752251300760054];
-        all_close(&[ts.get_m_chi2().unwrap()], &desired[..], 1e-6);
+        all_close(&[ts.get_m_reduced_chi2().unwrap()], &desired[..], 1e-6);
     }
 }

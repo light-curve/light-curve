@@ -3,7 +3,7 @@ use num_traits::{float::Float as NumFloat, float::FloatConst};
 use std::cmp::PartialOrd;
 use std::fmt::Display;
 use std::iter::Sum;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, DivAssign, MulAssign};
 
 pub trait Float:
     NumFloat
@@ -14,6 +14,8 @@ pub trait Float:
     + ValueFrom<f32>
     + Clone
     + AddAssign
+    + MulAssign
+    + DivAssign
     + Display
 {
     fn half() -> Self;

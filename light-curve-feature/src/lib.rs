@@ -1,5 +1,8 @@
 use conv::prelude::*;
 
+mod fit;
+use fit::{Fitter, StraightLineFitter, StraightLineNoisyFitter};
+
 mod float_trait;
 use float_trait::Float;
 
@@ -273,30 +276,56 @@ where
                 T::zero(),
             ];
         }
-        let t_mean = ts.t.get_mean();
-        let mut s_xx = T::zero();
-        let mut s_xy = T::zero();
-        let it = ts.t.sample.iter().zip(ts.m.sample.iter());
-        for (&x, &y) in it {
-            let delta_x = x - t_mean;
-            s_xx += delta_x * x;
-            s_xy += delta_x * y;
-        }
-        let slope = s_xy / s_xx;
-        let intercept = ts.m.get_mean() - slope * t_mean;
-        let sigma2 =
-            ts.t.sample
-                .iter()
-                .zip(ts.m.sample.iter())
-                .map(|(&x, &y)| (y - intercept - slope * x).powi(2))
-                .sum::<T>()
-                / (ts.lenf() - T::two());
-        let d_slope = T::sqrt(sigma2 / s_xx);
-        vec![slope, d_slope]
+        let slf = StraightLineFitter::new(ts.t.sample, ts.m.sample);
+        let result = slf.fit();
+        vec![
+            result.values["slope"],
+            T::sqrt(result.cov["slope"]["slope"]),
+        ]
     }
 
     fn get_names(&self) -> Vec<&str> {
         vec!["linear_trend", "linear_trend_sigma"]
+    }
+}
+
+#[derive(Default)]
+pub struct LinearFit {}
+
+impl LinearFit {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for LinearFit
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        if ts.err2.is_none() {
+            vec![T::nan(); 3]
+        } else {
+            let slnf = StraightLineNoisyFitter::new(
+                ts.t.sample,
+                ts.m.sample,
+                ts.err2.as_ref().unwrap().sample,
+            );
+            let result = slnf.fit();
+            vec![
+                result.values["slope"],
+                T::sqrt(result.cov["slope"]["slope"]),
+                result.reduced_chi2,
+            ]
+        }
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec![
+            "linear_fit_slope",
+            "linear_fit_slope_sigma",
+            "linear_fit_reduced_chi2",
+        ]
     }
 }
 
