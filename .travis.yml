@@ -4,7 +4,4 @@ rust:
   - beta
   - nightly
 script:
-  - cargo test --manifest-path light-curve/Cargo.toml
-  - cargo test --manifest-path light-curve-common/Cargo.toml
-  - cargo test --manifest-path light-curve-feature/Cargo.toml
-  - cargo test --manifest-path light-curve-interpol/Cargo.toml
+  - cargo test
