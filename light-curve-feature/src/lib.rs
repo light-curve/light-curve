@@ -736,21 +736,67 @@ where
     }
 }
 
+#[derive(Default)]
+pub struct StetsonK {}
+
+impl StetsonK {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for StetsonK
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let m_weighted_mean = ts.get_m_weighted_mean();
+        let m_reduced_chi2 = ts.get_m_reduced_chi2();
+        match ts.err2.as_ref() {
+            Some(err2) => {
+                let mean = m_weighted_mean.unwrap();
+                let chi2 = (ts.lenf() - T::one()) * m_reduced_chi2.unwrap();
+                vec![
+                    ts.m.sample
+                        .iter()
+                        .zip(err2.sample.iter())
+                        .map(|(&y, &err2)| T::abs(y - mean) / T::sqrt(err2))
+                        .sum::<T>()
+                        / T::sqrt(ts.lenf() * chi2),
+                ]
+            }
+            None => vec![T::nan()],
+        }
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["stetson_K"]
+    }
+}
+
 // To implement
 // struct CAR {}
 
 #[cfg(test)]
 mod tests {
+    use std::f64;
+
     use rand::prelude::*;
 
     use super::*;
     use light_curve_common::{all_close, linspace};
 
     macro_rules! feature_test{
-        ($name: ident, $fe: tt, $desired: tt, $y: tt $(,)?) => {
+        ($name: ident, $fe: tt, $desired: expr, $y: expr $(,)?) => {
             feature_test!($name, $fe, $desired, $y, $y);
         };
-        ($name: ident, $fe: tt, $desired: tt, $x: tt, $y: tt $(,)?) => {
+        ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr $(,)?) => {
+            feature_test!($name, $fe, $desired, $x, $y, None);
+        };
+        ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr, $err2: expr $(,)?) => {
+            feature_test!($name, $fe, $desired, $x, $y, $err2, 1e-6);
+        };
+        ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr, $err2: expr, $tol: expr $(,)?) => {
             #[test]
             fn $name() {
                 let fe = FeatureExtractor{
@@ -759,9 +805,9 @@ mod tests {
                 let desired = $desired;
                 let x = $x;
                 let y = $y;
-                let mut ts = TimeSeries::new(&x[..], &y[..], None);
+                let mut ts = TimeSeries::new(&x[..], &y[..], $err2);
                 let actual = fe.eval(ts);
-                all_close(&desired[..], &actual[..], 1e-6);
+                all_close(&desired[..], &actual[..], $tol);
 
                 let names = fe.get_names();
                 assert_eq!(actual.len(), names.len(),
@@ -1018,5 +1064,63 @@ mod tests {
         [Box::new(StandardDeviation::new())],
         [1.5811388300841898],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
+    );
+
+    feature_test!(
+        stetson_k_square_wave,
+        [Box::new(StetsonK::new())],
+        [1.0],
+        [1.0; 1000], // isn't used
+        (0..1000)
+            .map(|i| {
+                if i < 500 {
+                    1.0
+                } else {
+                    -1.0
+                }
+            })
+            .collect::<Vec<_>>(),
+        Some(&[1.0; 1000]),
+    );
+
+    // Slow convergence, use high tol
+    feature_test!(
+        stetson_k_sinus,
+        [Box::new(StetsonK::new())],
+        [8_f64.sqrt() / f64::consts::PI],
+        [1.0; 1000], // isn't used
+        linspace(0.0, 2.0 * f64::consts::PI, 1000)
+            .iter()
+            .map(|&x| f64::sin(x))
+            .collect::<Vec<_>>(),
+        Some(&[1.0; 1000]),
+        1e-3,
+    );
+
+    feature_test!(
+        stetson_k_sawtooth,
+        [Box::new(StetsonK::new())],
+        [12_f64.sqrt() / 4.0],
+        [1.0; 1000], // isn't used
+        linspace(0.0, 1.0, 1000),
+        Some(&[1.0; 1000]),
+    );
+
+    // It seems that Stetson (1996) formula for this case is wrong by the factor of 2 * sqrt((N-1) / N)
+    feature_test!(
+        stetson_k_single_peak,
+        [Box::new(StetsonK::new())],
+        [2.0 * 99.0_f64.sqrt() / 100.0],
+        [1.0; 100], // isn't used
+        (0..100)
+            .map(|i| {
+                if i == 0 {
+                    1.0
+                } else {
+                    -1.0
+                }
+            })
+            .collect::<Vec<_>>(),
+        Some(&[1.0; 100]),
     );
 }
