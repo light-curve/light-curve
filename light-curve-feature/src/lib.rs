@@ -775,6 +775,7 @@ where
 }
 
 // To implement
+// doi.org/10.1111/j.1365-2966.2012.22061.x
 // struct CAR {}
 
 #[cfg(test)]
