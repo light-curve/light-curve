@@ -805,7 +805,7 @@ mod tests {
                 let desired = $desired;
                 let x = $x;
                 let y = $y;
-                let mut ts = TimeSeries::new(&x[..], &y[..], $err2);
+                let ts = TimeSeries::new(&x[..], &y[..], $err2);
                 let actual = fe.eval(ts);
                 all_close(&desired[..], &actual[..], $tol);
 
@@ -882,7 +882,7 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
         let actual = [fe.eval(ts)[0]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-3);
@@ -901,7 +901,7 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
         let actual = [fe.eval(ts)[0]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-3);
@@ -920,7 +920,7 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let ts = TimeSeries::new(&x[..], &y[..], None);
         let features = fe.eval(ts);
         all_close(
             &[features[0], features[1]],
@@ -947,7 +947,7 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period2, period1];
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only
@@ -974,7 +974,7 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period2, period1];
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only

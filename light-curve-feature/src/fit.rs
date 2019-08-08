@@ -211,7 +211,6 @@ mod tests {
         let x = [0.5, 1.5, 2.5, 5.0, 7.0, 16.0];
         let y = [-1.0, 3.0, 2.0, 6.0, 10.0, 25.0];
         let err = [0.5, 1.0, 0.3, 0.1, 0.9, 2.5];
-        let names = ["intercept", "slope"];
         // scipy.optimize.curve_fit(absolute_sigma=True)
         let actual_values = [-1.77189545, 1.60504579];
         let actual_cov = [0.20954795, -0.03651815, 0.00868733];
