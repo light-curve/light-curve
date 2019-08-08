@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "light-curve",
+    "light-curve-common",
+    "light-curve-feature",
+    "light-curve-interpol",
+]
