@@ -6,7 +6,7 @@ use fit::fit_straight_line;
 mod float_trait;
 use float_trait::Float;
 
-mod statistics;
+pub mod statistics;
 use statistics::Statistics;
 
 mod periodogram;
