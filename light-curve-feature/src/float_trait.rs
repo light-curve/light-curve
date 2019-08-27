@@ -13,6 +13,9 @@ pub trait Float:
     + ValueFrom<usize>
     + ValueFrom<f32>
     + Clone
+    + Copy
+    + Send
+    + Sync
     + AddAssign
     + MulAssign
     + DivAssign

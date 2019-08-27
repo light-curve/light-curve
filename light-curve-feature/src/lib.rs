@@ -44,10 +44,7 @@ where
     }
 }
 
-pub trait FeatureEvaluator<T>
-where
-    T: Float,
-{
+pub trait FeatureEvaluator<T: Float>: Send + Sync {
     fn eval<'a, 'b>(&self, ts: &mut TimeSeries<T>) -> Vec<T>;
     fn get_names(&self) -> Vec<&str>;
 }
