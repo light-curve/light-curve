@@ -1,5 +1,5 @@
 use crate::float_trait::Float;
-use crate::time_series::TimeSeries;
+use crate::time_series::{DataSample, TimeSeries};
 use conv::ConvUtil;
 
 pub struct Periodogram<T> {
@@ -50,18 +50,8 @@ where
             / ts.m.get_std().powi(2)
     }
 
-    pub fn from_time_series(
-        ts: &mut TimeSeries<T>,
-        resolution_factor: T,
-        nyquist_factor: T,
-    ) -> Self {
-        let observation_time = ts.t.get_max() - ts.t.get_min();
-        let min_freq = T::PI() / (resolution_factor * observation_time);
-        let max_freq = nyquist_factor * T::PI() * ts.lenf() / observation_time;
-        let freq: Vec<_> = (1..) // we don't need zero frequency
-            .map(|i| min_freq * i.value_as::<T>().unwrap())
-            .take_while(|omega| *omega < max_freq + min_freq)
-            .collect();
+    pub fn from_time_series(ts: &mut TimeSeries<T>, freq: &PeriodogramFreq<T>) -> Self {
+        let freq = freq.get(&mut ts.t);
         let power: Vec<_> = freq.iter().map(|&omega| Self::p_n(ts, omega)).collect();
         Self::new(freq, power)
     }
@@ -76,5 +66,53 @@ where
 
     pub fn get_power(&self) -> &[T] {
         &self.power[..]
+    }
+}
+
+pub struct PeriodogramFreqFactors<T> {
+    resolution: T,
+    nyquist: T,
+}
+
+impl<T: Float> PeriodogramFreqFactors<T> {
+    pub fn new(resolution: T, nyquist: T) -> Self {
+        assert!(resolution > T::zero());
+        assert!(nyquist > T::zero());
+        Self {
+            resolution,
+            nyquist,
+        }
+    }
+}
+
+impl<T: Float> Default for PeriodogramFreqFactors<T> {
+    fn default() -> Self {
+        Self {
+            resolution: T::ten(),
+            nyquist: T::one(),
+        }
+    }
+}
+
+pub enum PeriodogramFreq<T> {
+    Vector(Vec<T>),
+    Factors(PeriodogramFreqFactors<T>),
+}
+
+impl<T: Float> PeriodogramFreq<T> {
+    fn get(&self, t: &mut DataSample<T>) -> Vec<T> {
+        match self {
+            PeriodogramFreq::Vector(v) => v.clone(),
+            PeriodogramFreq::Factors(f) => {
+                let observation_time = t.get_max() - t.get_min();
+                let min_freq = T::PI() / (f.resolution * observation_time);
+                let max_freq = f.nyquist * T::PI() * t.sample.len().value_as::<T>().unwrap()
+                    / observation_time;
+                (1..) // we don't need zero frequency
+                    .map(|i| min_freq * i.value_as::<T>().unwrap())
+                    .take_while(|omega| *omega < max_freq + min_freq)
+                    .collect()
+            }
+        }
     }
 }

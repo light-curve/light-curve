@@ -10,6 +10,7 @@ pub mod statistics;
 use statistics::Statistics;
 
 mod periodogram;
+use periodogram::{PeriodogramFreq, PeriodogramFreqFactors};
 
 pub mod time_series;
 use time_series::TimeSeries;
@@ -321,6 +322,7 @@ where
 
 pub struct Periodogram<T> {
     peaks: usize,
+    freq: PeriodogramFreq<T>,
     features_extractor: FeatureExtractor<T>,
     peak_names: Vec<String>,
     features_names: Vec<String>,
@@ -334,12 +336,23 @@ where
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
             peaks,
+            freq: PeriodogramFreq::Factors(PeriodogramFreqFactors::default()),
             features_extractor: FeatureExtractor::new(vec![]),
             peak_names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
                 .collect(),
             features_names: vec![],
         }
+    }
+
+    pub fn set_freq_vec(&mut self, freq: Vec<T>) -> &mut Self {
+        self.freq = PeriodogramFreq::Vector(freq);
+        self
+    }
+
+    pub fn set_freq_factors(&mut self, resolution: T, nyquist: T) -> &mut Self {
+        self.freq = PeriodogramFreq::Factors(PeriodogramFreqFactors::new(resolution, nyquist));
+        self
     }
 
     pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
@@ -377,7 +390,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let pn = periodogram::Periodogram::from_time_series(ts, T::ten(), T::one());
+        let pn = periodogram::Periodogram::from_time_series(ts, &self.freq);
         let freq = pn.get_freq();
         let power = pn.get_power();
         let mut pn_as_ts = pn.ts();
