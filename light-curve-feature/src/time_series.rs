@@ -3,6 +3,7 @@ use conv::prelude::*;
 use crate::float_trait::Float;
 use crate::statistics::Statistics;
 
+#[derive(Clone)]
 pub struct DataSample<'a, T>
 where
     T: Float,
@@ -105,6 +106,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct TimeSeries<'a, 'b, 'c, T>
 where
     T: Float,
