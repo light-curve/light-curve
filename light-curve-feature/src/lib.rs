@@ -205,6 +205,7 @@ where
                 ((ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]))
                     .powi(2)
             })
+            .filter(|&x| x.is_finite())
             .sum::<T>();
         vec![
             (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum
