@@ -16,11 +16,13 @@ pub mod time_series;
 use time_series::TimeSeries;
 
 #[macro_export]
-macro_rules! vec_feat{
-    [ $( $x: expr ),* $(,)?] => {
-        vec![$(
-            Box::new($x),
-        )*]
+macro_rules! feat_extr{
+    ( $( $x: expr ),* $(,)? ) => {
+        FeatureExtractor::new(
+            vec![$(
+                Box::new($x),
+            )*]
+        )
     }
 }
 
