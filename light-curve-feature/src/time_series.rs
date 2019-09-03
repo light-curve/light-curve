@@ -111,9 +111,9 @@ pub struct TimeSeries<'a, 'b, 'c, T>
 where
     T: Float,
 {
-    pub(super) t: DataSample<'a, T>,
-    pub(super) m: DataSample<'b, T>,
-    pub(super) err2: Option<DataSample<'c, T>>,
+    pub t: DataSample<'a, T>,
+    pub m: DataSample<'b, T>,
+    pub err2: Option<DataSample<'c, T>>,
     weight_sum: Option<T>,
     m_weighted_mean: Option<T>,
     m_reduced_chi2: Option<T>,

@@ -1,3 +1,23 @@
+//! # Light curve feature
+//!
+//! `light-curve-feature` is a part of [`light-curve`](https://docs.rs/light-curve) family that
+//! implements extraction of numerous light curve features used in astrophysics.
+//!
+//! ```
+//! use light_curve_feature::*;
+//!
+//! // Let's find amplitude and reduced Chi-squared of the light curve
+//! let fe = feat_extr!(Amplitude::default(), ReducedChi2::default());
+//! // Define light curve
+//! let time = [0.0, 1.0, 2.0, 3.0, 4.0];
+//! let magn = [-1.0, 2.0, 1.0, 3.0, 4.5];
+//! let magn_err_squared = [0.2, 0.1, 0.5, 0.1, 0.2];
+//! let ts = TimeSeries::new(&time[..], &magn[..], Some(&magn_err_squared[..]));
+//! // Get results and print
+//! let result = fe.eval(ts);
+//! let names = fe.get_names();
+//! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
+//! ```
 use conv::prelude::*;
 
 mod fit;
@@ -13,8 +33,14 @@ mod periodogram;
 use periodogram::{PeriodogramFreq, PeriodogramFreqFactors};
 
 pub mod time_series;
-use time_series::TimeSeries;
+pub use time_series::TimeSeries;
 
+/// Constructs a `FeatureExtractor` object from a list of objects that implement `FeatureEvaluator`
+/// ```
+/// use light_curve_feature::*;
+///
+/// let fe = feat_extr!(BeyondNStd::new(1.0), Cusum::default());
+/// ```
 #[macro_export]
 macro_rules! feat_extr{
     ( $( $x: expr ),* $(,)? ) => {
@@ -26,6 +52,9 @@ macro_rules! feat_extr{
     }
 }
 
+/// The engine that extract features one by one
+///
+/// Generic parameter `T` should be a float type
 pub struct FeatureExtractor<T> {
     features: VecFE<T>,
 }
@@ -38,22 +67,49 @@ where
         Self { features }
     }
 
-    pub fn eval<'a, 'b>(&self, mut ts: TimeSeries<T>) -> Vec<T> {
+    /// Get a vector of computed features.
+    /// The length of the returned vector is guaranteed to be the same as returned by `get_names()`
+    pub fn eval(&self, mut ts: TimeSeries<T>) -> Vec<T> {
         self.features.iter().flat_map(|x| x.eval(&mut ts)).collect()
     }
 
+    /// Get a vector of feature names.
+    /// The length of the returned vector is guaranteed to be the same as returned by `eval()`
     pub fn get_names(&self) -> Vec<&str> {
         self.features.iter().flat_map(|x| x.get_names()).collect()
     }
 }
 
+/// The trait each feature should implement
 pub trait FeatureEvaluator<T: Float>: Send + Sync {
-    fn eval<'a, 'b>(&self, ts: &mut TimeSeries<T>) -> Vec<T>;
+    /// Should return the non-empty vector of feature values. The length and feature order should
+    /// correspond to `get_names()` output
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T>;
+    /// Should return the non-empty vector of feature names. The length and feature order should
+    /// correspond to `eval()` output
     fn get_names(&self) -> Vec<&str>;
 }
 
 pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
 
+/// Half amplitude of magnitude
+///
+/// $$
+/// \mathrm{amplitude} \equiv \frac{\left( \max{(m)} - \min{(m)} \right)}{2}
+/// $$
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+/// ```
+/// use light_curve_feature::*;
+///
+/// let fe = feat_extr!(Amplitude::default());
+/// let time = [0.0, 1.0];  // Doesn't depend on time
+/// let magn = [0.0, 2.0];
+/// let ts = TimeSeries::new(&time[..], &magn[..], None);
+/// assert_eq!(vec![1.0], fe.eval(ts));
+/// ```
 #[derive(Default)]
 pub struct Amplitude {}
 
@@ -75,6 +131,35 @@ where
     }
 }
 
+/// Fraction of observations beyond $n\\,\sigma\_m$ from the mean magnitude $\langle m \rangle$
+///
+/// $$
+/// \mathrm{beyond}~n\\,\sigma\_m \equiv \frac{\sum\_i I\_{|m - \langle m \rangle| > n\\,\sigma\_m}(m_i)}{N},
+/// $$
+/// where $I$ is the [indicator function](https://en.wikipedia.org/wiki/Indicator_function),
+/// $N$ is the number of observations,
+/// $\langle m \rangle$ is the mean magnitude
+/// and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+/// ```
+/// use light_curve_feature::*;
+/// use light_curve_common::all_close;
+/// use std::f64::consts::SQRT_2;
+///
+/// let fe = feat_extr!(BeyondNStd::default(), BeyondNStd::new(2.0));
+/// let time = [0.0; 21];  // Doesn't depend on time
+/// let mut magn = vec![0.0; 17];
+/// magn.extend_from_slice(&[SQRT_2, -SQRT_2, 2.0 * SQRT_2, -2.0 * SQRT_2]);
+/// let mut ts = TimeSeries::new(&time[..], &magn[..], None);
+/// assert_eq!(0.0, ts.m.get_mean());
+/// assert!((1.0 - ts.m.get_std()).abs() < 1e-15);
+/// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(ts));
+/// ```
 pub struct BeyondNStd<T> {
     nstd: T,
     name: String,
@@ -130,6 +215,24 @@ where
     }
 }
 
+/// Cusum — a range of cumulative sums
+///
+/// $$
+/// \mathrm{cusum} \equiv \max(S) - \min(S),
+/// $$
+/// where
+/// $$
+/// S_j \equiv \frac1{N\\,\sigma_m} \sum_{i=0}^j{\left(m\_i - \langle m \rangle\right)},
+/// $$
+/// $N$ is the number of observations,
+/// $\langle m \rangle$ is the mean magnitude
+/// and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
 #[derive(Default)]
 pub struct Cusum {}
 
@@ -161,6 +264,19 @@ where
     }
 }
 
+/// Von Neummann $\eta$
+///
+/// $$
+/// \eta \equiv \frac1{(N - 1)\\,\sigma_m^2} \sum_{i=0}^{N-2}(m_{i+1} - m_i)^2,
+/// $$
+/// where $N$ is the number of observations,
+/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
 #[derive(Default)]
 pub struct Eta {}
 
@@ -189,6 +305,21 @@ where
     }
 }
 
+/// $\eta^e$ — modernisation of [Eta](./struct.Eta.html) for unevenly time series
+///
+/// $$
+/// \eta^e \equiv (t_{N-1} - t_0)^2 \frac{\sum_{i=0}^{N-2} \left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)^2}{(N - 1)\\,\sigma_m^2}
+/// $$
+/// where $N$ is the number of observations,
+/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+/// Note that this definition is a bit different from both \[Kim et al. 2014] and
+/// [feets](https://feets.readthedocs.io/en/latest/)
+///
+/// - Depends on: **time**, **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
 #[derive(Default)]
 pub struct EtaE {}
 
@@ -222,6 +353,21 @@ where
     }
 }
 
+/// Kurtosis of magnitude $G_2$
+///
+/// $$
+/// G_2 \equiv \frac{N\\,(N + 1)}{(N - 1)(N - 2)(N - 3)} \frac{\sum_i(m_i - \langle m \rangle)^4}{\sigma_m^2}
+/// \- 3\frac{(N + 1)^2}{(N - 2)(N - 3)},
+/// $$
+/// where $N$ is the number of observations,
+/// $\langle m \rangle$ is the mean magnitude,
+/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **4**
+/// - Number of features: **1**
+///
+/// [Wikipedia](https://en.wikipedia.org/wiki/Kurtosis#Estimators_of_population_kurtosis)
 #[derive(Default)]
 pub struct Kurtosis {}
 
@@ -257,6 +403,21 @@ where
     }
 }
 
+/// The slope and noise of the light curve without observation errors in the linear fit
+///
+/// Least squares fit of the linear stochastic model with constant gaussian noise $\Sigma$ assuming
+/// observation errors to be zero:
+/// $$
+/// m_i = c + \mathrm{slope}\\,t_i + \Sigma \varepsilon_i
+/// $$
+/// where $c$ is a constant,
+/// $\\{\varepsilon_i\\}$ are standard distributed random values.
+/// $\mathrm{slope}$ and $\Sigma$ are returned, if $N = 2$ than no least squares fit is done, a
+/// slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $\Sigma = 0$ is returned.
+///
+/// - Depends on: **time**, **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **2**
 #[derive(Default)]
 pub struct LinearTrend {}
 
@@ -286,6 +447,19 @@ where
     }
 }
 
+/// The slope, its error and reduced $\chi^2$ of the light curve in the linear fit
+///
+/// Least squares fit of the linear stochastic model with gaussian noise described by observation
+/// errors $\\{\delta_i\\}$:
+/// $$
+/// m_i = c + \mathrm{slope}\\,t_i + \delta_i \varepsilon_i
+/// $$
+/// where $c$ is a constant,
+/// $\\{\varepsilon_i\\}$ are standard distributed random values.
+///
+/// - Depends on: **time**, **magnitude**, **magnitude error**
+/// - Minimum number of observations: **2**
+/// - Number of features: **3**
 #[derive(Default)]
 pub struct LinearFit {}
 
@@ -322,6 +496,341 @@ where
     }
 }
 
+/// Magnitude percentage ratio
+///
+/// $$
+/// \mathrm{magnitude~}q\mathrm{~to~}n\mathrm{~ratio} \equiv \frac{Q(1-n) - Q(n)}{Q(1-d) - Q(d)},
+/// $$
+/// where $n$ and $d$ denotes user defined percentage, $Q$ is the quantile function of magnitude
+/// distribution.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+pub struct MagnitudePercentageRatio {
+    quantile_numerator: f32,
+    quantile_denominator: f32,
+    name: String,
+}
+
+impl MagnitudePercentageRatio {
+    pub fn new(quantile_numerator: f32, quantile_denominator: f32) -> Self {
+        assert!(
+            (quantile_numerator > 0.0)
+                && (quantile_numerator < 0.5)
+                && (quantile_denominator > 0.0)
+                && (quantile_denominator < 0.5),
+            "quantiles should be between zero and half"
+        );
+        Self {
+            quantile_numerator,
+            quantile_denominator,
+            name: format!(
+                "magnitude_percentage_ratio_{:.0}_{:.0}",
+                100.0 * quantile_numerator,
+                100.0 * quantile_denominator
+            ),
+        }
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+}
+
+impl Default for MagnitudePercentageRatio {
+    fn default() -> Self {
+        Self::new(0.4, 0.05)
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MagnitudePercentageRatio
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let q = [
+            self.quantile_numerator,
+            1.0 - self.quantile_numerator,
+            self.quantile_denominator,
+            1.0 - self.quantile_denominator,
+        ];
+        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
+        vec![(ppf[1] - ppf[0]) / (ppf[3] - ppf[2])]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+}
+
+/// Maximum slope between two neighbour observations
+///
+/// $$
+/// \mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)
+/// $$
+///
+/// - Depends on: **time**, **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Default)]
+pub struct MaximumSlope {}
+
+impl MaximumSlope {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MaximumSlope
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        vec![(1..ts.lenu())
+            .map(|i| {
+                T::abs(
+                    (ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]),
+                )
+            })
+            .filter(|&x| x.is_finite())
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .expect("All points of the light curve have the same time")]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["maximum_slope"]
+    }
+}
+
+/// Median of the absolute value of the difference between magnitude and its median
+///
+/// $$
+/// \mathrm{median~absolute~deviation} \equiv \mathrm{Median}\left(|m_i - \mathrm{Median}(m)|\right).
+/// $$
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Default)]
+pub struct MedianAbsoluteDeviation {}
+
+impl MedianAbsoluteDeviation {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MedianAbsoluteDeviation
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let m_median = ts.m.get_median();
+        let deviation: Vec<_> = ts.m.sample.iter().map(|&y| T::abs(y - m_median)).collect();
+        vec![deviation[..].median()]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["median_absolute_deviation"]
+    }
+}
+
+/// Fraction of observations inside $\mathrm{Median}(m) \pm q \times \mathrm{Median}(m)$ interval
+///
+/// $$
+/// \mathrm{median~buffer~range}~q~\mathrm{percentage} \equiv \frac{\sum\_i I\_{|m - \mathrm{Median}(m)| < q\\,\mathrm{Median}(m)}(m_i)}{N},
+/// $$
+/// where $I$ is the [indicator function](https://en.wikipedia.org/wiki/Indicator_function),
+/// and $N$ is the number of observations.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+pub struct MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    quantile: T,
+    name: String,
+}
+
+impl<T> MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    pub fn new(quantile: T) -> Self {
+        assert!(quantile > T::zero(), "Quanitle should be positive");
+        Self {
+            quantile,
+            name: format!(
+                "median_buffer_range_percentage_{:.0}",
+                T::hundred() * quantile
+            ),
+        }
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+}
+
+impl<T> Default for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    fn default() -> Self {
+        Self::new(0.1_f32.value_as::<T>().unwrap())
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let m_median = ts.m.get_median();
+        let threshold = self.quantile * m_median;
+        vec![
+            ts.m.sample
+                .iter()
+                .cloned()
+                .filter(|&y| T::abs(y - m_median) < threshold)
+                .count()
+                .value_as::<T>()
+                .unwrap()
+                / ts.lenf(),
+        ]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+}
+
+/// Maximum deviation of magnitude from its median
+///
+/// $$
+/// \mathrm{percent~amplitude} \equiv \max_i\left(m_i - \mathrm{Median}(m)\right)
+///     = \max\\{\max(m) - \mathrm{Median}(m), \mathrm{Median}(m) - \min(m)\\}.
+/// $$
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Default)]
+pub struct PercentAmplitude {}
+
+impl PercentAmplitude {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for PercentAmplitude
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let m_min = ts.m.get_min();
+        let m_max = ts.m.get_max();
+        let m_median = ts.m.get_median();
+        vec![*[m_max - m_median, m_median - m_min]
+            .iter()
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap()]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["percent_amplitude"]
+    }
+}
+
+/// Ratio of $p$ percentile interval to the median
+///
+/// $$
+/// p\mathrm{~percent~difference~magnitude~percentile} \equiv \frac{Q(1-p) - Q(p)}{\mathrm{Median}(m)}.
+/// $$
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+pub struct PercentDifferenceMagnitudePercentile {
+    quantile: f32,
+    name: String,
+}
+
+impl PercentDifferenceMagnitudePercentile {
+    pub fn new(quantile: f32) -> Self {
+        assert!(
+            (quantile > 0.0) && (quantile < 0.5),
+            "quantiles should be between zero and half"
+        );
+        Self {
+            quantile,
+            name: format!(
+                "percent_difference_magnitude_percentile_{:.0}",
+                100.0 * quantile
+            ),
+        }
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+}
+
+impl Default for PercentDifferenceMagnitudePercentile {
+    fn default() -> Self {
+        Self::new(0.05)
+    }
+}
+
+impl<T> FeatureEvaluator<T> for PercentDifferenceMagnitudePercentile
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let q = [self.quantile, 1.0 - self.quantile];
+        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
+        vec![(ppf[1] - ppf[0]) / ts.m.get_median()]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+}
+
+// See http://doi.org/10.1088/0004-637X/733/1/10
+/// A number of features based on Lomb–Scargle periodogram
+///
+/// Periodogram $P(\omega)$ is an estimate of spectral density of unevenly time series.
+/// `Periodogram::new`'s `peaks` argument corresponds to a number of the most significant spectral
+/// density peaks to return. For each peak its period and "signal to noise" ratio is returned.
+///
+/// $$
+/// \mathrm{signal~to~noise~of~peak} \equiv \frac{P(\omega_\mathrm{peak}) - \langle P(\omega) \rangle}{\sigma\_{P(\omega)}}.
+/// $$
+///
+/// `Periodogram` can accept another `dyn FeatureEvaluator` for feature extraction from periodogram
+/// as it was time series without observation errors. You can even pass one `Periodogram` to another
+/// if you are crazy enough
+///
+/// - Depends on: **time**, **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 pub struct Periodogram<T> {
     peaks: usize,
     freq: PeriodogramFreq<T>,
@@ -428,252 +937,19 @@ where
     }
 }
 
-pub struct MagnitudePercentageRatio {
-    quantile_numerator: f32,
-    quantile_denominator: f32,
-    name: String,
-}
-
-impl MagnitudePercentageRatio {
-    pub fn new(quantile_numerator: f32, quantile_denominator: f32) -> Self {
-        assert!(
-            (quantile_numerator > 0.0)
-                && (quantile_numerator < 0.5)
-                && (quantile_denominator > 0.0)
-                && (quantile_denominator < 0.5),
-            "quantiles should be between zero and half"
-        );
-        Self {
-            quantile_numerator,
-            quantile_denominator,
-            name: format!(
-                "magnitude_percentage_ratio_{:.0}_{:.0}",
-                100.0 * quantile_numerator,
-                100.0 * quantile_denominator
-            ),
-        }
-    }
-
-    pub fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-}
-
-impl Default for MagnitudePercentageRatio {
-    fn default() -> Self {
-        Self::new(0.4, 0.05)
-    }
-}
-
-impl<T> FeatureEvaluator<T> for MagnitudePercentageRatio
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let q = [
-            self.quantile_numerator,
-            1.0 - self.quantile_numerator,
-            self.quantile_denominator,
-            1.0 - self.quantile_denominator,
-        ];
-        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        vec![(ppf[1] - ppf[0]) / (ppf[3] - ppf[2])]
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-}
-
-#[derive(Default)]
-pub struct MaximumSlope {}
-
-impl MaximumSlope {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl<T> FeatureEvaluator<T> for MaximumSlope
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![(1..ts.lenu())
-            .map(|i| {
-                T::abs(
-                    (ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]),
-                )
-            })
-            .filter(|&x| x.is_finite())
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .expect("All points of the light curve have the same time")]
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["maximum_slope"]
-    }
-}
-
-#[derive(Default)]
-pub struct MedianAbsoluteDeviation {}
-
-impl MedianAbsoluteDeviation {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl<T> FeatureEvaluator<T> for MedianAbsoluteDeviation
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let m_median = ts.m.get_median();
-        let deviation: Vec<_> = ts.m.sample.iter().map(|&y| T::abs(y - m_median)).collect();
-        vec![deviation[..].median()]
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["median_absolute_deviation"]
-    }
-}
-
-pub struct MedianBufferRangePercentage<T>
-where
-    T: Float,
-{
-    quantile: T,
-    name: String,
-}
-
-impl<T> MedianBufferRangePercentage<T>
-where
-    T: Float,
-{
-    pub fn new(quantile: T) -> Self {
-        assert!(quantile > T::zero(), "Quanitle should be positive");
-        Self {
-            quantile,
-            name: format!(
-                "median_buffer_range_percentage_{:.0}",
-                T::hundred() * quantile
-            ),
-        }
-    }
-
-    pub fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-}
-
-impl<T> Default for MedianBufferRangePercentage<T>
-where
-    T: Float,
-{
-    fn default() -> Self {
-        Self::new(0.1_f32.value_as::<T>().unwrap())
-    }
-}
-
-impl<T> FeatureEvaluator<T> for MedianBufferRangePercentage<T>
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let m_median = ts.m.get_median();
-        let threshold = self.quantile * m_median;
-        vec![
-            ts.m.sample
-                .iter()
-                .cloned()
-                .filter(|&y| T::abs(y - m_median) < threshold)
-                .count()
-                .value_as::<T>()
-                .unwrap()
-                / ts.lenf(),
-        ]
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-}
-
-#[derive(Default)]
-pub struct PercentAmplitude {}
-
-impl PercentAmplitude {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl<T> FeatureEvaluator<T> for PercentAmplitude
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let m_min = ts.m.get_min();
-        let m_max = ts.m.get_max();
-        let m_median = ts.m.get_median();
-        vec![*[m_max - m_median, m_median - m_min]
-            .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap()]
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["percent_amplitude"]
-    }
-}
-
-pub struct PercentDifferenceMagnitudePercentile {
-    quantile: f32,
-    name: String,
-}
-
-impl PercentDifferenceMagnitudePercentile {
-    pub fn new(quantile: f32) -> Self {
-        assert!(
-            (quantile > 0.0) && (quantile < 0.5),
-            "quantiles should be between zero and half"
-        );
-        Self {
-            quantile,
-            name: format!(
-                "percent_difference_magnitude_percentile_{:.0}",
-                100.0 * quantile
-            ),
-        }
-    }
-
-    pub fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-}
-
-impl Default for PercentDifferenceMagnitudePercentile {
-    fn default() -> Self {
-        Self::new(0.05)
-    }
-}
-
-impl<T> FeatureEvaluator<T> for PercentDifferenceMagnitudePercentile
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let q = [self.quantile, 1.0 - self.quantile];
-        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        vec![(ppf[1] - ppf[0]) / ts.m.get_median()]
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-}
-
+/// Reduced $\chi^2$ of magnitude measurements
+///
+/// $$
+/// \mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2,
+/// $$
+/// where $N$ is the number of observations,
+/// and $\langle m \rangle$ is the mean magnitude.
+///
+/// - Depends on: **magnitude**, **magnitude error**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// [Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
 #[derive(Default)]
 pub struct ReducedChi2 {}
 
@@ -696,6 +972,20 @@ where
     }
 }
 
+/// Skewness of magnitude $G_1$
+///
+/// $$
+/// G_1 \equiv \frac{N}{(N - 1)(N - 2)} \frac{\sum_i(m_i - \langle m \rangle)^3}{\sigma_m^3},
+/// $$
+/// where $N$ is the number of observations,
+/// $\langle m \rangle$ is the mean magnitude,
+/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **3**
+/// - Number of features: **1**
+///
+/// [Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)
 #[derive(Default)]
 pub struct Skew {}
 
@@ -727,6 +1017,20 @@ where
     }
 }
 
+/// Standard deviation of magnitude $\sigma_m$
+///
+/// $$
+/// \sigma_m \equiv \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)},
+/// $$
+///
+/// $N$ is the number of observations
+/// and $\langle m \rangle$ is the mean magnitude.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// [Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
 #[derive(Default)]
 pub struct StandardDeviation {}
 
@@ -749,6 +1053,20 @@ where
     }
 }
 
+/// Stetson $K$ coefficient described light curve shape
+///
+/// $$
+/// \mathrm{Stetson}~K \equiv \frac{\sum_i\left|\frac{m_i - \langle m \rangle}{\delta_i}\right|}{\sqrt{N\\,\chi^2}},
+/// $$
+/// where N is the number of observations,
+/// $\langle m \rangle$ is the mean magnitude
+/// and $\chi^2 = \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2$.
+///
+/// - Depends on: **magnitude**, **magnitude error**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
 #[derive(Default)]
 pub struct StetsonK {}
 
@@ -885,6 +1203,76 @@ mod tests {
         [1.0_f32, 2.0, 3.0, 8.0, 10.0, 19.0],
     );
 
+    feature_test!(
+        magnitude_percentage_ratio,
+        [
+            Box::new(MagnitudePercentageRatio::default()),
+            Box::new(MagnitudePercentageRatio::new(0.4, 0.05)), // should be the same
+            Box::new(MagnitudePercentageRatio::new(0.2, 0.05)),
+            Box::new(MagnitudePercentageRatio::new(0.4, 0.1)),
+        ],
+        [0.12886598, 0.12886598, 0.7628866, 0.13586957],
+        [
+            80.0_f32, 13.0, 20.0, 20.0, 75.0, 25.0, 100.0, 1.0, 2.0, 3.0, 7.0, 30.0, 5.0, 9.0,
+            10.0, 70.0, 80.0, 92.0, 97.0, 17.0
+        ],
+    );
+
+    feature_test!(
+        maximum_slope_positive,
+        [Box::new(MaximumSlope::new())],
+        [1.0],
+        [0.0_f32, 2.0, 4.0, 5.0, 7.0, 9.0],
+        [0.0_f32, 1.0, 2.0, 3.0, 4.0, 5.0],
+    );
+
+    feature_test!(
+        maximum_slope_negative,
+        [Box::new(MaximumSlope::new())],
+        [1.0],
+        [0.0_f32, 1.0, 2.0, 3.0, 4.0, 5.0],
+        [0.0_f32, 0.5, 1.0, 0.0, 0.5, 1.0],
+    );
+
+    feature_test!(
+        median_absolute_deviation,
+        [Box::new(MedianAbsoluteDeviation::new())],
+        [4.0],
+        [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 100.0],
+    );
+
+    feature_test!(
+        median_buffer_range_percentage,
+        [
+            Box::new(MedianBufferRangePercentage::default()),
+            Box::new(MedianBufferRangePercentage::new(0.1)), // should be the same
+            Box::new(MedianBufferRangePercentage::new(0.2)),
+        ],
+        [0.555555555, 0.555555555, 0.777777777],
+        [1.0_f32, 41.0, 49.0, 49.0, 50.0, 51.0, 52.0, 58.0, 100.0],
+    );
+
+    feature_test!(
+        percent_amplitude,
+        [Box::new(PercentAmplitude::new())],
+        [96.0],
+        [1.0_f32, 1.0, 1.0, 2.0, 4.0, 5.0, 5.0, 98.0, 100.0],
+    );
+
+    feature_test!(
+        percent_difference_magnitude_percentile,
+        [
+            Box::new(PercentDifferenceMagnitudePercentile::default()),
+            Box::new(PercentDifferenceMagnitudePercentile::new(0.05)), // should be the same
+            Box::new(PercentDifferenceMagnitudePercentile::new(0.1)),
+        ],
+        [4.85, 4.85, 4.6],
+        [
+            80.0_f32, 13.0, 20.0, 20.0, 75.0, 25.0, 100.0, 1.0, 2.0, 3.0, 7.0, 30.0, 5.0, 9.0,
+            10.0, 70.0, 80.0, 92.0, 97.0, 17.0
+        ],
+    );
+
     #[test]
     fn periodogram_evenly_sinus() {
         let fe = FeatureExtractor {
@@ -995,76 +1383,6 @@ mod tests {
         all_close(&desired[..], &actual[..], 3e-2);
         assert!(features[1] > features[3])
     }
-
-    feature_test!(
-        magnitude_percentage_ratio,
-        [
-            Box::new(MagnitudePercentageRatio::default()),
-            Box::new(MagnitudePercentageRatio::new(0.4, 0.05)), // should be the same
-            Box::new(MagnitudePercentageRatio::new(0.2, 0.05)),
-            Box::new(MagnitudePercentageRatio::new(0.4, 0.1)),
-        ],
-        [0.12886598, 0.12886598, 0.7628866, 0.13586957],
-        [
-            80.0_f32, 13.0, 20.0, 20.0, 75.0, 25.0, 100.0, 1.0, 2.0, 3.0, 7.0, 30.0, 5.0, 9.0,
-            10.0, 70.0, 80.0, 92.0, 97.0, 17.0
-        ],
-    );
-
-    feature_test!(
-        maximum_slope_positive,
-        [Box::new(MaximumSlope::new())],
-        [1.0],
-        [0.0_f32, 2.0, 4.0, 5.0, 7.0, 9.0],
-        [0.0_f32, 1.0, 2.0, 3.0, 4.0, 5.0],
-    );
-
-    feature_test!(
-        maximum_slope_negative,
-        [Box::new(MaximumSlope::new())],
-        [1.0],
-        [0.0_f32, 1.0, 2.0, 3.0, 4.0, 5.0],
-        [0.0_f32, 0.5, 1.0, 0.0, 0.5, 1.0],
-    );
-
-    feature_test!(
-        median_absolute_deviation,
-        [Box::new(MedianAbsoluteDeviation::new())],
-        [4.0],
-        [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 100.0],
-    );
-
-    feature_test!(
-        median_buffer_range_percentage,
-        [
-            Box::new(MedianBufferRangePercentage::default()),
-            Box::new(MedianBufferRangePercentage::new(0.1)), // should be the same
-            Box::new(MedianBufferRangePercentage::new(0.2)),
-        ],
-        [0.555555555, 0.555555555, 0.777777777],
-        [1.0_f32, 41.0, 49.0, 49.0, 50.0, 51.0, 52.0, 58.0, 100.0],
-    );
-
-    feature_test!(
-        percent_amplitude,
-        [Box::new(PercentAmplitude::new())],
-        [96.0],
-        [1.0_f32, 1.0, 1.0, 2.0, 4.0, 5.0, 5.0, 98.0, 100.0],
-    );
-
-    feature_test!(
-        percent_difference_magnitude_percentile,
-        [
-            Box::new(PercentDifferenceMagnitudePercentile::default()),
-            Box::new(PercentDifferenceMagnitudePercentile::new(0.05)), // should be the same
-            Box::new(PercentDifferenceMagnitudePercentile::new(0.1)),
-        ],
-        [4.85, 4.85, 4.6],
-        [
-            80.0_f32, 13.0, 20.0, 20.0, 75.0, 25.0, 100.0, 1.0, 2.0, 3.0, 7.0, 30.0, 5.0, 9.0,
-            10.0, 70.0, 80.0, 92.0, 97.0, 17.0
-        ],
-    );
 
     feature_test!(
         skew,
