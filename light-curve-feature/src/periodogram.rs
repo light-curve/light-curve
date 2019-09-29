@@ -46,8 +46,15 @@ where
             sum_cos2 += cos.powi(2);
         }
 
-        T::half() * (sum_m_sin.powi(2) / sum_sin2 + sum_m_cos.powi(2) / sum_cos2)
-            / ts.m.get_std().powi(2)
+        if (sum_m_sin.is_zero() & sum_sin2.is_zero())
+            | (sum_m_cos.is_zero() & sum_cos2.is_zero())
+            | ts.m.get_std().is_zero()
+        {
+            T::zero()
+        } else {
+            T::half() * (sum_m_sin.powi(2) / sum_sin2 + sum_m_cos.powi(2) / sum_cos2)
+                / ts.m.get_std().powi(2)
+        }
     }
 
     pub fn from_time_series(ts: &mut TimeSeries<T>, freq: &PeriodogramFreq<T>) -> Self {

@@ -256,7 +256,12 @@ where
                     Some(*sum)
                 })
                 .collect();
-        vec![(cumsum[..].maximum() - cumsum[..].minimum()) / (ts.m.get_std() * ts.lenf())]
+        let value = if ts.m.get_std().is_zero() {
+            T::zero()
+        } else {
+            (cumsum[..].maximum() - cumsum[..].minimum()) / (ts.m.get_std() * ts.lenf())
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -291,13 +296,16 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![
+        let value = if ts.m.get_std().is_zero() {
+            T::zero()
+        } else {
             (1..ts.lenu())
                 .map(|i| (ts.m.sample[i] - ts.m.sample[i - 1]).powi(2))
                 .sum::<T>()
                 / (ts.lenf() - T::one())
-                / ts.m.get_std().powi(2),
-        ]
+                / ts.m.get_std().powi(2)
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -341,11 +349,14 @@ where
             })
             .filter(|&x| x.is_finite())
             .sum::<T>();
-        vec![
+        let value = if ts.m.get_std().is_zero() {
+            T::zero()
+        } else {
             (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum
                 / ts.m.get_std().powi(2)
-                / (ts.lenf() - T::one()),
-        ]
+                / (ts.lenf() - T::one())
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -389,13 +400,16 @@ where
         let n_1 = n - T::one();
         let n_2 = n - T::two();
         let n_3 = n - T::three();
-        vec![
+        let value = if ts.m.get_std().is_zero() {
+            T::zero()
+        } else {
             ts.m.sample.iter().map(|&x| (x - m_mean).powi(4)).sum::<T>() / ts.m.get_std().powi(4)
                 * n
                 * n1
                 / (n_1 * n_2 * n_3)
-                - T::three() * n_1.powi(2) / (n_2 * n_3),
-        ]
+                - T::three() * n_1.powi(2) / (n_2 * n_3)
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -905,25 +919,14 @@ where
         let freq = pn.get_freq();
         let power = pn.get_power();
         let mut pn_as_ts = pn.ts();
-        let mut features = match self.peaks {
-            1 => {
-                let (omega_max, power_max) = pn_as_ts.max_by_m();
-                vec![
-                    Self::period(omega_max),
-                    pn_as_ts.m.signal_to_noise(power_max),
-                ]
-            }
-            _ => power
-                .peak_indices_reverse_sorted()
-                .iter()
-                .map(|&i| {
-                    vec![Self::period(freq[i]), pn_as_ts.m.signal_to_noise(power[i])].into_iter()
-                })
-                .flatten()
-                .chain(vec![T::zero()].into_iter().cycle())
-                .take(2 * self.peaks)
-                .collect(),
-        };
+        let mut features: Vec<_> = power
+            .peak_indices_reverse_sorted()
+            .iter()
+            .map(|&i| vec![Self::period(freq[i]), pn_as_ts.m.signal_to_noise(power[i])].into_iter())
+            .flatten()
+            .chain(vec![T::zero()].into_iter().cycle())
+            .take(2 * self.peaks)
+            .collect();
         features.extend(self.features_extractor.eval(pn_as_ts));
         features
     }
@@ -1005,11 +1008,14 @@ where
         let n = ts.lenf();
         let n_1 = n - T::one();
         let n_2 = n_1 - T::one();
-        vec![
+        let value = if ts.m.get_std().is_zero() {
+            T::zero()
+        } else {
             ts.m.sample.iter().map(|&x| (x - m_mean).powi(3)).sum::<T>() / ts.m.get_std().powi(3)
                 * n
-                / (n_1 * n_2),
-        ]
+                / (n_1 * n_2)
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1087,14 +1093,17 @@ where
             Some(err2) => {
                 let mean = m_weighted_mean.unwrap();
                 let chi2 = (ts.lenf() - T::one()) * m_reduced_chi2.unwrap();
-                vec![
+                let value = if chi2.is_zero() {
+                    T::zero()
+                } else {
                     ts.m.sample
                         .iter()
                         .zip(err2.sample.iter())
                         .map(|(&y, &err2)| T::abs(y - mean) / T::sqrt(err2))
                         .sum::<T>()
-                        / T::sqrt(ts.lenf() * chi2),
-                ]
+                        / T::sqrt(ts.lenf() * chi2)
+                };
+                vec![value]
             }
             None => vec![T::nan()],
         }
@@ -2154,6 +2163,19 @@ mod tests {
     );
 
     #[test]
+    fn periodogram_plateau() {
+        let fe = FeatureExtractor {
+            features: vec![Box::new(Periodogram::default())],
+        };
+        let x = linspace(0.0_f32, 1.0, 100);
+        let y = [0.0_f32; 100];
+        let ts = TimeSeries::new(&x[..], &y[..], None);
+        let desired = vec![0.0, 0.0];
+        let actual = fe.eval(ts);
+        assert_eq!(desired, actual);
+    }
+
+    #[test]
     fn periodogram_evenly_sinus() {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::default())],
@@ -2333,6 +2355,15 @@ mod tests {
                 }
             })
             .collect::<Vec<_>>(),
+        Some(&[1.0; 100]),
+    );
+
+    feature_test!(
+        stetson_k_plateau,
+        [Box::new(StetsonK::new())],
+        [0.0],
+        [1.0; 100], // isn't used
+        [1.0; 100],
         Some(&[1.0; 100]),
     );
 }
