@@ -572,7 +572,14 @@ where
             1.0 - self.quantile_denominator,
         ];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        vec![(ppf[1] - ppf[0]) / (ppf[3] - ppf[2])]
+        let numerator = ppf[1] - ppf[0];
+        let denumerator = ppf[3] - ppf[2];
+        let value = if numerator.is_zero() & denumerator.is_zero() {
+            T::zero()
+        } else {
+            numerator / denumerator
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -819,7 +826,14 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let q = [self.quantile, 1.0 - self.quantile];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        vec![(ppf[1] - ppf[0]) / ts.m.get_median()]
+        let nominator = ppf[1] - ppf[0];
+        let denominator = ts.m.get_median();
+        let value = if nominator.is_zero() & denominator.is_zero() {
+            T::zero()
+        } else {
+            (ppf[1] - ppf[0]) / ts.m.get_median()
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -2108,6 +2122,13 @@ mod tests {
     );
 
     feature_test!(
+        magnitude_percentage_ratio_plateau,
+        [Box::new(MagnitudePercentageRatio::default())],
+        [0.0],
+        [0.0; 10],
+    );
+
+    feature_test!(
         maximum_slope_positive,
         [Box::new(MaximumSlope::new())],
         [1.0],
@@ -2142,6 +2163,13 @@ mod tests {
     );
 
     feature_test!(
+        median_buffer_range_percentage_plateau,
+        [Box::new(MedianBufferRangePercentage::default())],
+        [0.0],
+        [0.0; 10],
+    );
+
+    feature_test!(
         percent_amplitude,
         [Box::new(PercentAmplitude::new())],
         [96.0],
@@ -2161,6 +2189,8 @@ mod tests {
             10.0, 70.0, 80.0, 92.0, 97.0, 17.0
         ],
     );
+
+
 
     #[test]
     fn periodogram_plateau() {
