@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-feature"
-version = "0.1.8-beta.0"
+version = "0.1.8-beta.1"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
@@ -10,7 +10,7 @@ edition = "2018"
 [package.metadata.docs.rs]
 rustdoc-args = [
     "--html-in-header",
-    ".cargo/registry/src/github.com-1ecc6299db9ec823/katex-doc-0.1.0/katex.html",
+    "katex-header.html",
 ]
 
 [dependencies]
