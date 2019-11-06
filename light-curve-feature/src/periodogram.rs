@@ -22,10 +22,11 @@ where
         let mut sum_sin = T::zero();
         let mut sum_cos = T::zero();
         for &x in t {
-            sum_sin += T::sin(two_omega * x);
-            sum_cos += T::cos(two_omega * x)
+            let (sin, cos) = T::sin_cos(two_omega * x);
+            sum_sin += sin;
+            sum_cos += cos;
         }
-        T::half() / omega * T::atan(sum_sin / sum_cos)
+        T::half() / omega * T::atan2(sum_sin, sum_cos)
     }
 
     pub fn p_n(ts: &mut TimeSeries<T>, omega: T) -> T {
@@ -38,8 +39,7 @@ where
         let mut sum_cos2 = T::zero();
         let it = ts.t.sample.iter().zip(ts.m.sample.iter());
         for (&x, &y) in it {
-            let sin = T::sin(omega * (x - tau));
-            let cos = T::cos(omega * (x - tau));
+            let (sin, cos) = T::sin_cos(omega * (x - tau));
             sum_m_sin += (y - m_mean) * sin;
             sum_m_cos += (y - m_mean) * cos;
             sum_sin2 += sin.powi(2);
