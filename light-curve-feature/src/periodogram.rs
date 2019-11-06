@@ -28,7 +28,7 @@ where
         T::half() / omega * T::atan(sum_sin / sum_cos)
     }
 
-    fn p_n(ts: &mut TimeSeries<T>, omega: T) -> T {
+    pub fn p_n(ts: &mut TimeSeries<T>, omega: T) -> T {
         let tau = Self::tau(ts.t.sample, omega);
         let m_mean = ts.m.get_mean();
 
@@ -121,5 +121,44 @@ impl<T: Float> PeriodogramFreq<T> {
                     .collect()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use light_curve_common::{all_close, linspace};
+
+    #[test]
+    fn test_sin() {
+        const OMEGA_SIN: f64 = 0.07;
+        const N: usize = 100;
+        let t = linspace(0.0, 99.0, N);
+        let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA_SIN * x)).collect();
+        let mut ts = TimeSeries::new(&t[..], &m[..], None);
+        all_close(
+            &[Periodogram::p_n(&mut ts, OMEGA_SIN) * 2.0 / (N as f64 - 1.0)],
+            &[1.0],
+            1.0 / (N as f64),
+        );
+
+        // import numpy as np
+        // from scipy.signal import lombscargle
+        //
+        // t = np.arange(100)
+        // m = np.sin(0.07 * t)
+        // y = (m - m.mean()) / m.std()
+        // lombscargle(t, y, [0.01, 0.03, 0.1, 0.3, 1.0])
+
+        let omegas = vec![0.01, 0.03, 0.1, 0.3, 1.0];
+        let desired = [
+            1.69901802e+01,
+            2.19604974e+01,
+            1.78799427e+01,
+            1.96816849e-01,
+            1.11222515e-02,
+        ];
+        let actual = Periodogram::from_time_series(&mut ts, &PeriodogramFreq::Vector(omegas)).power;
+        all_close(&actual[..], &desired[..], 1e-6);
     }
 }
