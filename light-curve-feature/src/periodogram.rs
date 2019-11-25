@@ -36,15 +36,14 @@ where
         let mut sum_m_sin = T::zero();
         let mut sum_m_cos = T::zero();
         let mut sum_sin2 = T::zero();
-        let mut sum_cos2 = T::zero();
         let it = ts.t.sample.iter().zip(ts.m.sample.iter());
         for (&x, &y) in it {
             let (sin, cos) = T::sin_cos(omega * (x - tau));
             sum_m_sin += (y - m_mean) * sin;
             sum_m_cos += (y - m_mean) * cos;
             sum_sin2 += sin.powi(2);
-            sum_cos2 += cos.powi(2);
         }
+        let sum_cos2 = ts.lenf() - sum_sin2;
 
         if (sum_m_sin.is_zero() & sum_sin2.is_zero())
             | (sum_m_cos.is_zero() & sum_cos2.is_zero())
