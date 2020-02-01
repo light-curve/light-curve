@@ -1,6 +1,24 @@
 use crate::float_trait::Float;
+use crate::recurrent_sin_cos::RecurrentSinCos;
 use crate::time_series::{DataSample, TimeSeries};
 use conv::ConvUtil;
+
+#[derive(Clone)]
+struct PeriodogramSums<T> {
+    m_sin: T,
+    m_cos: T,
+    sin2: T,
+}
+
+impl<T: Float> Default for PeriodogramSums<T> {
+    fn default() -> Self {
+        Self {
+            m_sin: T::zero(),
+            m_cos: T::zero(),
+            sin2: T::zero(),
+        }
+    }
+}
 
 pub struct Periodogram<T> {
     freq: Vec<T>,
@@ -11,54 +29,66 @@ impl<T> Periodogram<T>
 where
     T: Float,
 {
-    pub fn new(freq: Vec<T>, power: Vec<T>) -> Self {
+    fn new(freq: Vec<T>, power: Vec<T>) -> Self {
         assert_eq!(freq.len(), power.len());
         Self { freq, power }
     }
 
-    fn tau(t: &[T], omega: T) -> T {
-        let two_omega: T = T::two() * omega;
-
-        let mut sum_sin = T::zero();
-        let mut sum_cos = T::zero();
-        for &x in t {
-            let (sin, cos) = T::sin_cos(two_omega * x);
-            sum_sin += sin;
-            sum_cos += cos;
-        }
-        T::half() / omega * T::atan2(sum_sin, sum_cos)
+    fn tau(t: &[T], freq: &[T]) -> Vec<T> {
+        let mut sin_cos: Vec<_> = t
+            .iter()
+            .map(|&x| RecurrentSinCos::new(T::two() * freq[0] * x))
+            .collect();
+        freq.iter()
+            .map(|&omega| {
+                let mut sum_sin = T::zero();
+                let mut sum_cos = T::zero();
+                for s_c in sin_cos.iter_mut() {
+                    let (sin, cos) = s_c.next().unwrap();
+                    sum_sin += sin;
+                    sum_cos += cos;
+                }
+                T::half() / omega * T::atan2(sum_sin, sum_cos)
+            })
+            .collect()
     }
 
-    pub fn p_n(ts: &mut TimeSeries<T>, omega: T) -> T {
-        let tau = Self::tau(ts.t.sample, omega);
+    fn p_n(ts: &mut TimeSeries<T>, freq: &[T]) -> Vec<T> {
+        let tau_ = Self::tau(ts.t.sample, freq);
+
         let m_mean = ts.m.get_mean();
 
-        let mut sum_m_sin = T::zero();
-        let mut sum_m_cos = T::zero();
-        let mut sum_sin2 = T::zero();
-        let it = ts.t.sample.iter().zip(ts.m.sample.iter());
-        for (&x, &y) in it {
-            let (sin, cos) = T::sin_cos(omega * (x - tau));
-            sum_m_sin += (y - m_mean) * sin;
-            sum_m_cos += (y - m_mean) * cos;
-            sum_sin2 += sin.powi(2);
-        }
-        let sum_cos2 = ts.lenf() - sum_sin2;
+        freq.iter()
+            .zip(tau_.iter())
+            .map(|(&omega, &tau)| {
+                let mut sum_m_sin = T::zero();
+                let mut sum_m_cos = T::zero();
+                let mut sum_sin2 = T::zero();
+                let it = ts.t.sample.iter().zip(ts.m.sample.iter());
+                for (&x, &y) in it {
+                    let (sin, cos) = T::sin_cos(omega * (x - tau));
+                    sum_m_sin += (y - m_mean) * sin;
+                    sum_m_cos += (y - m_mean) * cos;
+                    sum_sin2 += sin.powi(2);
+                }
+                let sum_cos2 = ts.lenf() - sum_sin2;
 
-        if (sum_m_sin.is_zero() & sum_sin2.is_zero())
-            | (sum_m_cos.is_zero() & sum_cos2.is_zero())
-            | ts.m.get_std().is_zero()
-        {
-            T::zero()
-        } else {
-            T::half() * (sum_m_sin.powi(2) / sum_sin2 + sum_m_cos.powi(2) / sum_cos2)
-                / ts.m.get_std().powi(2)
-        }
+                if (sum_m_sin.is_zero() & sum_sin2.is_zero())
+                    | (sum_m_cos.is_zero() & sum_cos2.is_zero())
+                    | ts.m.get_std().is_zero()
+                {
+                    T::zero()
+                } else {
+                    T::half() * (sum_m_sin.powi(2) / sum_sin2 + sum_m_cos.powi(2) / sum_cos2)
+                        / ts.m.get_std().powi(2)
+                }
+            })
+            .collect()
     }
 
-    pub fn from_time_series(ts: &mut TimeSeries<T>, freq: &PeriodogramFreq<T>) -> Self {
-        let freq = freq.get(&mut ts.t);
-        let power: Vec<_> = freq.iter().map(|&omega| Self::p_n(ts, omega)).collect();
+    pub fn from_time_series(ts: &mut TimeSeries<T>, freq_factors: &PeriodogramFreqFactors) -> Self {
+        let freq = freq_factors.get(&mut ts.t);
+        let power: Vec<_> = Self::p_n(ts, &freq);
         Self::new(freq, power)
     }
 
@@ -75,50 +105,39 @@ where
     }
 }
 
-pub struct PeriodogramFreqFactors<T> {
-    resolution: T,
-    nyquist: T,
+pub struct PeriodogramFreqFactors {
+    resolution: usize,
+    nyquist: usize,
 }
 
-impl<T: Float> PeriodogramFreqFactors<T> {
-    pub fn new(resolution: T, nyquist: T) -> Self {
-        assert!(resolution > T::zero());
-        assert!(nyquist > T::zero());
+impl PeriodogramFreqFactors {
+    pub fn new(resolution: usize, nyquist: usize) -> Self {
+        assert!(resolution > 0);
+        assert!(nyquist > 0);
         Self {
             resolution,
             nyquist,
         }
     }
-}
 
-impl<T: Float> Default for PeriodogramFreqFactors<T> {
-    fn default() -> Self {
-        Self {
-            resolution: T::ten(),
-            nyquist: T::one(),
-        }
+    fn get<T>(&self, t: &mut DataSample<T>) -> Vec<T>
+    where
+        T: Float,
+    {
+        let obs_time = t.get_max() - t.get_min();
+        let delta_freq = T::two() * T::PI() / (obs_time * self.resolution.value_as::<T>().unwrap());
+        let freq_size = self.resolution * self.nyquist * t.sample.len() / 2;
+        (1..freq_size + 1)
+            .map(|i| delta_freq * i.value_as::<T>().unwrap())
+            .collect()
     }
 }
 
-pub enum PeriodogramFreq<T> {
-    Vector(Vec<T>),
-    Factors(PeriodogramFreqFactors<T>),
-}
-
-impl<T: Float> PeriodogramFreq<T> {
-    fn get(&self, t: &mut DataSample<T>) -> Vec<T> {
-        match self {
-            PeriodogramFreq::Vector(v) => v.clone(),
-            PeriodogramFreq::Factors(f) => {
-                let observation_time = t.get_max() - t.get_min();
-                let min_freq = T::PI() / (f.resolution * observation_time);
-                let max_freq = f.nyquist * T::PI() * t.sample.len().value_as::<T>().unwrap()
-                    / observation_time;
-                (1..) // we don't need zero frequency
-                    .map(|i| min_freq * i.value_as::<T>().unwrap())
-                    .take_while(|omega| *omega < max_freq + min_freq)
-                    .collect()
-            }
+impl Default for PeriodogramFreqFactors {
+    fn default() -> Self {
+        Self {
+            resolution: 10,
+            nyquist: 2,
         }
     }
 }
@@ -136,7 +155,7 @@ mod tests {
         let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA_SIN * x)).collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         all_close(
-            &[Periodogram::p_n(&mut ts, OMEGA_SIN) * 2.0 / (N as f64 - 1.0)],
+            &[Periodogram::p_n(&mut ts, &[OMEGA_SIN])[0] * 2.0 / (N as f64 - 1.0)],
             &[1.0],
             1.0 / (N as f64),
         );
@@ -146,18 +165,19 @@ mod tests {
         //
         // t = np.arange(100)
         // m = np.sin(0.07 * t)
-        // y = (m - m.mean()) / m.std()
-        // lombscargle(t, y, [0.01, 0.03, 0.1, 0.3, 1.0])
+        // y = (m - m.mean()) / m.std(ddof=1)
+        // freq = np.linspace(0.01, 0.05, 5)
+        // print(lombscargle(t, y, freq, precenter=True, normalize=False))
 
-        let omegas = vec![0.01, 0.03, 0.1, 0.3, 1.0];
+        let freq = linspace(0.01, 0.05, 5);
         let desired = [
-            1.69901802e+01,
-            2.19604974e+01,
-            1.78799427e+01,
-            1.96816849e-01,
-            1.11222515e-02,
+            16.99018018,
+            18.57722516,
+            21.96049738,
+            28.15056806,
+            36.66519435,
         ];
-        let actual = Periodogram::from_time_series(&mut ts, &PeriodogramFreq::Vector(omegas)).power;
+        let actual = Periodogram::p_n(&mut ts, &freq);
         all_close(&actual[..], &desired[..], 1e-6);
     }
 }

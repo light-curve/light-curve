@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate criterion;
 
+mod recurrent_sin_cos;
+use recurrent_sin_cos::bench_recurrent_sin_cos;
+
 mod statistics;
 use statistics::bench_peak_indices;
 
@@ -31,5 +34,10 @@ criterion_group!(
     benches_feature_evaluator,
     feature_evaluator::bench_periodogram
 );
+criterion_group!(benches_recurrent_sin_cos, bench_recurrent_sin_cos);
 criterion_group!(benches_statistics, bench_peak_indices);
-criterion_main!(benches_feature_evaluator, benches_statistics);
+criterion_main!(
+    benches_feature_evaluator,
+    benches_recurrent_sin_cos,
+    benches_statistics
+);

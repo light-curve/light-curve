@@ -30,7 +30,9 @@ pub mod statistics;
 use statistics::Statistics;
 
 mod periodogram;
-use periodogram::{PeriodogramFreq, PeriodogramFreqFactors};
+use periodogram::PeriodogramFreqFactors;
+
+pub mod recurrent_sin_cos;
 
 pub mod time_series;
 pub use time_series::TimeSeries;
@@ -861,7 +863,7 @@ where
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 pub struct Periodogram<T> {
     peaks: usize,
-    freq: PeriodogramFreq<T>,
+    freq: PeriodogramFreqFactors,
     features_extractor: FeatureExtractor<T>,
     peak_names: Vec<String>,
     features_names: Vec<String>,
@@ -875,7 +877,7 @@ where
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
             peaks,
-            freq: PeriodogramFreq::Factors(PeriodogramFreqFactors::default()),
+            freq: PeriodogramFreqFactors::default(),
             features_extractor: FeatureExtractor::new(vec![]),
             peak_names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
@@ -884,13 +886,8 @@ where
         }
     }
 
-    pub fn set_freq_vec(&mut self, freq: Vec<T>) -> &mut Self {
-        self.freq = PeriodogramFreq::Vector(freq);
-        self
-    }
-
-    pub fn set_freq_factors(&mut self, resolution: T, nyquist: T) -> &mut Self {
-        self.freq = PeriodogramFreq::Factors(PeriodogramFreqFactors::new(resolution, nyquist));
+    pub fn set_freq(&mut self, resolution: usize, nyquist: usize) -> &mut Self {
+        self.freq = PeriodogramFreqFactors::new(resolution, nyquist);
         self
     }
 
@@ -2190,8 +2187,6 @@ mod tests {
         ],
     );
 
-
-
     #[test]
     fn periodogram_plateau() {
         let fe = FeatureExtractor {
@@ -2210,7 +2205,7 @@ mod tests {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::default())],
         };
-        let period = 0.22;
+        let period = 0.17;
         let x = linspace(0.0_f32, 1.0, 100);
         let y: Vec<_> = x
             .iter()
@@ -2219,7 +2214,7 @@ mod tests {
         let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
         let actual = [fe.eval(ts)[0]]; // Test period only
-        all_close(&desired[..], &actual[..], 1e-3);
+        all_close(&desired[..], &actual[..], 5e-3);
     }
 
     #[test]
@@ -2227,7 +2222,7 @@ mod tests {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::default())],
         };
-        let period = 0.22;
+        let period = 0.17;
         let mut rng = StdRng::seed_from_u64(0);
         let mut x: Vec<f32> = (0..100).map(|_| rng.gen()).collect();
         x[..].sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -2238,7 +2233,7 @@ mod tests {
         let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
         let actual = [fe.eval(ts)[0]]; // Test period only
-        all_close(&desired[..], &actual[..], 1e-3);
+        all_close(&desired[..], &actual[..], 5e-3);
     }
 
     #[test]
@@ -2246,7 +2241,7 @@ mod tests {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::new(1)), Box::new(Periodogram::new(2))],
         };
-        let period = 0.22;
+        let period = 0.17;
         let mut rng = StdRng::seed_from_u64(0);
         let mut x: Vec<f32> = (0..100).map(|_| rng.gen()).collect();
         x[..].sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -2268,8 +2263,8 @@ mod tests {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::new(2))],
         };
-        let period1 = 0.22;
-        let period2 = 0.6;
+        let period1 = 0.0753;
+        let period2 = 0.45;
         let mut rng = StdRng::seed_from_u64(0);
         let mut x: Vec<f32> = (0..1000).map(|_| rng.gen()).collect();
         x[..].sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -2285,7 +2280,7 @@ mod tests {
         let desired = [period2, period1];
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only
-        all_close(&desired[..], &actual[..], 1e-2);
+        all_close(&desired[..], &actual[..], 5e-3);
         assert!(features[1] > features[3])
     }
 
@@ -2294,8 +2289,8 @@ mod tests {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::new(2))],
         };
-        let period1 = 0.22;
-        let period2 = 0.6;
+        let period1 = 0.0753;
+        let period2 = 0.46;
         let mut rng = StdRng::seed_from_u64(0);
         let mut x: Vec<f32> = (0..1000).map(|_| rng.gen()).collect();
         x[..].sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
@@ -2312,7 +2307,7 @@ mod tests {
         let desired = [period2, period1];
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only
-        all_close(&desired[..], &actual[..], 3e-2);
+        all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3])
     }
 
