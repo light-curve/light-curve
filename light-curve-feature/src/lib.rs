@@ -2205,11 +2205,16 @@ mod tests {
         let fe = FeatureExtractor {
             features: vec![Box::new(Periodogram::default())],
         };
+        let mut rng = StdRng::seed_from_u64(0);
         let period = 0.17;
         let x = linspace(0.0_f32, 1.0, 100);
         let y: Vec<_> = x
             .iter()
-            .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
+            .map(|&x| {
+                3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5)
+                    + 4.0
+                    + 0.01 * rng.gen::<f32>() // noise stabilizes solution
+            })
             .collect();
         let ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];

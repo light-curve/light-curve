@@ -1,7 +1,7 @@
 use conv::prelude::*;
 use num_traits::{float::Float as NumFloat, float::FloatConst};
 use std::cmp::PartialOrd;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::iter::Sum;
 use std::ops::{AddAssign, DivAssign, MulAssign};
 
@@ -20,6 +20,7 @@ pub trait Float:
     + MulAssign
     + DivAssign
     + Display
+    + Debug
 {
     fn half() -> Self;
     fn two() -> Self;

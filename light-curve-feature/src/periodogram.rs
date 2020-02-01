@@ -20,6 +20,38 @@ impl<T: Float> Default for PeriodogramSums<T> {
     }
 }
 
+struct SinCosOmegaTau<T> {
+    sin_cos_2omega_x: Vec<RecurrentSinCos<T>>,
+}
+
+impl<T: Float> SinCosOmegaTau<T> {
+    fn new(freq0: T, t: &[T]) -> Self {
+        let sin_cos_2omega_x = t
+            .iter()
+            .map(|&x| RecurrentSinCos::new(T::two() * freq0 * x))
+            .collect();
+        Self { sin_cos_2omega_x }
+    }
+}
+
+impl<T: Float> Iterator for SinCosOmegaTau<T> {
+    type Item = (T, T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut sum_sin = T::zero();
+        let mut sum_cos = T::zero();
+        for s_c in self.sin_cos_2omega_x.iter_mut() {
+            let (sin, cos) = s_c.next().unwrap();
+            sum_sin += sin;
+            sum_cos += cos;
+        }
+        let cos2 = sum_cos / T::hypot(sum_sin, sum_cos);
+        let sin = T::signum(sum_sin) * T::sqrt(T::half() * (T::one() - cos2));
+        let cos = T::sqrt(T::half() * (T::one() + cos2));
+        Some((sin, cos))
+    }
+}
+
 pub struct Periodogram<T> {
     freq: Vec<T>,
     power: Vec<T>,
@@ -34,39 +66,27 @@ where
         Self { freq, power }
     }
 
-    fn tau(t: &[T], freq: &[T]) -> Vec<T> {
-        let mut sin_cos: Vec<_> = t
-            .iter()
-            .map(|&x| RecurrentSinCos::new(T::two() * freq[0] * x))
-            .collect();
-        freq.iter()
-            .map(|&omega| {
-                let mut sum_sin = T::zero();
-                let mut sum_cos = T::zero();
-                for s_c in sin_cos.iter_mut() {
-                    let (sin, cos) = s_c.next().unwrap();
-                    sum_sin += sin;
-                    sum_cos += cos;
-                }
-                T::half() / omega * T::atan2(sum_sin, sum_cos)
-            })
-            .collect()
-    }
-
     fn p_n(ts: &mut TimeSeries<T>, freq: &[T]) -> Vec<T> {
-        let tau_ = Self::tau(ts.t.sample, freq);
-
         let m_mean = ts.m.get_mean();
 
-        freq.iter()
-            .zip(tau_.iter())
-            .map(|(&omega, &tau)| {
+        let sin_cos_omega_tau = SinCosOmegaTau::new(freq[0], ts.t.sample);
+        let mut sin_cos_omega_x: Vec<_> =
+            ts.t.sample
+                .iter()
+                .map(|&x| RecurrentSinCos::new(freq[0] * x))
+                .collect();
+
+        sin_cos_omega_tau
+            .take(freq.len())
+            .map(|(sin_omega_tau, cos_omega_tau)| {
                 let mut sum_m_sin = T::zero();
                 let mut sum_m_cos = T::zero();
                 let mut sum_sin2 = T::zero();
-                let it = ts.t.sample.iter().zip(ts.m.sample.iter());
-                for (&x, &y) in it {
-                    let (sin, cos) = T::sin_cos(omega * (x - tau));
+                for (s_c_omega_x, &y) in sin_cos_omega_x.iter_mut().zip(ts.m.sample.iter()) {
+                    let (sin_omega_x, cos_omega_x) = s_c_omega_x.next().unwrap();
+                    // sini and cosine of omega * (x - tau)
+                    let sin = sin_omega_x * cos_omega_tau - cos_omega_x * sin_omega_tau;
+                    let cos = cos_omega_x * cos_omega_tau + sin_omega_x * sin_omega_tau;
                     sum_m_sin += (y - m_mean) * sin;
                     sum_m_cos += (y - m_mean) * cos;
                     sum_sin2 += sin.powi(2);
