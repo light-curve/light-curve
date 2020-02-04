@@ -30,7 +30,7 @@ where
 {
     pub fn interpolate(&self, x: &[T], y: &[U]) -> Vec<U> {
         assert_eq!(x.len(), y.len(), "x and y should have same size");
-        assert!(x.len() > 0, "input arrays should have not zero-length");
+        assert!(!x.is_empty(), "input arrays should have not zero-length");
         let mut interval: Interval<T, U> = (None, None);
         let mut interval_iter = x
             .iter()
