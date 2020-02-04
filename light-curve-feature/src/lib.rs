@@ -978,7 +978,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.get_m_reduced_chi2().unwrap_or(T::nan())]
+        vec![ts.get_m_reduced_chi2().unwrap_or_else(T::nan)]
     }
 
     fn get_names(&self) -> Vec<&str> {

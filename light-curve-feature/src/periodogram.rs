@@ -147,7 +147,7 @@ impl PeriodogramFreqFactors {
         let obs_time = t.get_max() - t.get_min();
         let delta_freq = T::two() * T::PI() / (obs_time * self.resolution.value_as::<T>().unwrap());
         let freq_size = self.resolution * self.nyquist * t.sample.len() / 2;
-        (1..freq_size + 1)
+        (1..=freq_size)
             .map(|i| delta_freq * i.value_as::<T>().unwrap())
             .collect()
     }

@@ -80,7 +80,7 @@ where
         }
     }
 
-    pub(super) fn get_sorted<'c>(&'c mut self) -> &'c [T] {
+    pub(super) fn get_sorted(&mut self) -> &[T] {
         if self.sorted.is_empty() {
             self.sorted.extend(self.sample.sorted());
         }
