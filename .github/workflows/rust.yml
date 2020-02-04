@@ -9,6 +9,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - name: Check formatting
+      run: cargo fmt -- --check
     - name: Run tests
       run: cargo test
     - name: Run benchmarks
