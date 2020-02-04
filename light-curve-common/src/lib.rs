@@ -22,10 +22,9 @@ where
 {
     let intervals: T = (size - 1).value_as::<T>().unwrap();
     let step = (end - start) / intervals;
-    let array = (0..size)
+    (0..size)
         .map(|i| start + step * i.value_as::<T>().unwrap())
-        .collect();
-    array
+        .collect()
 }
 
 /// Panics if two float slices are not close with respect to some absolute tolerance
