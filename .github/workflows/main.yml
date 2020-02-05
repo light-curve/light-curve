@@ -1,0 +1,19 @@
+name: Main
+
+on: [push]
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build
+      run: cargo build --all-targets
+    - name: Run tests
+      run: cargo test
+    - name: Check formatting
+      run: cargo fmt -- --check
+    - name: Run code analysis
+      run: cargo clippy --all-targets --all-features -- -D warnings
