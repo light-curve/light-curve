@@ -163,6 +163,8 @@ impl Default for PeriodogramFreqFactors {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
+#[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
     use light_curve_common::{all_close, linspace};

@@ -1130,6 +1130,8 @@ where
 // struct CAR {}
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
+#[allow(clippy::excessive_precision)]
 mod tests {
     use std::f64;
 
