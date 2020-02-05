@@ -5,6 +5,8 @@ use criterion::{black_box, Criterion};
 use light_curve_common::linspace;
 use light_curve_interpol::Interpolator;
 
+#[allow(clippy::unreadable_literal)]
+#[allow(clippy::excessive_precision)]
 fn bench_interpolator(c: &mut Criterion) {
     let initial_xy = [
         5.8197500000e+04,
