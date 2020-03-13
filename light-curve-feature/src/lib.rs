@@ -30,7 +30,6 @@ pub mod statistics;
 use statistics::Statistics;
 
 mod periodogram;
-use periodogram::PeriodogramFreqFactors;
 
 pub mod recurrent_sin_cos;
 
@@ -863,7 +862,8 @@ where
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 pub struct Periodogram<T> {
     peaks: usize,
-    freq: PeriodogramFreqFactors,
+    resolution: usize,
+    nyquist: usize,
     features_extractor: FeatureExtractor<T>,
     peak_names: Vec<String>,
     features_names: Vec<String>,
@@ -877,7 +877,8 @@ where
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
             peaks,
-            freq: PeriodogramFreqFactors::default(),
+            resolution: 10,
+            nyquist: 2,
             features_extractor: FeatureExtractor::new(vec![]),
             peak_names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
@@ -887,7 +888,8 @@ where
     }
 
     pub fn set_freq(&mut self, resolution: usize, nyquist: usize) -> &mut Self {
-        self.freq = PeriodogramFreqFactors::new(resolution, nyquist);
+        self.resolution = resolution;
+        self.nyquist = nyquist;
         self
     }
 
@@ -926,19 +928,23 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let pn = periodogram::Periodogram::from_time_series(ts, &self.freq);
-        let freq = pn.get_freq();
-        let power = pn.get_power();
-        let mut pn_as_ts = pn.ts();
+        let periodogram = periodogram::Periodogram::from_resolution_median_nyquist(
+            self.resolution,
+            self.nyquist,
+            ts.t.sample,
+        );
+        let freq = periodogram.freq();
+        let power = periodogram.power(ts);
+        let mut pg_as_ts = TimeSeries::new(&freq, &power, None);
         let mut features: Vec<_> = power
             .peak_indices_reverse_sorted()
             .iter()
-            .map(|&i| vec![Self::period(freq[i]), pn_as_ts.m.signal_to_noise(power[i])].into_iter())
+            .map(|&i| vec![Self::period(freq[i]), pg_as_ts.m.signal_to_noise(power[i])].into_iter())
             .flatten()
             .chain(vec![T::zero()].into_iter().cycle())
             .take(2 * self.peaks)
             .collect();
-        features.extend(self.features_extractor.eval(pn_as_ts));
+        features.extend(self.features_extractor.eval(pg_as_ts));
         features
     }
 
@@ -2209,7 +2215,7 @@ mod tests {
         };
         let mut rng = StdRng::seed_from_u64(0);
         let period = 0.17;
-        let x = linspace(0.0_f32, 1.0, 100);
+        let x = linspace(0.0_f32, 1.0, 101);
         let y: Vec<_> = x
             .iter()
             .map(|&x| {
@@ -2287,7 +2293,7 @@ mod tests {
         let desired = [period2, period1];
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only
-        all_close(&desired[..], &actual[..], 5e-3);
+        all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3])
     }
 

@@ -1,6 +1,7 @@
 use crate::float_trait::Float;
 use crate::recurrent_sin_cos::RecurrentSinCos;
-use crate::time_series::{DataSample, TimeSeries};
+use crate::statistics::Statistics;
+use crate::time_series::TimeSeries;
 use conv::ConvUtil;
 
 #[derive(Clone)]
@@ -53,31 +54,86 @@ impl<T: Float> Iterator for SinCosOmegaTau<T> {
 }
 
 pub struct Periodogram<T> {
-    freq: Vec<T>,
-    power: Vec<T>,
+    delta_freq: T,
+    size: usize,
 }
 
 impl<T> Periodogram<T>
 where
     T: Float,
 {
-    fn new(freq: Vec<T>, power: Vec<T>) -> Self {
-        assert_eq!(freq.len(), power.len());
-        Self { freq, power }
+    pub fn new(delta_freq: T, size: usize) -> Self {
+        assert!(delta_freq.is_sign_positive() && delta_freq.is_finite());
+        assert!(size > 0);
+        Self { delta_freq, size }
     }
 
-    fn p_n(ts: &mut TimeSeries<T>, freq: &[T]) -> Vec<T> {
+    /// Constructs `Periodogram` from resolution and "average" Nyquist factors
+    ///
+    /// Nyquest frequency is assumed to be corresponded to the average time interval between observations
+    ///
+    /// $$
+    /// \max{omega} = N_\omega \Delta \omega = \pi \frac{\mathrm{Nyquist}}{\langle \delta t \rangle},
+    /// $$
+    /// $$
+    /// \min{\omega} = \Delta \omega = \frac{2 \pi}{\mathrm{resolution} \cdot (\max{t} - \min{t})},
+    /// $$
+    /// where $N$ is the number of observations,
+    /// $\langle \delta_t \rangle = \sum \delta t_i / N$ is the mean time interval between observations,
+    /// denominator is not $(N-1)$ according to literature definition of "average Nyquist" frequency
+    #[allow(dead_code)]
+    pub fn from_resolution_average_nyquist(resolution: usize, nyquist: usize, t: &[T]) -> Self {
+        let n = t.len();
+        let obs_time = t[n - 1] - t[0];
+        Self::new(
+            T::two() * T::PI() / (obs_time * resolution.value_as::<T>().unwrap()),
+            resolution * nyquist * n / 2,
+        )
+    }
+
+    /// Constructs `Periodogram` from resolution and "median" Nyquist factors
+    ///
+    /// Nyquest frequency is assumed to be corresponded to median time interval between observations
+    ///
+    /// $$
+    /// \max{omega} = N_\omega \Delta \omega = \pi \frac{\mathrm{Nyquist}}{\mathrm{Median}(\delta t)},
+    /// $$
+    /// $$
+    /// \min{\omega} = \Delta \omega = \frac{2 \pi}{\mathrm{resolution} \cdot \mathrm{Median}(\delta t) N},
+    /// $$
+    /// where $N$ is the number of observations,
+    /// $\mathrm{Median}(\delta t)$ is the median time interval between observations
+    #[allow(dead_code)]
+    pub fn from_resolution_median_nyquist(resolution: usize, nyquist: usize, t: &[T]) -> Self {
+        let n = t.len();
+        let median_dt = (1..t.len())
+            .map(|i| t[i] - t[i - 1])
+            .collect::<Vec<_>>()
+            .median();
+        Self::new(
+            T::two() * T::PI() / (median_dt * (resolution * n).value_as::<T>().unwrap()),
+            resolution * nyquist * n / 2,
+        )
+    }
+
+    pub fn freq(&self) -> Vec<T> {
+        (1..=self.size)
+            .map(|i| self.delta_freq * i.value_as::<T>().unwrap())
+            .collect()
+    }
+
+    pub fn power(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let m_mean = ts.m.get_mean();
 
-        let sin_cos_omega_tau = SinCosOmegaTau::new(freq[0], ts.t.sample);
+        let sin_cos_omega_tau = SinCosOmegaTau::new(self.delta_freq, ts.t.sample);
         let mut sin_cos_omega_x: Vec<_> =
             ts.t.sample
                 .iter()
-                .map(|&x| RecurrentSinCos::new(freq[0] * x))
+                .map(|&x| RecurrentSinCos::new(self.delta_freq * x))
                 .collect();
 
         sin_cos_omega_tau
-            .take(freq.len())
+            .take(self.size)
             .map(|(sin_omega_tau, cos_omega_tau)| {
                 let mut sum_m_sin = T::zero();
                 let mut sum_m_cos = T::zero();
@@ -105,61 +161,6 @@ where
             })
             .collect()
     }
-
-    pub fn from_time_series(ts: &mut TimeSeries<T>, freq_factors: &PeriodogramFreqFactors) -> Self {
-        let freq = freq_factors.get(&mut ts.t);
-        let power: Vec<_> = Self::p_n(ts, &freq);
-        Self::new(freq, power)
-    }
-
-    pub fn ts(&self) -> TimeSeries<T> {
-        TimeSeries::new(&self.freq[..], &self.power[..], None)
-    }
-
-    pub fn get_freq(&self) -> &[T] {
-        &self.freq[..]
-    }
-
-    pub fn get_power(&self) -> &[T] {
-        &self.power[..]
-    }
-}
-
-pub struct PeriodogramFreqFactors {
-    resolution: usize,
-    nyquist: usize,
-}
-
-impl PeriodogramFreqFactors {
-    pub fn new(resolution: usize, nyquist: usize) -> Self {
-        assert!(resolution > 0);
-        assert!(nyquist > 0);
-        Self {
-            resolution,
-            nyquist,
-        }
-    }
-
-    fn get<T>(&self, t: &mut DataSample<T>) -> Vec<T>
-    where
-        T: Float,
-    {
-        let obs_time = t.get_max() - t.get_min();
-        let delta_freq = T::two() * T::PI() / (obs_time * self.resolution.value_as::<T>().unwrap());
-        let freq_size = self.resolution * self.nyquist * t.sample.len() / 2;
-        (1..=freq_size)
-            .map(|i| delta_freq * i.value_as::<T>().unwrap())
-            .collect()
-    }
-}
-
-impl Default for PeriodogramFreqFactors {
-    fn default() -> Self {
-        Self {
-            resolution: 10,
-            nyquist: 2,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -176,8 +177,9 @@ mod tests {
         let t = linspace(0.0, 99.0, N);
         let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA_SIN * x)).collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
+        let periodogram = Periodogram::new(OMEGA_SIN, 1);
         all_close(
-            &[Periodogram::p_n(&mut ts, &[OMEGA_SIN])[0] * 2.0 / (N as f64 - 1.0)],
+            &[periodogram.power(&mut ts)[0] * 2.0 / (N as f64 - 1.0)],
             &[1.0],
             1.0 / (N as f64),
         );
@@ -191,7 +193,8 @@ mod tests {
         // freq = np.linspace(0.01, 0.05, 5)
         // print(lombscargle(t, y, freq, precenter=True, normalize=False))
 
-        let freq = linspace(0.01, 0.05, 5);
+        let periodogram = Periodogram::new(0.01, 5);
+        all_close(&linspace(0.01, 0.05, 5), &periodogram.freq(), 1e-12);
         let desired = [
             16.99018018,
             18.57722516,
@@ -199,7 +202,7 @@ mod tests {
             28.15056806,
             36.66519435,
         ];
-        let actual = Periodogram::p_n(&mut ts, &freq);
+        let actual = periodogram.power(&mut ts);
         all_close(&actual[..], &desired[..], 1e-6);
     }
 }
