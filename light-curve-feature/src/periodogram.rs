@@ -53,13 +53,16 @@ impl<T: Float> Iterator for SinCosOmegaTau<T> {
     }
 }
 
+/// Derive Nyquist frequency from time series
+///
+/// Nyquist frequency for unevenly time series is not well-defined. Here we define it as
+/// $\pi / \delta t$, where $\delta t$ is some typical interval between consequent observations
 pub trait NyquistFreq<T>: Send + Sync {
     fn nyquist_freq(&self, t: &[T]) -> T;
 }
 
 /// $\Delta t = \mathrm{duration} / N$ is the mean time interval between observations,
 /// denominator is not $(N-1)$ according to literature definition of "average Nyquist" frequency
-#[derive(Clone)]
 pub struct AverageNyquistFreq;
 
 impl<T: Float> NyquistFreq<T> for AverageNyquistFreq {
@@ -74,7 +77,6 @@ fn diff<T: Float>(x: &[T]) -> Vec<T> {
 }
 
 /// $\Delta t$ is the median time interval between observations
-#[derive(Clone)]
 pub struct MedianNyquistFreq;
 
 impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
@@ -84,7 +86,6 @@ impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
     }
 }
 
-#[derive(Clone)]
 pub struct QuantileNyquistFreq {
     pub quantile: f32,
 }
