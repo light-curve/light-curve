@@ -2,7 +2,7 @@ use crate::float_trait::Float;
 use crate::recurrent_sin_cos::RecurrentSinCos;
 use crate::statistics::Statistics;
 use crate::time_series::TimeSeries;
-use conv::ConvUtil;
+use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 
 #[derive(Clone)]
 struct PeriodogramSums<T> {
@@ -53,6 +53,64 @@ impl<T: Float> Iterator for SinCosOmegaTau<T> {
     }
 }
 
+pub trait NyquistFreq<T>: Send + Sync {
+    fn nyquist_freq(&self, t: &[T]) -> T;
+}
+
+/// $\Delta\t = \mathrm{duration} / N$ is the mean time interval between observations,
+/// denominator is not $(N-1)$ according to literature definition of "average Nyquist" frequency
+#[derive(Clone)]
+pub struct AverageNyquistFreq;
+
+impl<T: Float> NyquistFreq<T> for AverageNyquistFreq {
+    fn nyquist_freq(&self, t: &[T]) -> T {
+        let n = t.len();
+        T::PI() * n.value_as().unwrap() / (t[n - 1] - t[0])
+    }
+}
+
+fn diff<T: Float>(x: &[T]) -> Vec<T> {
+    (1..x.len()).map(|i| x[i] - x[i - 1]).collect()
+}
+
+/// $\Delta t$ is the median time interval between observations
+#[derive(Clone)]
+pub struct MedianNyquistFreq;
+
+impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
+    fn nyquist_freq(&self, t: &[T]) -> T {
+        let dt = diff(t).median();
+        T::PI() / dt
+    }
+}
+
+#[derive(Clone)]
+pub struct QuantileNyquistFreq {
+    pub quantile: f32,
+}
+
+impl<T: Float> NyquistFreq<T> for QuantileNyquistFreq {
+    fn nyquist_freq(&self, t: &[T]) -> T {
+        let dt = diff(t).ppf(self.quantile);
+        T::PI() / dt
+    }
+}
+
+/// Lamb-Scargle periodogram calculator on uniform frequency grid
+///
+/// Frequencies are given by $\omega = \{\min\omega..\max\omega\}$: $N_\omega$ nodes with step
+/// $\Delta\omega$: $\min\omega = \Delta\omega$, $\max\omega = N_\omega \Delta\omega$.
+///
+/// Parameters of the grid can be derived from time series properties: typical time interval
+/// $\delta t$ and duration of observation. The idea is to set maximum frequency to Nyquist
+/// value $\pi / \Delta t$ and minimum frequency to $2\pi / \mathrm{duration}$, while `nyquist` and
+/// `resolution` factors are used to widen this interval:
+/// $$
+/// \max\omega = N_\omega \Delta\omega = \pi \frac{\mathrm{nyquist}}{\Delta t},
+/// $$
+/// $$
+/// \min\omega = \Delta\omega = \frac{2\pi}{\mathrm{resolution} \times \mathrm{duration}}.
+/// $$
 pub struct Periodogram<T> {
     delta_freq: T,
     size: usize,
@@ -68,52 +126,17 @@ where
         Self { delta_freq, size }
     }
 
-    /// Constructs `Periodogram` from resolution and "average" Nyquist factors
-    ///
-    /// Nyquest frequency is assumed to be corresponded to the average time interval between observations
-    ///
-    /// $$
-    /// \max{omega} = N_\omega \Delta \omega = \pi \frac{\mathrm{Nyquist}}{\langle \delta t \rangle},
-    /// $$
-    /// $$
-    /// \min{\omega} = \Delta \omega = \frac{2 \pi}{\mathrm{resolution} \cdot (\max{t} - \min{t})},
-    /// $$
-    /// where $N$ is the number of observations,
-    /// $\langle \delta_t \rangle = \sum \delta t_i / N$ is the mean time interval between observations,
-    /// denominator is not $(N-1)$ according to literature definition of "average Nyquist" frequency
-    #[allow(dead_code)]
-    pub fn from_resolution_average_nyquist(resolution: usize, nyquist: usize, t: &[T]) -> Self {
-        let n = t.len();
-        let obs_time = t[n - 1] - t[0];
-        Self::new(
-            T::two() * T::PI() / (obs_time * resolution.value_as::<T>().unwrap()),
-            resolution * nyquist * n / 2,
-        )
-    }
+    #[allow(clippy::borrowed_box)] // https://github.com/rust-lang/rust-clippy/issues/4305
+    pub fn from_t(t: &[T], resolution: f32, nyquist: &Box<dyn NyquistFreq<T>>) -> Self {
+        assert!(resolution.is_sign_positive() && resolution.is_finite());
 
-    /// Constructs `Periodogram` from resolution and "median" Nyquist factors
-    ///
-    /// Nyquest frequency is assumed to be corresponded to median time interval between observations
-    ///
-    /// $$
-    /// \max{omega} = N_\omega \Delta \omega = \pi \frac{\mathrm{Nyquist}}{\mathrm{Median}(\delta t)},
-    /// $$
-    /// $$
-    /// \min{\omega} = \Delta \omega = \frac{2 \pi}{\mathrm{resolution} \cdot \mathrm{Median}(\delta t) N},
-    /// $$
-    /// where $N$ is the number of observations,
-    /// $\mathrm{Median}(\delta t)$ is the median time interval between observations
-    #[allow(dead_code)]
-    pub fn from_resolution_median_nyquist(resolution: usize, nyquist: usize, t: &[T]) -> Self {
-        let n = t.len();
-        let median_dt = (1..t.len())
-            .map(|i| t[i] - t[i - 1])
-            .collect::<Vec<_>>()
-            .median();
-        Self::new(
-            T::two() * T::PI() / (median_dt * (resolution * n).value_as::<T>().unwrap()),
-            resolution * nyquist * n / 2,
-        )
+        let duration = t[t.len() - 1] - t[0];
+        let delta_freq = T::two() * T::PI() / (resolution.value_as::<T>().unwrap() * duration);
+        let max_freq = nyquist.nyquist_freq(t);
+        let size = (max_freq / delta_freq)
+            .approx_by::<RoundToNearest>()
+            .unwrap();
+        Self::new(delta_freq, size)
     }
 
     pub fn freq(&self) -> Vec<T> {

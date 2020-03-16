@@ -30,6 +30,7 @@ pub mod statistics;
 use statistics::Statistics;
 
 mod periodogram;
+pub use periodogram::{AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, QuantileNyquistFreq};
 
 pub mod recurrent_sin_cos;
 
@@ -862,8 +863,8 @@ where
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 pub struct Periodogram<T> {
     peaks: usize,
-    resolution: usize,
-    nyquist: usize,
+    resolution: f32,
+    nyquist: Box<dyn NyquistFreq<T>>,
     features_extractor: FeatureExtractor<T>,
     peak_names: Vec<String>,
     features_names: Vec<String>,
@@ -877,8 +878,8 @@ where
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
             peaks,
-            resolution: 10,
-            nyquist: 2,
+            resolution: 10.0,
+            nyquist: Box::new(AverageNyquistFreq),
             features_extractor: FeatureExtractor::new(vec![]),
             peak_names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
@@ -887,8 +888,12 @@ where
         }
     }
 
-    pub fn set_freq(&mut self, resolution: usize, nyquist: usize) -> &mut Self {
+    pub fn set_freq_resolution(&mut self, resolution: f32) -> &mut Self {
         self.resolution = resolution;
+        self
+    }
+
+    pub fn set_nyquist(&mut self, nyquist: Box<dyn NyquistFreq<T>>) -> &mut Self {
         self.nyquist = nyquist;
         self
     }
@@ -928,11 +933,8 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let periodogram = periodogram::Periodogram::from_resolution_median_nyquist(
-            self.resolution,
-            self.nyquist,
-            ts.t.sample,
-        );
+        let periodogram =
+            periodogram::Periodogram::from_t(ts.t.sample, self.resolution, &self.nyquist);
         let freq = periodogram.freq();
         let power = periodogram.power(ts);
         let mut pg_as_ts = TimeSeries::new(&freq, &power, None);
@@ -2294,7 +2296,7 @@ mod tests {
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-2);
-        assert!(features[1] > features[3])
+        assert!(features[1] > features[3]);
     }
 
     #[test]
@@ -2321,7 +2323,35 @@ mod tests {
         let features = fe.eval(ts);
         let actual = [features[0], features[2]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-2);
-        assert!(features[1] > features[3])
+        assert!(features[1] > features[3]);
+    }
+
+    #[test]
+    fn periodogram_different_time_scales() {
+        let mut periodogram = Periodogram::new(2);
+        periodogram.set_nyquist(Box::new(QuantileNyquistFreq { quantile: 0.05 }));
+        let fe = FeatureExtractor {
+            features: vec![Box::new(periodogram)],
+        };
+        let period1 = 0.01;
+        let period2 = 1.0;
+        let n = 100;
+        let mut x = linspace(0.0, 0.1, n);
+        x.append(&mut linspace(1.0, 10.0, n));
+        let y: Vec<_> = x
+            .iter()
+            .map(|&x| {
+                3.0 * f32::sin(2.0 * std::f32::consts::PI / period1 * x + 0.5)
+                    + -5.0 * f32::cos(2.0 * std::f32::consts::PI / period2 * x + 0.5)
+                    + 4.0
+            })
+            .collect();
+        let ts = TimeSeries::new(&x, &y, None);
+        let desired = [period2, period1];
+        let features = fe.eval(ts);
+        let actual = [features[0], features[2]]; // Test period only
+        all_close(&desired, &actual, 1e-5);
+        assert!(features[1] > features[3]);
     }
 
     feature_test!(
