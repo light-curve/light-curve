@@ -57,7 +57,7 @@ pub trait NyquistFreq<T>: Send + Sync {
     fn nyquist_freq(&self, t: &[T]) -> T;
 }
 
-/// $\Delta\t = \mathrm{duration} / N$ is the mean time interval between observations,
+/// $\Delta t = \mathrm{duration} / N$ is the mean time interval between observations,
 /// denominator is not $(N-1)$ according to literature definition of "average Nyquist" frequency
 #[derive(Clone)]
 pub struct AverageNyquistFreq;
