@@ -54,7 +54,7 @@ macro_rules! feat_extr{
     }
 }
 
-/// The engine that extract features one by one
+/// The engine that extracts features one by one
 ///
 /// Generic parameter `T` should be a float type
 pub struct FeatureExtractor<T> {
@@ -80,6 +80,11 @@ where
     pub fn get_names(&self) -> Vec<&str> {
         self.features.iter().flat_map(|x| x.get_names()).collect()
     }
+
+    /// Total number of features
+    pub fn size_hint(&self) -> usize {
+        self.features.iter().map(|x| x.size_hint()).sum()
+    }
 }
 
 /// The trait each feature should implement
@@ -90,6 +95,9 @@ pub trait FeatureEvaluator<T: Float>: Send + Sync {
     /// Should return the non-empty vector of feature names. The length and feature order should
     /// correspond to `eval()` output
     fn get_names(&self) -> Vec<&str>;
+
+    /// Should return the size of vectors returned by `eval()` and `get_names()`
+    fn size_hint(&self) -> usize;
 }
 
 pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
@@ -128,8 +136,13 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         vec![T::half() * (ts.m.get_max() - ts.m.get_min())]
     }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["amplitude"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -215,6 +228,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// Cusum — a range of cumulative sums
@@ -269,6 +286,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["cusum"]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// Von Neummann $\eta$
@@ -312,6 +333,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["eta"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -363,6 +388,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["eta_e"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -417,6 +446,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["kurtosis"]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// The slope and noise of the light curve without observation errors in the linear fit
@@ -460,6 +493,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["linear_trend", "linear_trend_sigma"]
+    }
+
+    fn size_hint(&self) -> usize {
+        2
     }
 }
 
@@ -509,6 +546,10 @@ where
             "linear_fit_slope_sigma",
             "linear_fit_reduced_chi2",
         ]
+    }
+
+    fn size_hint(&self) -> usize {
+        3
     }
 }
 
@@ -587,6 +628,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// Maximum slope between two neighbour observations
@@ -628,6 +673,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["maximum_slope"]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// Median of the absolute value of the difference between magnitude and its median
@@ -662,6 +711,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["median_absolute_deviation"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -737,6 +790,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// Maximum deviation of magnitude from its median
@@ -776,6 +833,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["percent_amplitude"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -840,6 +901,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -908,6 +973,10 @@ where
         );
         self
     }
+
+    fn period(omega: T) -> T {
+        T::two() * T::PI() / omega
+    }
 }
 
 impl<T> Default for Periodogram<T>
@@ -916,15 +985,6 @@ where
 {
     fn default() -> Self {
         Self::new(1)
-    }
-}
-
-impl<T> Periodogram<T> {
-    fn period(omega: T) -> T
-    where
-        T: Float,
-    {
-        T::two() * T::PI() / omega
     }
 }
 
@@ -956,6 +1016,10 @@ where
             .chain(self.features_names.iter())
             .map(|name| name.as_str())
             .collect()
+    }
+
+    fn size_hint(&self) -> usize {
+        2 * self.peaks + self.features_extractor.size_hint()
     }
 }
 
@@ -991,6 +1055,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["chi2"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -1040,6 +1108,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["skew"]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 /// Standard deviation of magnitude $\sigma_m$
@@ -1075,6 +1147,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["standard_deviation"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
     }
 }
 
@@ -1131,6 +1207,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["stetson_K"]
     }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 // To implement
@@ -1172,6 +1252,7 @@ mod tests {
                 all_close(&desired[..], &actual[..], $tol);
 
                 let names = fe.get_names();
+                assert_eq!(fe.size_hint(), actual.len(), "size_hint() returns wrong size");
                 assert_eq!(actual.len(), names.len(),
                     "Length of values and names should be the same");
             }
