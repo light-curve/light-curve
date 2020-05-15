@@ -20,6 +20,8 @@
 //! ```
 use conv::prelude::*;
 
+mod fft;
+
 mod fit;
 use fit::fit_straight_line;
 
