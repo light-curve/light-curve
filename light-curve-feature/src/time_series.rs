@@ -25,7 +25,7 @@ macro_rules! data_sample_getter {
                 None => {
                     self.$attr = Some(self.sample.$method());
                     self.$attr.unwrap()
-                },
+                }
             }
         }
     };
@@ -34,15 +34,13 @@ macro_rules! data_sample_getter {
             match self.$attr {
                 Some(x) => x,
                 None => {
-                    self.$attr = Some(
-                        if self.sorted.is_empty() {
-                            self.sample.$method()
-                        } else {
-                            self.sorted[..].$method_sorted()
-                        }
-                    );
+                    self.$attr = Some(if self.sorted.is_empty() {
+                        self.sample.$method()
+                    } else {
+                        self.sorted[..].$method_sorted()
+                    });
                     self.$attr.unwrap()
-                },
+                }
             }
         }
     };
@@ -53,7 +51,7 @@ macro_rules! data_sample_getter {
                 None => {
                     self.$attr = Some($func(self));
                     self.$attr.unwrap()
-                },
+                }
             }
         }
     };

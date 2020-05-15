@@ -133,8 +133,6 @@ where
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
-    use rand;
-
     use super::*;
 
     use light_curve_common::linspace;

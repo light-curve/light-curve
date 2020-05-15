@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate criterion;
 
+mod fft_crates;
+use fft_crates::bench_fft;
+
 mod recurrent_sin_cos;
 use recurrent_sin_cos::bench_recurrent_sin_cos;
 
@@ -34,10 +37,12 @@ criterion_group!(
     benches_feature_evaluator,
     feature_evaluator::bench_periodogram
 );
+criterion_group!(benches_fft, bench_fft<f32>, bench_fft<f64>);
 criterion_group!(benches_recurrent_sin_cos, bench_recurrent_sin_cos);
 criterion_group!(benches_statistics, bench_peak_indices);
 criterion_main!(
     benches_feature_evaluator,
+    benches_fft,
     benches_recurrent_sin_cos,
     benches_statistics
 );
