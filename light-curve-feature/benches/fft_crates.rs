@@ -140,10 +140,12 @@ where
     Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
 {
     fn new(n: &[usize]) -> Self {
+        let mut flags = Flag::Patient;
+        flags.insert(Flag::DestroyInput);
         Self {
             r2cplan: n
                 .iter()
-                .map(|&i| (i, R2CPlan::aligned(&[i], Flag::Measure).unwrap()))
+                .map(|&i| (i, R2CPlan::aligned(&[i], flags).unwrap()))
                 .collect(),
         }
     }
@@ -226,7 +228,7 @@ where
     Vec<T>: fmt::Debug,
     rand::distributions::Standard: Distribution<T>,
 {
-    let counts: Vec<_> = (6..=10).step_by(2).map(|i| 1_usize << i).collect();
+    let counts: Vec<_> = (6..=14).step_by(4).map(|i| 1_usize << i).collect();
     let series: Vec<Box<dyn Series<T>>> = vec![Box::new(Ones {}), Box::new(Randoms {})];
     let mut ffts: Vec<Box<dyn Fft<T>>> = vec![
         Box::new(RustFft::new(&counts)),

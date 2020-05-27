@@ -1,7 +1,8 @@
 use crate::float_trait::Float;
-use fftw::array::{AlignedAllocable, AlignedVec};
+pub use fftw::array::{AlignedAllocable, AlignedVec};
 use fftw::error::Result;
-use fftw::plan::{Plan, Plan32, Plan64, PlanSpec, R2CPlan};
+pub use fftw::plan::{Plan, R2CPlan};
+use fftw::plan::{Plan32, Plan64, PlanSpec};
 use fftw::types::Flag;
 use num_complex::Complex;
 use std::collections::HashMap;
@@ -23,6 +24,7 @@ where
     T: FftwFloat,
 {
     plans: HashMap<usize, Plan<T, Complex<T>, T::Plan>>,
+    flags: Flag,
 }
 
 impl<T> Fft<T>
@@ -32,17 +34,21 @@ where
     Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
 {
     pub fn new() -> Self {
+        let mut flags = Flag::Measure;
+        flags.insert(Flag::DestroyInput);
         Self {
             plans: HashMap::new(),
+            flags,
         }
     }
 
     pub fn fft(&mut self, mut x: AlignedVec<T>) -> Result<AlignedVec<Complex<T>>> {
         let n = x.len();
+        let flags = self.flags;
         let plan = self
             .plans
             .entry(x.len())
-            .or_insert_with(|| R2CPlan::aligned(&[n], Flag::Measure).unwrap());
+            .or_insert_with(|| R2CPlan::aligned(&[n], flags).unwrap());
         let mut y = AlignedVec::new(n / 2 + 1);
         plan.r2c(&mut x, &mut y)?;
         Ok(y)
@@ -56,7 +62,7 @@ mod tests {
     use std::f64::consts::PI;
 
     #[test]
-    fn test_unity() {
+    fn unity() {
         const N: usize = 1024;
 
         let mut x = AlignedVec::new(N);
@@ -76,7 +82,7 @@ mod tests {
     }
 
     #[test]
-    fn test_numpy_compr() {
+    fn numpy_compr() {
         const N: usize = 32;
 
         let mut x = AlignedVec::new(N);
