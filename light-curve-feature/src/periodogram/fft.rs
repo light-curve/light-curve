@@ -7,7 +7,7 @@ use fftw::types::Flag;
 use num_complex::Complex;
 use std::collections::HashMap;
 
-pub trait FftwFloat: Float + AlignedAllocable {
+pub trait FftwFloat: AlignedAllocable {
     type Plan: PlanSpec;
 }
 
@@ -42,15 +42,18 @@ where
         }
     }
 
+    pub fn init_plan(&mut self, n: usize) {
+        if !self.plans.contains_key(&n) {
+            self.plans
+                .insert(n, R2CPlan::aligned(&[n], self.flags).unwrap());
+        }
+    }
+
     pub fn fft(&mut self, mut x: AlignedVec<T>) -> Result<AlignedVec<Complex<T>>> {
         let n = x.len();
-        let flags = self.flags;
-        let plan = self
-            .plans
-            .entry(x.len())
-            .or_insert_with(|| R2CPlan::aligned(&[n], flags).unwrap());
         let mut y = AlignedVec::new(n / 2 + 1);
-        plan.r2c(&mut x, &mut y)?;
+        self.init_plan(n);
+        self.plans.get_mut(&n).unwrap().r2c(&mut x, &mut y)?;
         Ok(y)
     }
 }

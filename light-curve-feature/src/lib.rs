@@ -20,8 +20,6 @@
 //! ```
 use conv::prelude::*;
 
-mod fft;
-
 mod fit;
 use fit::fit_straight_line;
 
@@ -33,8 +31,6 @@ use statistics::Statistics;
 
 mod periodogram;
 pub use periodogram::{AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, QuantileNyquistFreq};
-
-pub mod recurrent_sin_cos;
 
 pub mod time_series;
 pub use time_series::TimeSeries;
@@ -997,8 +993,8 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
         let periodogram =
             periodogram::Periodogram::from_t(ts.t.sample, self.resolution, &self.nyquist);
-        let freq = periodogram.freq();
-        let power = periodogram.power_direct(ts);
+        let power = periodogram.power(ts);
+        let freq: Vec<_> = (0..power.len()).map(|i| periodogram.freq(i)).collect();
         let mut pg_as_ts = TimeSeries::new(&freq, &power, None);
         let mut features: Vec<_> = power
             .peak_indices_reverse_sorted()

@@ -1,3 +1,4 @@
+use crate::periodogram::FloatSupportedByFft;
 use conv::prelude::*;
 use num_traits::{float::Float as NumFloat, float::FloatConst};
 use std::cmp::PartialOrd;
@@ -22,6 +23,7 @@ pub trait Float:
     + DivAssign
     + Display
     + Debug
+    + FloatSupportedByFft
 {
     fn half() -> Self;
     fn two() -> Self;
