@@ -1,0 +1,17 @@
+[package]
+name = "light-curve-python"
+version = "0.1.0"
+edition = "2018"
+authors = ["Konstantin Malanchev <hombit@gmail.com>"]
+
+[lib]
+name = "light_curve"
+crate-type = ["cdylib"]
+
+[dependencies]
+light-curve-feature = { path = "../light-curve-feature", version = "0.1.10" }
+numpy = "~0.8"
+
+[dependencies.pyo3]
+version = "~0.9"
+features = ["extension-module"]
