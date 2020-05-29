@@ -978,7 +978,7 @@ where
         self
     }
 
-    pub fn periodogram_algorithm(
+    pub fn set_periodogram_algorithm(
         &mut self,
         periodogram_power: fn() -> Box<dyn PeriodogramPower<T>>,
     ) -> &mut Self {
@@ -1009,9 +1009,12 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let mut periodogram =
-            periodogram::Periodogram::from_t(ts.t.sample, self.resolution, &self.nyquist);
-        periodogram.set_periodogram_power(Box::new(periodogram::PeriodogramPowerDirect));
+        let periodogram = periodogram::Periodogram::from_t(
+            (self.periodogram_algorithm)(),
+            ts.t.sample,
+            self.resolution,
+            &self.nyquist,
+        );
         let power = periodogram.power(ts);
         let freq: Vec<_> = (0..power.len()).map(|i| periodogram.freq(i)).collect();
         let mut pg_as_ts = TimeSeries::new(&freq, &power, None);

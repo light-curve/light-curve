@@ -46,16 +46,9 @@ impl<T> Periodogram<T>
 where
     T: Float,
 {
-    pub fn new(freq_grid: FreqGrid<T>) -> Self {
+    pub fn new(periodogram_power: Box<dyn PeriodogramPower<T>>, freq_grid: FreqGrid<T>) -> Self {
         assert!(freq_grid.step.is_sign_positive() && freq_grid.step.is_finite());
         assert!(freq_grid.size > 0);
-
-        const FFT_MIN_SIZE: usize = 1 << 7;
-        let periodogram_power: Box<dyn PeriodogramPower<T>> = if freq_grid.size < FFT_MIN_SIZE {
-            Box::new(PeriodogramPowerDirect {})
-        } else {
-            Box::new(PeriodogramPowerFft {})
-        };
 
         Self {
             freq_grid,
@@ -78,8 +71,13 @@ where
     }
 
     #[allow(clippy::borrowed_box)] // https://github.com/rust-lang/rust-clippy/issues/4305
-    pub fn from_t(t: &[T], resolution: f32, nyquist: &Box<dyn NyquistFreq<T>>) -> Self {
-        Self::new(FreqGrid::from_t(t, resolution, nyquist))
+    pub fn from_t(
+        periodogram_power: Box<dyn PeriodogramPower<T>>,
+        t: &[T],
+        resolution: f32,
+        nyquist: &Box<dyn NyquistFreq<T>>,
+    ) -> Self {
+        Self::new(periodogram_power, FreqGrid::from_t(t, resolution, nyquist))
     }
 
     pub fn freq(&self, i: usize) -> T {
@@ -107,10 +105,13 @@ mod tests {
         let t = linspace(0.0, 99.0, N);
         let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA_SIN * x)).collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
-        let mut periodogram = Periodogram::new(FreqGrid {
-            step: OMEGA_SIN,
-            size: 1,
-        });
+        let mut periodogram = Periodogram::new(
+            Box::new(PeriodogramPowerDirect),
+            FreqGrid {
+                step: OMEGA_SIN,
+                size: 1,
+            },
+        );
         periodogram.set_periodogram_power(Box::new(PeriodogramPowerDirect));
         all_close(
             &[periodogram.power(&mut ts)[0] * 2.0 / (N as f64 - 1.0)],
@@ -131,7 +132,7 @@ mod tests {
             step: 0.01,
             size: 5,
         };
-        let periodogram = Periodogram::new(freq_grid.clone());
+        let periodogram = Periodogram::new(Box::new(PeriodogramPowerDirect), freq_grid.clone());
         all_close(
             &linspace(
                 freq_grid.step,
@@ -164,19 +165,13 @@ mod tests {
         let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA * x)).collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
-        let mut periodogram = Periodogram::from_t(&t, RESOLUTION, &nyquist);
 
-        let direct = periodogram
-            .set_periodogram_power(Box::new(PeriodogramPowerDirect))
+        let direct =
+            Periodogram::from_t(Box::new(PeriodogramPowerDirect), &t, RESOLUTION, &nyquist)
+                .power(&mut ts);
+        let fft = Periodogram::from_t(Box::new(PeriodogramPowerFft), &t, RESOLUTION, &nyquist)
             .power(&mut ts);
-        let fft = periodogram
-            .set_periodogram_power(Box::new(PeriodogramPowerFft))
-            .power(&mut ts);
-        all_close(
-            &fft[..periodogram.freq_grid.size - 1],
-            &direct[..periodogram.freq_grid.size - 1],
-            1e-8,
-        );
+        all_close(&fft[..direct.len() - 1], &direct[..direct.len() - 1], 1e-8);
     }
 
     #[test]
@@ -194,13 +189,11 @@ mod tests {
             .collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
-        let mut periodogram = Periodogram::from_t(&t, RESOLUTION, &nyquist);
 
-        let direct = periodogram
-            .set_periodogram_power(Box::new(PeriodogramPowerDirect))
-            .power(&mut ts);
-        let fft = periodogram
-            .set_periodogram_power(Box::new(PeriodogramPowerFft))
+        let direct =
+            Periodogram::from_t(Box::new(PeriodogramPowerDirect), &t, RESOLUTION, &nyquist)
+                .power(&mut ts);
+        let fft = Periodogram::from_t(Box::new(PeriodogramPowerFft), &t, RESOLUTION, &nyquist)
             .power(&mut ts);
 
         assert_eq!(
@@ -233,13 +226,11 @@ mod tests {
             .collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(MedianNyquistFreq);
-        let mut periodogram = Periodogram::from_t(&t, RESOLUTION, &nyquist);
 
-        let direct = periodogram
-            .set_periodogram_power(Box::new(PeriodogramPowerDirect))
-            .power(&mut ts);
-        let fft = periodogram
-            .set_periodogram_power(Box::new(PeriodogramPowerFft))
+        let direct =
+            Periodogram::from_t(Box::new(PeriodogramPowerDirect), &t, RESOLUTION, &nyquist)
+                .power(&mut ts);
+        let fft = Periodogram::from_t(Box::new(PeriodogramPowerFft), &t, RESOLUTION, &nyquist)
             .power(&mut ts);
 
         assert_eq!(
