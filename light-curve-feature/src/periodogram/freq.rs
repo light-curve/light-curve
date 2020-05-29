@@ -1,6 +1,6 @@
 use crate::float_trait::Float;
 use crate::statistics::Statistics;
-use conv::ConvUtil;
+use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 
 /// Derive Nyquist frequency from time series
 ///
@@ -48,7 +48,26 @@ impl<T: Float> NyquistFreq<T> for QuantileNyquistFreq {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct FreqGrid<T> {
     pub step: T,
     pub size: usize,
+}
+
+impl<T> FreqGrid<T>
+where
+    T: Float,
+{
+    #[allow(clippy::borrowed_box)] // https://github.com/rust-lang/rust-clippy/issues/4305
+    pub fn from_t(t: &[T], resolution: f32, nyquist: &Box<dyn NyquistFreq<T>>) -> Self {
+        assert!(resolution.is_sign_positive() && resolution.is_finite());
+
+        let sizef = t.len().value_as::<T>().unwrap();
+        let duration = t[t.len() - 1] - t[0];
+        let step = T::two() * T::PI() * (sizef - T::one())
+            / (sizef * resolution.value_as::<T>().unwrap() * duration);
+        let max_freq = nyquist.nyquist_freq(t);
+        let size = (max_freq / step).approx_by::<RoundToNearest>().unwrap();
+        Self { step, size }
+    }
 }

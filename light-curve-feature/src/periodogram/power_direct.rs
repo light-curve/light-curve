@@ -4,7 +4,8 @@ use crate::periodogram::power::*;
 use crate::periodogram::recurrent_sin_cos::*;
 use crate::time_series::TimeSeries;
 
-pub struct PeriodogramPowerDirect {}
+#[derive(Debug)]
+pub struct PeriodogramPowerDirect;
 
 impl<T> PeriodogramPower<T> for PeriodogramPowerDirect
 where

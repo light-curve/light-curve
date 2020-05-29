@@ -6,13 +6,8 @@ use crate::time_series::TimeSeries;
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 use num_complex::Complex;
 
-pub struct PeriodogramPowerFft {}
-
-impl PeriodogramPowerFft {
-    pub fn init_thread_local_fft_plan<T: Float>(n: usize) {
-        T::init_fft_plan(n);
-    }
-}
+#[derive(Debug)]
+pub struct PeriodogramPowerFft;
 
 impl<T> PeriodogramPower<T> for PeriodogramPowerFft
 where
@@ -141,4 +136,65 @@ fn sum_sin_cos<T: Float>(
     let sum_sin_cos_h = T::fft(m_for_sch);
     let sum_sin_cos_2 = T::fft(m_for_sc2);
     (sum_sin_cos_h, sum_sin_cos_2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::periodogram::freq::{AverageNyquistFreq, NyquistFreq};
+    use light_curve_common::{all_close, linspace};
+    use rand::prelude::*;
+
+    #[test]
+    fn zero_aligned_vec() {
+        const N: usize = 32;
+        let av = zeroed_aligned_vec::<f64>(N);
+        assert_eq!(&av[..], &[0.0; N]);
+    }
+
+    #[test]
+    fn spread_arrays_for_fft_one_to_one() {
+        const N: usize = 32;
+
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let t = linspace(0.0, (N - 1) as f64, N);
+        let m: Vec<f64> = (0..N).map(|_| rng.gen()).collect();
+        let mut ts = TimeSeries::new(&t[..], &m[..], None);
+
+        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
+        let freq_grid = FreqGrid::from_t(&t, 1.0, &nyquist);
+
+        let (mh, m2) = spread_arrays_for_fft(&freq_grid, &mut ts);
+
+        let desired_mh: Vec<_> = m.iter().map(|&x| x - ts.m.get_mean()).collect();
+        all_close(&mh, &desired_mh, 1e-10);
+
+        let desired_m2: Vec<_> = (0..N).map(|i| ((i + 1) % 2 * 2) as f64).collect();
+        assert_eq!(&m2[..], &desired_m2[..]);
+    }
+
+    #[test]
+    fn spread_arrays_for_fft_one_to_one_resolution() {
+        const N: usize = 8;
+        const RESOLUTION: usize = 4;
+
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let t = linspace(0.0, (N - 1) as f64, N);
+        let m: Vec<f64> = (0..N).map(|_| rng.gen()).collect();
+        let mut ts = TimeSeries::new(&t[..], &m[..], None);
+
+        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
+        let freq_grid = FreqGrid::from_t(&t, RESOLUTION as f32, &nyquist);
+        let (mh, m2) = spread_arrays_for_fft(&freq_grid, &mut ts);
+
+        let desired_mh: Vec<_> = m.iter().map(|&x| x - ts.m.get_mean()).collect();
+        all_close(&mh[..N], &desired_mh, 1e-10);
+        assert_eq!(&mh[N..], &[0.0; (RESOLUTION - 1) * N]);
+
+        let desired_m2: Vec<_> = (0..2 * N).map(|i| ((i + 1) % 2) as f64).collect();
+        assert_eq!(&m2[..2 * N], &desired_m2[..]);
+        assert_eq!(&m2[2 * N..], &[0.0; (RESOLUTION - 2) * N]);
+    }
 }

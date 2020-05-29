@@ -1,5 +1,5 @@
 use criterion::{black_box, Criterion};
-use light_curve_feature::recurrent_sin_cos::RecurrentSinCos;
+use light_curve_feature::RecurrentSinCos;
 
 fn plain(n: usize, x: f64) {
     for i in 1..=n {

@@ -29,8 +29,12 @@ use float_trait::Float;
 pub mod statistics;
 use statistics::Statistics;
 
-mod periodogram;
-pub use periodogram::{AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, QuantileNyquistFreq};
+pub mod periodogram;
+pub use periodogram::recurrent_sin_cos::RecurrentSinCos;
+pub use periodogram::{
+    AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerDirect,
+    PeriodogramPowerFft, QuantileNyquistFreq,
+};
 
 pub mod time_series;
 pub use time_series::TimeSeries;
@@ -919,7 +923,7 @@ where
 ///
 /// `Periodogram` can accept another `dyn FeatureEvaluator` for feature extraction from periodogram
 /// as it was time series without observation errors. You can even pass one `Periodogram` to another
-/// if you are crazy enough
+/// one if you are crazy enough
 ///
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2**
@@ -931,6 +935,7 @@ pub struct Periodogram<T> {
     features_extractor: FeatureExtractor<T>,
     peak_names: Vec<String>,
     features_names: Vec<String>,
+    periodogram_algorithm: fn() -> Box<dyn PeriodogramPower<T>>,
 }
 
 impl<T> Periodogram<T>
@@ -941,13 +946,14 @@ where
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
             peaks,
-            resolution: 10.0,
+            resolution: 20.0,
             nyquist: Box::new(AverageNyquistFreq),
             features_extractor: FeatureExtractor::new(vec![]),
             peak_names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
                 .collect(),
             features_names: vec![],
+            periodogram_algorithm: || Box::new(PeriodogramPowerFft),
         }
     }
 
@@ -972,6 +978,18 @@ where
         self
     }
 
+    pub fn periodogram_algorithm(
+        &mut self,
+        periodogram_power: fn() -> Box<dyn PeriodogramPower<T>>,
+    ) -> &mut Self {
+        self.periodogram_algorithm = periodogram_power;
+        self
+    }
+
+    pub fn init_thread_local_fft_plan(n: &[usize]) {
+        periodogram::Periodogram::<T>::init_thread_local_fft_plans(n);
+    }
+
     fn period(omega: T) -> T {
         T::two() * T::PI() / omega
     }
@@ -991,8 +1009,9 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let periodogram =
+        let mut periodogram =
             periodogram::Periodogram::from_t(ts.t.sample, self.resolution, &self.nyquist);
+        periodogram.set_periodogram_power(Box::new(periodogram::PeriodogramPowerDirect));
         let power = periodogram.power(ts);
         let freq: Vec<_> = (0..power.len()).map(|i| periodogram.freq(i)).collect();
         let mut pg_as_ts = TimeSeries::new(&freq, &power, None);

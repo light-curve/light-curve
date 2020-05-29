@@ -20,7 +20,9 @@ macro_rules! float_supported_by_fft {
             }
 
             fn init_fft_plan(n: usize) {
-                $fft.with(|cell| cell.borrow_mut().init_plan(n))
+                $fft.with(|cell| {
+                    cell.borrow_mut().get_plan(n);
+                })
             }
         }
     };

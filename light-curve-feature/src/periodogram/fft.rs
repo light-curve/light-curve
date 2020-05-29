@@ -1,4 +1,3 @@
-use crate::float_trait::Float;
 pub use fftw::array::{AlignedAllocable, AlignedVec};
 use fftw::error::Result;
 pub use fftw::plan::{Plan, R2CPlan};
@@ -42,29 +41,30 @@ where
         }
     }
 
-    pub fn init_plan(&mut self, n: usize) {
-        if !self.plans.contains_key(&n) {
-            self.plans
-                .insert(n, R2CPlan::aligned(&[n], self.flags).unwrap());
-        }
+    pub fn get_plan(&mut self, n: usize) -> &mut Plan<T, Complex<T>, T::Plan> {
+        let flags = self.flags;
+        self.plans
+            .entry(n)
+            .or_insert_with(|| R2CPlan::aligned(&[n], flags).unwrap())
     }
 
     pub fn fft(&mut self, mut x: AlignedVec<T>) -> Result<AlignedVec<Complex<T>>> {
         let n = x.len();
         let mut y = AlignedVec::new(n / 2 + 1);
-        self.init_plan(n);
-        self.plans.get_mut(&n).unwrap().r2c(&mut x, &mut y)?;
+        self.get_plan(n).r2c(&mut x, &mut y)?;
         Ok(y)
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::*;
     use light_curve_common::all_close;
     use std::f64::consts::PI;
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn unity() {
         const N: usize = 1024;
 
@@ -76,8 +76,8 @@ mod tests {
         let mut fft = Fft::new();
         let y = fft.fft(x).unwrap();
 
-        assert_eq!(y[0].re, 1024.0);
-        assert_eq!(y[0].im, 0.0);
+        assert_eq!(y[0].re, 1024.0_f64);
+        assert_eq!(y[0].im, 0.0_f64);
 
         let (re, im): (Vec<_>, Vec<_>) = y.iter().map(|c| (c.re, c.im)).unzip();
         all_close(&re[1..], &[0.0; 512], 1e-12);
