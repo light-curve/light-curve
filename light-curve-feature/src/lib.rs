@@ -2460,63 +2460,10 @@ mod tests {
             })
             .collect();
         let ts = TimeSeries::new(&x, &y, None);
-        let desired = [period2, period1];
         let features = fe.eval(ts);
-        let actual = [features[0], features[2]]; // Test period only
-        all_close(&desired, &actual, 1e-6);
+        assert!(f32::abs(features[0] - period2) / period2 < 1.0 / n as f32);
+        assert!(f32::abs(features[2] - period1) / period1 < 1.0 / n as f32);
         assert!(features[1] > features[3]);
-    }
-
-    #[test]
-    fn periodogram_fft_high_resolution() {
-        const PERIOD: f64 = std::f64::consts::PI;
-        const N: usize = 100;
-        const RESOLUTION: [f32; 7] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0];
-
-        let mut rng = StdRng::seed_from_u64(0);
-        let t = (0..N)
-            .map(|_| rng.gen::<f64>() * (N - 1) as f64)
-            .collect::<Vec<_>>()
-            .sorted();
-        let duration = t[t.len() - 1] - t[0];
-        let m: Vec<_> = t
-            .iter()
-            .map(|&x| f64::sin(2.0 * std::f64::consts::PI * x / PERIOD))
-            .collect();
-        let mut ts = TimeSeries::new(&t[..], &m[..], None);
-
-        let mut periodogram = Periodogram::new(1);
-        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerFft));
-        let mut prev_delta_period = f64::MAX;
-        let mut prev_power = 0.0;
-        for &resolution in RESOLUTION.iter() {
-            periodogram.set_freq_resolution(resolution);
-            let features = periodogram.eval(&mut ts);
-            let period = features[0];
-            let delta_period = PERIOD - period;
-            let power = features[1];
-            assert!(
-                f64::abs(1.0 / period - 1.0 / PERIOD) < 2.0 / (duration * resolution as f64),
-                "delta frequency is too large for resolution = {}",
-                resolution
-            );
-            assert!(
-                f64::abs(delta_period) <= f64::abs(prev_delta_period),
-                "|{:.6}| (delta P) > |{:.6}| (prev delta P) for resolution = {}",
-                delta_period,
-                prev_delta_period,
-                resolution
-            );
-            assert!(
-                power >= prev_power,
-                "{:.6} (power) < {:.6} (prev power) for resolution = {}",
-                power,
-                prev_power,
-                resolution
-            );
-            prev_delta_period = delta_period;
-            prev_power = power;
-        }
     }
 
     feature_test!(

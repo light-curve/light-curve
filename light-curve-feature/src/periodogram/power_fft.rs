@@ -24,6 +24,8 @@ where
 
         let (sum_sin_cos_h, sum_sin_cos_2) = sum_sin_cos(&grid, ts);
 
+        let ts_size = ts.lenf();
+
         sum_sin_cos_h
             .iter()
             .zip(sum_sin_cos_2.iter())
@@ -48,8 +50,8 @@ where
                 let sum_h_sin = sum_sin_h * cos_wtau - sum_cos_h * sin_wtau;
 
                 let sum_cos2_wt_tau =
-                    T::half() * (grid.sizef + sum_cos_2 * cos_wtau + sum_sin_2 * sin_wtau);
-                let sum_sin2_wt_tau = grid.sizef - sum_cos2_wt_tau;
+                    T::half() * (ts_size + sum_cos_2 * cos_wtau + sum_sin_2 * sin_wtau);
+                let sum_sin2_wt_tau = ts_size - sum_cos2_wt_tau;
 
                 let frac_cos = if T::is_zero(&sum_cos2_wt_tau) {
                     T::zero()
@@ -79,7 +81,6 @@ where
 struct TimeGrid<T> {
     dt: T,
     size: usize,
-    sizef: T,
 }
 
 impl<T: Float> TimeGrid<T> {
@@ -88,7 +89,6 @@ impl<T: Float> TimeGrid<T> {
         Self {
             dt: T::two() * T::PI() / (freq.step * size.value_as::<T>().unwrap()),
             size,
-            sizef: size.value_as::<T>().unwrap(),
         }
     }
 
@@ -112,9 +112,8 @@ fn spread<T: Float>(v: &mut AlignedVec<T>, x: T, y: T) {
         return;
     }
 
-    let alpha = (x - x_lo) / (x_hi - x_lo);
-    v[i_lo] = (T::one() - alpha) * y;
-    v[i_hi] = alpha * y;
+    v[i_lo] += (x_hi - x) * y;
+    v[i_hi] += (x - x_lo) * y;
 }
 
 fn zeroed_aligned_vec<T: Float>(size: usize) -> AlignedVec<T> {
