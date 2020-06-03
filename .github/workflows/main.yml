@@ -3,20 +3,48 @@ name: Main
 on: [push]
 
 jobs:
-  test:
+  rust:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: Install FFTW
       run: |
         sudo apt-get update
         sudo apt-get install libfftw3-dev
     - name: Build
-      run: cargo build --all-targets --all-features
+      run: cargo build --all-targets --all-features --workspace --exclude light-curve-python
     - name: Run tests
-      run: cargo test
+      run: cargo test --workspace --exclude light-curve-python
+    - name: Check formatting
+      run: cargo fmt -- --check
+    - name: Run code analysis
+      run: cargo clippy --workspace --exclude light-curve-python --all-targets --all-features -- -D warnings
+
+  python:
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Install nightly rust
+      run: |
+        rustup install nightly
+        rustup default nightly
+        rustup component add clippy rustfmt
+    - name: Install maturin
+      run: pip install maturin
+    - name: Build package
+      run: maturin build
     - name: Check formatting
       run: cargo fmt -- --check
     - name: Run code analysis
