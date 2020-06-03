@@ -8,6 +8,9 @@ authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 name = "light_curve"
 crate-type = ["cdylib"]
 
+[profile.release]
+lto = true
+
 [dependencies]
 light-curve-feature = { path = "../light-curve-feature", version = "0.1.10" }
 numpy = "~0.8"
