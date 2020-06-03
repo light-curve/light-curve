@@ -28,8 +28,13 @@ pub fn bench_periodogram(c: &mut Criterion) {
                 |b| {
                     b.iter(|| {
                         let mut ts = TimeSeries::new(&x[..], &y[..], None);
-                        let periodogram =
-                            Periodogram::from_t(periodogram_power(), &x, *resolution, &nyquist);
+                        let periodogram = Periodogram::from_t(
+                            periodogram_power(),
+                            &x,
+                            *resolution,
+                            1.0,
+                            &nyquist,
+                        );
                         periodogram.power(black_box(&mut ts));
                     })
                 },
