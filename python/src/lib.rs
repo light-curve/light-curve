@@ -1,4 +1,3 @@
-use light_curve_feature;
 use light_curve_feature::{PeriodogramPowerDirect, PeriodogramPowerFft, TimeSeries};
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::ValueError;
@@ -188,11 +187,18 @@ struct Periodogram {}
 #[pymethods]
 impl Periodogram {
     #[new]
-    #[args(peaks = "None", resolution = "None", nyquist = "None", fast = "None")]
+    #[args(
+        peaks = "None",
+        resolution = "None",
+        max_freq_factor = "None",
+        nyquist = "None",
+        fast = "None"
+    )]
     fn __new__(
         py: Python,
         peaks: Option<usize>,
         resolution: Option<f32>,
+        max_freq_factor: Option<f32>,
         nyquist: Option<PyObject>,
         fast: Option<bool>,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
@@ -202,6 +208,9 @@ impl Periodogram {
         };
         if let Some(resolution) = resolution {
             eval.set_freq_resolution(resolution);
+        }
+        if let Some(max_freq_factor) = max_freq_factor {
+            eval.set_max_freq_factor(max_freq_factor);
         }
         if let Some(nyquist) = nyquist {
             let nyquist_freq: Box<dyn light_curve_feature::NyquistFreq<F>> =
