@@ -75,9 +75,13 @@ where
         periodogram_power: Box<dyn PeriodogramPower<T>>,
         t: &[T],
         resolution: f32,
+        max_freq_factor: f32,
         nyquist: &Box<dyn NyquistFreq<T>>,
     ) -> Self {
-        Self::new(periodogram_power, FreqGrid::from_t(t, resolution, nyquist))
+        Self::new(
+            periodogram_power,
+            FreqGrid::from_t(t, resolution, max_freq_factor, nyquist),
+        )
     }
 
     pub fn freq(&self, i: usize) -> T {
@@ -160,17 +164,29 @@ mod tests {
         const OMEGA: f64 = 0.472;
         const N: usize = 64;
         const RESOLUTION: f32 = 1.0;
+        const MAX_FREQ_FACTOR: f32 = 1.0;
 
         let t = linspace(0.0, (N - 1) as f64, N);
         let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA * x)).collect();
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
 
-        let direct =
-            Periodogram::from_t(Box::new(PeriodogramPowerDirect), &t, RESOLUTION, &nyquist)
-                .power(&mut ts);
-        let fft = Periodogram::from_t(Box::new(PeriodogramPowerFft), &t, RESOLUTION, &nyquist)
-            .power(&mut ts);
+        let direct = Periodogram::from_t(
+            Box::new(PeriodogramPowerDirect),
+            &t,
+            RESOLUTION,
+            MAX_FREQ_FACTOR,
+            &nyquist,
+        )
+        .power(&mut ts);
+        let fft = Periodogram::from_t(
+            Box::new(PeriodogramPowerFft),
+            &t,
+            RESOLUTION,
+            MAX_FREQ_FACTOR,
+            &nyquist,
+        )
+        .power(&mut ts);
         all_close(&fft[..direct.len() - 1], &direct[..direct.len() - 1], 1e-8);
     }
 
@@ -181,6 +197,7 @@ mod tests {
         const AMPLITUDE2: f64 = 2.0;
         const N: usize = 100;
         const RESOLUTION: f32 = 4.0;
+        const MAX_FREQ_FACTOR: f32 = 1.0;
 
         let t = linspace(0.0, (N - 1) as f64, N);
         let m: Vec<_> = t
@@ -190,11 +207,22 @@ mod tests {
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
 
-        let direct =
-            Periodogram::from_t(Box::new(PeriodogramPowerDirect), &t, RESOLUTION, &nyquist)
-                .power(&mut ts);
-        let fft = Periodogram::from_t(Box::new(PeriodogramPowerFft), &t, RESOLUTION, &nyquist)
-            .power(&mut ts);
+        let direct = Periodogram::from_t(
+            Box::new(PeriodogramPowerDirect),
+            &t,
+            RESOLUTION,
+            MAX_FREQ_FACTOR,
+            &nyquist,
+        )
+        .power(&mut ts);
+        let fft = Periodogram::from_t(
+            Box::new(PeriodogramPowerFft),
+            &t,
+            RESOLUTION,
+            MAX_FREQ_FACTOR,
+            &nyquist,
+        )
+        .power(&mut ts);
 
         assert_eq!(
             &fft.peak_indices_reverse_sorted()[..2],
@@ -210,6 +238,7 @@ mod tests {
         const NOISE_AMPLITUDE: f64 = 1.0;
         const N: usize = 100;
         const RESOLUTION: f32 = 6.0;
+        const MAX_FREQ_FACTOR: f32 = 1.0;
 
         let mut rng = StdRng::seed_from_u64(0);
         let t = (0..N)
@@ -227,11 +256,22 @@ mod tests {
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(MedianNyquistFreq);
 
-        let direct =
-            Periodogram::from_t(Box::new(PeriodogramPowerDirect), &t, RESOLUTION, &nyquist)
-                .power(&mut ts);
-        let fft = Periodogram::from_t(Box::new(PeriodogramPowerFft), &t, RESOLUTION, &nyquist)
-            .power(&mut ts);
+        let direct = Periodogram::from_t(
+            Box::new(PeriodogramPowerDirect),
+            &t,
+            RESOLUTION,
+            MAX_FREQ_FACTOR,
+            &nyquist,
+        )
+        .power(&mut ts);
+        let fft = Periodogram::from_t(
+            Box::new(PeriodogramPowerFft),
+            &t,
+            RESOLUTION,
+            MAX_FREQ_FACTOR,
+            &nyquist,
+        )
+        .power(&mut ts);
 
         assert_eq!(
             &fft.peak_indices_reverse_sorted()[..2],

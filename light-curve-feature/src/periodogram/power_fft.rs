@@ -14,20 +14,15 @@ where
     T: Float,
 {
     fn power(&self, freq: &FreqGrid<T>, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let spread_freq = FreqGrid {
-            step: freq.step,
-            size: freq.size.next_power_of_two(),
-        };
-
         let m_std2 = ts.m.get_std().powi(2);
 
         if m_std2.is_zero() {
-            return vec![T::zero(); spread_freq.size];
+            return vec![T::zero(); freq.size.next_power_of_two()];
         }
 
-        let (sum_sin_cos_h, sum_sin_cos_2) = sum_sin_cos(&spread_freq, ts);
+        let grid = TimeGrid::from_freq_grid(&freq);
 
-        let spread_size = (spread_freq.size << 1).value_as::<T>().unwrap();
+        let (sum_sin_cos_h, sum_sin_cos_2) = sum_sin_cos(&grid, ts);
 
         sum_sin_cos_h
             .iter()
@@ -53,8 +48,8 @@ where
                 let sum_h_sin = sum_sin_h * cos_wtau - sum_cos_h * sin_wtau;
 
                 let sum_cos2_wt_tau =
-                    T::half() * (spread_size + sum_cos_2 * cos_wtau + sum_sin_2 * sin_wtau);
-                let sum_sin2_wt_tau = spread_size - sum_cos2_wt_tau;
+                    T::half() * (grid.sizef + sum_cos_2 * cos_wtau + sum_sin_2 * sin_wtau);
+                let sum_sin2_wt_tau = grid.sizef - sum_cos2_wt_tau;
 
                 let frac_cos = if T::is_zero(&sum_cos2_wt_tau) {
                     T::zero()
@@ -78,6 +73,31 @@ where
                 T::half() / m_std2 * sum_frac
             })
             .collect()
+    }
+}
+
+struct TimeGrid<T> {
+    dt: T,
+    size: usize,
+    sizef: T,
+}
+
+impl<T: Float> TimeGrid<T> {
+    fn from_freq_grid(freq: &FreqGrid<T>) -> Self {
+        let size = freq.size.next_power_of_two() << 1;
+        Self {
+            dt: T::two() * T::PI() / (freq.step * size.value_as::<T>().unwrap()),
+            size,
+            sizef: size.value_as::<T>().unwrap(),
+        }
+    }
+
+    #[cfg(test)]
+    fn freq_grid(&self) -> FreqGrid<T> {
+        FreqGrid {
+            step: T::two() * T::PI() / (self.dt * self.size.value_as::<T>().unwrap()),
+            size: self.size >> 1,
+        }
     }
 }
 
@@ -106,20 +126,17 @@ fn zeroed_aligned_vec<T: Float>(size: usize) -> AlignedVec<T> {
 }
 
 fn spread_arrays_for_fft<T: Float>(
-    freq: &FreqGrid<T>,
+    grid: &TimeGrid<T>,
     ts: &mut TimeSeries<T>,
 ) -> (AlignedVec<T>, AlignedVec<T>) {
-    let size = freq.size << 1;
+    let mut mh = zeroed_aligned_vec(grid.size);
+    let mut m2 = zeroed_aligned_vec(grid.size);
 
-    let mut mh = zeroed_aligned_vec(size);
-    let mut m2 = zeroed_aligned_vec(size);
-
-    let spread_dt = T::two() * T::PI() / freq.step / size.value_as::<T>().unwrap();
     let t0 = ts.t.sample[0];
     let m_mean = ts.m.get_mean();
 
     for (&t, &m) in ts.t.sample.iter().zip(ts.m.sample.iter()) {
-        let x = (t - t0) / spread_dt;
+        let x = (t - t0) / grid.dt;
         spread(&mut mh, x, m - m_mean);
         let double_x = T::two() * x;
         spread(&mut m2, double_x, T::one());
@@ -129,10 +146,10 @@ fn spread_arrays_for_fft<T: Float>(
 }
 
 fn sum_sin_cos<T: Float>(
-    freq: &FreqGrid<T>,
+    grid: &TimeGrid<T>,
     ts: &mut TimeSeries<T>,
 ) -> (AlignedVec<Complex<T>>, AlignedVec<Complex<T>>) {
-    let (m_for_sch, m_for_sc2) = spread_arrays_for_fft(freq, ts);
+    let (m_for_sch, m_for_sc2) = spread_arrays_for_fft(grid, ts);
     let sum_sin_cos_h = T::fft(m_for_sch);
     let sum_sin_cos_2 = T::fft(m_for_sc2);
     (sum_sin_cos_h, sum_sin_cos_2)
@@ -144,6 +161,30 @@ mod tests {
     use crate::periodogram::freq::{AverageNyquistFreq, NyquistFreq};
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
+
+    #[test]
+    fn time_grid_from_freq_grid_power_of_two_size() {
+        const FREQ: FreqGrid<f32> = FreqGrid {
+            size: 1 << 4,
+            step: 3.0,
+        };
+        let time_grid = TimeGrid::from_freq_grid(&FREQ);
+        let freq_grid = time_grid.freq_grid();
+        assert_eq!(freq_grid.size, FREQ.size);
+        assert!(f32::abs(freq_grid.step - FREQ.step) < 1e-10);
+    }
+
+    #[test]
+    fn time_grid_from_freq_grid_not_power_of_two_size() {
+        const FREQ: FreqGrid<f32> = FreqGrid {
+            size: (1 << 4) + 1,
+            step: 3.0,
+        };
+        let time_grid = TimeGrid::from_freq_grid(&FREQ);
+        let freq_grid = time_grid.freq_grid();
+        assert!(freq_grid.size >= FREQ.size);
+        assert!(f32::abs(freq_grid.step - FREQ.step) < 1e-10);
+    }
 
     #[test]
     fn zero_aligned_vec() {
@@ -163,9 +204,10 @@ mod tests {
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
 
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
-        let freq_grid = FreqGrid::from_t(&t, 1.0, &nyquist);
+        let freq_grid = FreqGrid::from_t(&t, 1.0, 1.0, &nyquist);
+        let time_grid = TimeGrid::from_freq_grid(&freq_grid);
 
-        let (mh, m2) = spread_arrays_for_fft(&freq_grid, &mut ts);
+        let (mh, m2) = spread_arrays_for_fft(&time_grid, &mut ts);
 
         let desired_mh: Vec<_> = m.iter().map(|&x| x - ts.m.get_mean()).collect();
         all_close(&mh, &desired_mh, 1e-10);
@@ -186,8 +228,9 @@ mod tests {
         let mut ts = TimeSeries::new(&t[..], &m[..], None);
 
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
-        let freq_grid = FreqGrid::from_t(&t, RESOLUTION as f32, &nyquist);
-        let (mh, m2) = spread_arrays_for_fft(&freq_grid, &mut ts);
+        let freq_grid = FreqGrid::from_t(&t, RESOLUTION as f32, 1.0, &nyquist);
+        let time_grid = TimeGrid::from_freq_grid(&freq_grid);
+        let (mh, m2) = spread_arrays_for_fft(&time_grid, &mut ts);
 
         let desired_mh: Vec<_> = m.iter().map(|&x| x - ts.m.get_mean()).collect();
         all_close(&mh[..N], &desired_mh, 1e-10);
