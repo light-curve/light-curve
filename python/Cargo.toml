@@ -12,9 +12,13 @@ crate-type = ["cdylib"]
 lto = true
 
 [dependencies]
-light-curve-feature = { path = "../light-curve-feature", version = "0.1.11" }
+light-curve-feature = "0.1.11"
 numpy = "~0.8"
 
 [dependencies.pyo3]
 version = "~0.9"
 features = ["extension-module"]
+
+[package.metadata.maturin]
+requires-dist = ["numpy"]
+classifier = ["Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.6", "Programming Language :: Python :: 3.7", "Programming Language :: Python :: 3.8", "Programming Language :: Rust", "Topic :: Scientific/Engineering :: Astronomy"]
