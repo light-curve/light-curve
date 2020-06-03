@@ -35,48 +35,74 @@ pub trait Float:
 }
 
 impl Float for f32 {
+    #[inline]
     fn half() -> Self {
         0.5
     }
+
+    #[inline]
     fn two() -> Self {
         2.0
     }
+
+    #[inline]
     fn three() -> Self {
         3.0
     }
+
+    #[inline]
     fn four() -> Self {
         4.0
     }
+
+    #[inline]
     fn five() -> Self {
         5.0
     }
+
+    #[inline]
     fn ten() -> Self {
         10.0
     }
+
+    #[inline]
     fn hundred() -> Self {
         100.0
     }
 }
 
 impl Float for f64 {
+    #[inline]
     fn half() -> Self {
         0.5
     }
+
+    #[inline]
     fn two() -> Self {
         2.0
     }
+
+    #[inline]
     fn three() -> Self {
         3.0
     }
+
+    #[inline]
     fn four() -> Self {
         4.0
     }
+
+    #[inline]
     fn five() -> Self {
         5.0
     }
+
+    #[inline]
     fn ten() -> Self {
         10.0
     }
+
+    #[inline]
     fn hundred() -> Self {
         100.0
     }
