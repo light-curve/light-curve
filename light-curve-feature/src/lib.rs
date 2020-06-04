@@ -943,11 +943,12 @@ impl<T> Periodogram<T>
 where
     T: Float,
 {
+    /// New [Periodogram] that finds given number of peaks
     pub fn new(peaks: usize) -> Self {
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
             peaks,
-            resolution: 20.0,
+            resolution: 10.0,
             max_freq_factor: 1.0,
             nyquist: Box::new(AverageNyquistFreq),
             features_extractor: FeatureExtractor::new(vec![]),
@@ -959,21 +960,31 @@ where
         }
     }
 
+    /// Set frequency resolution
+    ///
+    /// The larger frequency resolution allows to find peak period with better precision
     pub fn set_freq_resolution(&mut self, resolution: f32) -> &mut Self {
         self.resolution = resolution;
         self
     }
 
+    /// Multiply maximum (Nyquist) frequency
+    ///
+    /// Maximum frequency is Nyquist frequncy multiplied by this factor. The larger factor allows
+    /// to find larger frequency and makes [PeriodogramPowerFft] more precise. However large
+    /// frequencies can show false peaks
     pub fn set_max_freq_factor(&mut self, max_freq_factor: f32) -> &mut Self {
         self.max_freq_factor = max_freq_factor;
         self
     }
 
+    /// Define Nyquist frequency
     pub fn set_nyquist(&mut self, nyquist: Box<dyn NyquistFreq<T>>) -> &mut Self {
         self.nyquist = nyquist;
         self
     }
 
+    /// Extend a list of features to extract from periodogram
     pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
         self.features_extractor.features.extend(features);
         self.features_names.extend(

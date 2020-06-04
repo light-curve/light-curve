@@ -10,8 +10,9 @@ pub trait NyquistFreq<T>: Send + Sync {
     fn nyquist_freq(&self, t: &[T]) -> T;
 }
 
-/// $\Delta t = \mathrm{duration} / (N - 1)$ is the mean time interval between observations,
-/// the denominator is $(N-1)$ for compatibility with Nyquist frequency for uniform grid. Note that
+/// $\Delta t = \mathrm{duration} / (N - 1)$ is the mean time interval between observations
+///
+/// The denominator is $(N-1)$ for compatibility with Nyquist frequency for uniform grid. Note that
 /// in literature definition of "average Nyquist" frequency usually differ and place $N$ to the
 /// denominator
 pub struct AverageNyquistFreq;
@@ -37,6 +38,7 @@ impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
     }
 }
 
+/// $\Delta t$ is the $q$th quantile of time intervals between subsequent observations
 pub struct QuantileNyquistFreq {
     pub quantile: f32,
 }

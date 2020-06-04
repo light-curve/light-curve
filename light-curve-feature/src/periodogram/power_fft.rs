@@ -6,6 +6,18 @@ use crate::time_series::TimeSeries;
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 use num_complex::Complex;
 
+/// "Fast" (FFT-based) periodogram executor
+///
+/// This algorithm spreads observer time series into uniform time grid using linear interpolation
+/// and then uses FFT to obtain periodogram sums. This implementation returns estimation of
+/// Lomb-Scargle periodogram that derives to the exact values while `max_freq_factor` grows.
+/// Asymptotic time is $O(N \log N)$, it is faster then
+/// [PeriodogramPowerDirect](crate::periodogram::PeriodogramPowerDirect) even for $N \simge 10$.
+/// Note that current implementation uses two-powered time grids and requires to estimate the best
+/// FFT algorithm for each pair of grid size and working thread that can take several seconds,
+/// especially for large grids.
+///
+/// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
 #[derive(Debug)]
 pub struct PeriodogramPowerFft;
 
