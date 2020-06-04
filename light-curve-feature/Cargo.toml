@@ -1,34 +1,27 @@
 [package]
 name = "light-curve-feature"
-version = "0.1.11"
+version = "0.1.12-beta.2"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "GPL-3.0-or-later"
 edition = "2018"
 
-[package.metadata.docs.rs]
-rustdoc-args = [
-    "--html-in-header",
-    "katex-header.html",
-]
+[features]
+default = ["fftw-source"]
+fftw-system = ["fftw/system"]
+fftw-source = ["fftw/source"]
+fftw-mkl = ["fftw/intel-mkl"]
 
 [dependencies]
 num-complex = "0.2"
 num-traits = "0.2"
 conv = "0.3"
 light-curve-common = "0.1.0"
-
-[target.'cfg(target_os = "macos")'.dependencies.fftw]
-version = "~0.5"
-default-features = false
-features = ["system"]
-
-[target.'cfg(not(target_os = "macos"))'.dependencies.fftw]
-version = "~0.6"
+fftw = { version = "~0.6", default-features = false }
 
 [dev-dependencies]
-rand = "0.7"
+rand = "~0.7"
 criterion = "~0.3"
 rustfft = "~3.0"
 chfft = "~0.3"
@@ -37,3 +30,11 @@ chfft = "~0.3"
 name = "benchmark"
 path = "benches/lib.rs"
 harness = false
+
+[package.metadata.docs.rs]
+rustdoc-args = [
+    "--html-in-header",
+    "katex-header.html",
+]
+no-default-features = true
+features = ["fftw-system"]
