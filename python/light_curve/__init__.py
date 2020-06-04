@@ -1,1 +1,1 @@
-from .feature import *
+from .light_curve import *

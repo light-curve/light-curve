@@ -32,15 +32,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install FFTW
+      run: |
+        sudo apt-get update
+        sudo apt-get install libfftw3-dev
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
-    - name: Install nightly rust
-      run: |
-        rustup install nightly
-        rustup default nightly
-        rustup component add clippy rustfmt
+    - name: Set up Rust Nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+        components: rustfmt, clippy
     - name: Install maturin
       run: pip install maturin
     - name: Build package

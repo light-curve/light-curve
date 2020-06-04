@@ -258,7 +258,7 @@ evaluator!(StandardDeviation, light_curve_feature::StandardDeviation);
 evaluator!(StetsonK, light_curve_feature::StetsonK);
 
 #[pymodule]
-fn feature(_py: Python, m: &PyModule) -> PyResult<()> {
+fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Amplitude>()?;
     m.add_class::<BeyondNStd>()?;
     m.add_class::<Cusum>()?;

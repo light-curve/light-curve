@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 lto = true
 
 [dependencies]
-light-curve-feature = "0.1.11"
+light-curve-feature = { version = "0.1.12", default-features = false, features = ["fftw-system"] }
 numpy = "~0.8"
 
 [dependencies.pyo3]
