@@ -12,7 +12,7 @@ use num_complex::Complex;
 /// and then uses FFT to obtain periodogram sums. This implementation returns estimation of
 /// Lomb-Scargle periodogram that derives to the exact values while `max_freq_factor` grows.
 /// Asymptotic time is $O(N \log N)$, it is faster then
-/// [PeriodogramPowerDirect](crate::periodogram::PeriodogramPowerDirect) even for $N \simge 10$.
+/// [PeriodogramPowerDirect](crate::periodogram::PeriodogramPowerDirect) even for $N \gtrsim 10$.
 /// Note that current implementation uses two-powered time grids and requires to estimate the best
 /// FFT algorithm for each pair of grid size and working thread that can take several seconds,
 /// especially for large grids.
