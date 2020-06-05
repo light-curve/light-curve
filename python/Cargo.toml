@@ -12,8 +12,14 @@ crate-type = ["cdylib"]
 [profile.release]
 lto = true
 
+[features]
+default = ["fftw-static"]
+fftw-static = ["light-curve-feature/fftw-source"]
+fftw-dynamic = ["light-curve-feature/fftw-system"]
+mkl = ["light-curve-feature/fftw-mkl"]
+
 [dependencies]
-light-curve-feature = { version = "0.1.12", default-features = false, features = ["fftw-system"] }
+light-curve-feature = "0.1.12"
 numpy = "~0.8"
 
 [dependencies.pyo3]
