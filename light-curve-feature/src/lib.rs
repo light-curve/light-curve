@@ -1008,6 +1008,27 @@ where
         periodogram::Periodogram::<T>::init_thread_local_fft_plans(n);
     }
 
+    fn periodogram(&self, ts: &mut TimeSeries<T>) -> periodogram::Periodogram<T> {
+        periodogram::Periodogram::from_t(
+            (self.periodogram_algorithm)(),
+            ts.t.sample,
+            self.resolution,
+            self.max_freq_factor,
+            &self.nyquist,
+        )
+    }
+
+    pub fn power(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        self.periodogram(ts).power(ts)
+    }
+
+    pub fn freq_power(&self, ts: &mut TimeSeries<T>) -> (Vec<T>, Vec<T>) {
+        let p = self.periodogram(ts);
+        let power = p.power(ts);
+        let freq: Vec<_> = (0..power.len()).map(|i| p.freq(i)).collect();
+        (freq, power)
+    }
+
     fn period(omega: T) -> T {
         T::two() * T::PI() / omega
     }
@@ -1027,15 +1048,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let periodogram = periodogram::Periodogram::from_t(
-            (self.periodogram_algorithm)(),
-            ts.t.sample,
-            self.resolution,
-            self.max_freq_factor,
-            &self.nyquist,
-        );
-        let power = periodogram.power(ts);
-        let freq: Vec<_> = (0..power.len()).map(|i| periodogram.freq(i)).collect();
+        let (freq, power) = self.freq_power(ts);
         let mut pg_as_ts = TimeSeries::new(&freq, &power, None);
         let mut features: Vec<_> = power
             .peak_indices_reverse_sorted()
