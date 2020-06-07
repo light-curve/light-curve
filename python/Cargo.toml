@@ -19,7 +19,7 @@ fftw-dynamic = ["light-curve-feature/fftw-system"]
 mkl = ["light-curve-feature/fftw-mkl"]
 
 [dependencies]
-light-curve-feature = "0.1.12"
+light-curve-feature = { path = '../light-curve-feature', version = "0.1.12" }
 numpy = "~0.8"
 
 [dependencies.pyo3]
