@@ -47,6 +47,7 @@ impl PyFeatureEvaluator {
 macro_rules! evaluator {
     ($name: ident, $eval: ty $(,)?) => {
         #[pyclass(extends = PyFeatureEvaluator)]
+        #[text_signature = "()"]
         struct $name {}
 
         #[pymethods]
@@ -67,6 +68,7 @@ macro_rules! evaluator {
 evaluator!(Amplitude, light_curve_feature::Amplitude);
 
 #[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(nstd=None)"]
 struct BeyondNStd {}
 
 #[pymethods]
@@ -100,6 +102,7 @@ evaluator!(LinearFit, light_curve_feature::LinearFit);
 evaluator!(LinearTrend, light_curve_feature::LinearTrend);
 
 #[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(quantile_numerator=None, quantile_denominator=None)"]
 struct MagnitudePercentageRatio {}
 
 #[pymethods]
@@ -136,6 +139,7 @@ evaluator!(
 );
 
 #[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(quantile=None)"]
 struct MedianBufferRangePercentage {}
 
 #[pymethods]
@@ -159,6 +163,7 @@ impl MedianBufferRangePercentage {
 evaluator!(PercentAmplitude, light_curve_feature::PercentAmplitude);
 
 #[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(quantile=None)"]
 struct PercentDifferenceMagnitudePercentile {}
 
 #[pymethods]
@@ -181,7 +186,32 @@ impl PercentDifferenceMagnitudePercentile {
     }
 }
 
+/// Find periodogram peaks
+///
+/// Parameters
+/// ----------
+/// peaks: int or None, optional
+///     Number of peaks to find
+///
+/// resolution: float or None, optional
+///     Resolution of frequency grid
+///
+/// max_freq_factor: float or None, optional
+///     Mulitplier for Nyquist frequency
+///
+/// nyquist: str or float or None, optional
+///     Type of Nyquist frequency. Could be one of:
+///      - 'average': "Average" Nyquist frequency
+///      - 'median': Nyquist frequency is defined by median time interval
+///         between observations
+///      - float: Nyquist frequency is defined by given quantile of time
+///         intervals between observations
+///
+/// fast: bool or None, optional
+///     Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
+///
 #[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None)"]
 struct Periodogram {}
 
 #[pymethods]
@@ -217,18 +247,16 @@ impl Periodogram {
                 if let Ok(s) = nyquist.extract::<&str>(py) {
                     match s {
                         "average" => Box::new(light_curve_feature::AverageNyquistFreq {}),
-                        "mean" => Box::new(light_curve_feature::MedianNyquistFreq {}),
-                        _ => {
-                            return Err(ValueError::py_err(
-                                "nyquist must be one of: None, 'average', 'mean' or quantile value",
-                            ))
-                        }
+                        "median" => Box::new(light_curve_feature::MedianNyquistFreq {}),
+                        _ => return Err(ValueError::py_err(
+                            "nyquist must be one of: None, 'average', 'median' or quantile value",
+                        )),
                     }
                 } else if let Ok(quantile) = nyquist.extract::<f32>(py) {
                     Box::new(light_curve_feature::QuantileNyquistFreq { quantile })
                 } else {
                     return Err(ValueError::py_err(
-                        "nyquist must be one of: None, 'average', 'mean' or quantile value",
+                        "nyquist must be one of: None, 'average', 'median' or quantile value",
                     ));
                 };
             eval.set_nyquist(nyquist_freq);
