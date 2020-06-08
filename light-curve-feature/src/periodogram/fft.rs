@@ -23,7 +23,6 @@ where
     T: FftwFloat,
 {
     plans: HashMap<usize, Plan<T, Complex<T>, T::Plan>>,
-    flags: Flag,
 }
 
 impl<T> Fft<T>
@@ -33,19 +32,26 @@ where
     Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
 {
     pub fn new() -> Self {
-        let mut flags = Flag::Measure;
-        flags.insert(Flag::DestroyInput);
         Self {
             plans: HashMap::new(),
-            flags,
         }
     }
 
+    fn flags(n: usize) -> Flag {
+        const MAX_N_TO_MEASURE: usize = 1 << 12; // It takes ~3s to measure
+        let mut flag = Flag::DestroyInput;
+        if n <= MAX_N_TO_MEASURE {
+            flag.insert(Flag::Measure);
+        } else {
+            flag.insert(Flag::Estimate);
+        }
+        flag
+    }
+
     pub fn get_plan(&mut self, n: usize) -> &mut Plan<T, Complex<T>, T::Plan> {
-        let flags = self.flags;
         self.plans
             .entry(n)
-            .or_insert_with(|| R2CPlan::aligned(&[n], flags).unwrap())
+            .or_insert_with(|| R2CPlan::aligned(&[n], Self::flags(n)).unwrap())
     }
 
     pub fn fft(&mut self, mut x: AlignedVec<T>) -> Result<AlignedVec<Complex<T>>> {
