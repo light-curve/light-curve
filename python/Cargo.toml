@@ -16,11 +16,15 @@ lto = true
 default = ["fftw-static"]
 fftw-static = ["light-curve-feature/fftw-source"]
 fftw-dynamic = ["light-curve-feature/fftw-system"]
-mkl = ["light-curve-feature/fftw-mkl"]
+mkl-dynamic = ["light-curve-feature/fftw-mkl"]
 
 [dependencies]
-light-curve-feature = { path = '../light-curve-feature', version = "0.1.13" }
 numpy = "~0.8"
+
+[dependencies.light-curve-feature]
+path = "../light-curve-feature"
+version = "0.1.13"
+default_features = false
 
 [dependencies.pyo3]
 version = "~0.9"
