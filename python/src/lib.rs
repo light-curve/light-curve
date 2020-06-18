@@ -4,11 +4,12 @@ use pyo3::exceptions::ValueError;
 use pyo3::prelude::{pyclass, pymethods, pymodule, Py, PyModule, PyObject, PyResult, Python};
 
 type F = f64;
+type Arr = PyArray1<F>;
 
 fn ts_from_arrays<'a, 'b, 'c>(
-    t: &'a PyArray1<F>,
-    m: &'b PyArray1<F>,
-    err2: Option<&'c PyArray1<F>>,
+    t: &'a Arr,
+    m: &'b Arr,
+    err2: Option<&'c Arr>,
 ) -> PyResult<TimeSeries<'a, 'b, 'c, F>> {
     Ok(TimeSeries::new(
         t.as_slice()?,
@@ -28,13 +29,7 @@ struct PyFeatureEvaluator {
 #[pymethods]
 impl PyFeatureEvaluator {
     #[call]
-    fn __call__(
-        &self,
-        py: Python,
-        t: &PyArray1<F>,
-        m: &PyArray1<F>,
-        err2: Option<&PyArray1<F>>,
-    ) -> PyResult<Py<PyArray1<F>>> {
+    fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> PyResult<Py<Arr>> {
         let mut ts = ts_from_arrays(t, m, err2)?;
         Ok(self
             .feature_evaluator
@@ -212,26 +207,19 @@ impl PercentDifferenceMagnitudePercentile {
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None)"]
-struct Periodogram {}
+struct Periodogram {
+    eval: light_curve_feature::Periodogram<F>,
+}
 
-#[pymethods]
 impl Periodogram {
-    #[new]
-    #[args(
-        peaks = "None",
-        resolution = "None",
-        max_freq_factor = "None",
-        nyquist = "None",
-        fast = "None"
-    )]
-    fn __new__(
+    fn create_eval(
         py: Python,
         peaks: Option<usize>,
         resolution: Option<f32>,
         max_freq_factor: Option<f32>,
         nyquist: Option<PyObject>,
         fast: Option<bool>,
-    ) -> PyResult<(Self, PyFeatureEvaluator)> {
+    ) -> PyResult<light_curve_feature::Periodogram<F>> {
         let mut eval = match peaks {
             Some(peaks) => light_curve_feature::Periodogram::new(peaks),
             None => light_curve_feature::Periodogram::default(),
@@ -268,11 +256,66 @@ impl Periodogram {
                 eval.set_periodogram_algorithm(move || Box::new(PeriodogramPowerDirect));
             }
         }
+        Ok(eval)
+    }
+}
+
+#[pymethods]
+impl Periodogram {
+    #[new]
+    #[args(
+        peaks = "None",
+        resolution = "None",
+        max_freq_factor = "None",
+        nyquist = "None",
+        fast = "None"
+    )]
+    fn __new__(
+        py: Python,
+        peaks: Option<usize>,
+        resolution: Option<f32>,
+        max_freq_factor: Option<f32>,
+        nyquist: Option<PyObject>,
+        fast: Option<bool>,
+    ) -> PyResult<(Self, PyFeatureEvaluator)> {
         Ok((
-            Self {},
-            PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+            Self {
+                eval: Self::create_eval(
+                    py,
+                    peaks,
+                    resolution,
+                    max_freq_factor,
+                    nyquist.as_ref().map(|x| x.clone_ref(py)),
+                    fast,
+                )?,
             },
+            PyFeatureEvaluator {
+                feature_evaluator: Box::new(Self::create_eval(
+                    py,
+                    peaks,
+                    resolution,
+                    max_freq_factor,
+                    nyquist,
+                    fast,
+                )?),
+            },
+        ))
+    }
+
+    /// Angular frequencies and periodogram values
+    #[text_signature = "(t, m, err2=None)"]
+    fn freq_power(
+        &self,
+        py: Python,
+        t: &Arr,
+        m: &Arr,
+        err2: Option<&Arr>,
+    ) -> PyResult<(Py<Arr>, Py<Arr>)> {
+        let mut ts = ts_from_arrays(t, m, err2)?;
+        let (freq, power) = self.eval.freq_power(&mut ts);
+        Ok((
+            freq.into_pyarray(py).to_owned(),
+            power.into_pyarray(py).to_owned(),
         ))
     }
 }
