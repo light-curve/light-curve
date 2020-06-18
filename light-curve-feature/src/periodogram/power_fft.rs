@@ -198,6 +198,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn zero_aligned_vec() {
         const N: usize = 32;
         let av = zeroed_aligned_vec::<f64>(N);
@@ -228,6 +229,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn spread_arrays_for_fft_one_to_one_resolution() {
         const N: usize = 8;
         const RESOLUTION: usize = 4;
