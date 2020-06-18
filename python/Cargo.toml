@@ -9,9 +9,6 @@ license = "GPL-3.0-or-later"
 name = "light_curve"
 crate-type = ["cdylib"]
 
-[profile.release]
-lto = true
-
 [features]
 default = ["fftw-static"]
 fftw-static = ["light-curve-feature/fftw-source"]

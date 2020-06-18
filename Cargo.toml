@@ -6,3 +6,6 @@ members = [
     "light-curve-interpol",
     "python",
 ]
+
+[profile.release]
+lto = true
