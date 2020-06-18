@@ -1,4 +1,3 @@
-use chfft::RFft1D;
 use core::fmt;
 use core::fmt::Debug;
 use criterion::{black_box, Criterion};
@@ -77,40 +76,6 @@ where
             .fold((T::zero(), T::zero()), |acc, c| {
                 (acc.0 + c.re, acc.1 + c.im)
             })
-    }
-}
-
-struct ChFft<T> {
-    rfft1d: HashMap<usize, RFft1D<T>>,
-}
-
-impl<T> ChFft<T>
-where
-    T: Float + FloatConst + NumAssign,
-{
-    fn new(n: &[usize]) -> Self {
-        Self {
-            rfft1d: n.iter().map(|&i| (i, RFft1D::new(i))).collect(),
-        }
-    }
-}
-
-impl<T> Debug for ChFft<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("chfft").finish()
-    }
-}
-
-impl<T> Fft<T> for ChFft<T>
-where
-    T: Float + FloatConst + NumAssign,
-{
-    fn run(&mut self, a: &[T]) -> (T, T) {
-        let t: Vec<_> = a.to_vec();
-        let f = self.rfft1d.get_mut(&a.len()).unwrap().forward(&t[..]);
-        f.iter().fold((T::zero(), T::zero()), |acc, c| {
-            (acc.0 + c.re, acc.1 + c.im)
-        })
     }
 }
 
@@ -232,7 +197,6 @@ where
     let series: Vec<Box<dyn Series<T>>> = vec![Box::new(Ones {}), Box::new(Randoms {})];
     let mut ffts: Vec<Box<dyn Fft<T>>> = vec![
         Box::new(RustFft::new(&counts)),
-        Box::new(ChFft::new(&counts)),
         Box::new(Fftw::new(&counts)),
     ];
 
@@ -244,17 +208,6 @@ where
                     format!("FFT - {:?}, {:?}[{}; {}]", fft, s, n, T::type_name()).as_str(),
                     |b| b.iter(|| fft.run(black_box(&x))),
                 );
-                // let res = fft.run(&x);
-                // println!(
-                //     "FFT - {:?}, {:?}[{}; {}] = ({}, {})",
-                //     fft,
-                //     s,
-                //     n,
-                //     T::type_name(),
-                //     res.0,
-                //     res.1
-                // );
-                // println!("{:?}", x);
             }
         }
     }
