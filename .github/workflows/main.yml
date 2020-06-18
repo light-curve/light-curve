@@ -13,14 +13,29 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install libfftw3-dev
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
     - name: Build
-      run: cargo build --all-targets --all-features --workspace --exclude light-curve-python
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --all-targets --all-features --workspace --exclude light-curve-python
     - name: Run tests
-      run: cargo test --workspace --exclude light-curve-python
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --workspace --exclude light-curve-python
     - name: Check formatting
-      run: cargo fmt -- --check
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: -- --check
     - name: Run code analysis
-      run: cargo clippy --workspace --exclude light-curve-python --all-targets --all-features -- -D warnings
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --workspace --exclude light-curve-python --all-targets --all-features -- -D warnings
 
   python:
 
@@ -53,6 +68,12 @@ jobs:
     - name: Build package with dynamic MKL
       run: maturin build --release --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic"
     - name: Check formatting
-      run: cargo fmt -- --check
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: -- --check
     - name: Run code analysis
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all-targets --all-features -- -D warnings
