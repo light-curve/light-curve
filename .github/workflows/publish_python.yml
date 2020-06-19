@@ -1,0 +1,36 @@
+name: Publish Python packages
+
+on:
+  push:
+    tags:
+      - light-curve-python-v*
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install FFTW
+      run: |
+        sudo apt-get update
+        sudo apt-get install libfftw3-dev
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Set up Rust Nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: Install maturin
+      run: pip install maturin
+    - name: Publish
+      env:
+        MATURIN_PASSWORD: ${{ secrets.PIPY_TOKEN }}
+      run: maturin publish --no-strip -u __token__
