@@ -65,6 +65,8 @@ jobs:
       run: pip install maturin
     - name: Build package with static FFTW
       run: maturin build --release
+    - name: Build package with dynamic FFTW
+      run: maturin build --release --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic"
     - name: Build package with dynamic MKL
       run: maturin build --release --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic"
     - name: Check formatting
