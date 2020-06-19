@@ -6,8 +6,12 @@ on:
       - light-curve-python-v*
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  publish:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
 
     defaults:
       run:
@@ -15,10 +19,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install FFTW
-      run: |
-        sudo apt-get update
-        sudo apt-get install libfftw3-dev
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
