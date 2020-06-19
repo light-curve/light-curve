@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-python"
-version = "0.1.1-beta.5"
+version = "0.1.1-beta.6"
 edition = "2018"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "GPL-3.0-or-later"
