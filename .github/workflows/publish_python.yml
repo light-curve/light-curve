@@ -31,6 +31,6 @@ jobs:
     - name: Install maturin
       run: pip install maturin
     - name: Publish
+      run: maturin publish --no-strip -u __token__
       env:
         MATURIN_PASSWORD: ${{ secrets.PIPY_TOKEN }}
-      run: maturin publish --no-strip -u __token__
