@@ -3,7 +3,7 @@ use crate::periodogram::fft::*;
 use crate::periodogram::freq::FreqGrid;
 use crate::periodogram::power::*;
 use crate::time_series::TimeSeries;
-use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
+use conv::{ConvAsUtil, RoundToNearest};
 use num_complex::Complex;
 
 /// "Fast" (FFT-based) periodogram executor
@@ -99,7 +99,7 @@ impl<T: Float> TimeGrid<T> {
     fn from_freq_grid(freq: &FreqGrid<T>) -> Self {
         let size = freq.size.next_power_of_two() << 1;
         Self {
-            dt: T::two() * T::PI() / (freq.step * size.value_as::<T>().unwrap()),
+            dt: T::two() * T::PI() / (freq.step * size.approx().unwrap()),
             size,
         }
     }
@@ -107,7 +107,7 @@ impl<T: Float> TimeGrid<T> {
     #[cfg(test)]
     fn freq_grid(&self) -> FreqGrid<T> {
         FreqGrid {
-            step: T::two() * T::PI() / (self.dt * self.size.value_as::<T>().unwrap()),
+            step: T::two() * T::PI() / (self.dt * self.size.approx().unwrap()),
             size: self.size >> 1,
         }
     }

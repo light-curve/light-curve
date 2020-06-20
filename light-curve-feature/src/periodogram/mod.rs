@@ -1,6 +1,6 @@
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
-use conv::ConvUtil;
+use conv::ConvAsUtil;
 
 mod fft;
 
@@ -85,7 +85,7 @@ where
     }
 
     pub fn freq(&self, i: usize) -> T {
-        self.freq_grid.step * (i + 1).value_as::<T>().unwrap()
+        self.freq_grid.step * (i + 1).approx().unwrap()
     }
 
     pub fn power(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
