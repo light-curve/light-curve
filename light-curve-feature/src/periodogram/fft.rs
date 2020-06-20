@@ -39,11 +39,11 @@ where
 
     fn flags(n: usize) -> Flag {
         const MAX_N_TO_MEASURE: usize = 1 << 12; // It takes ~3s to measure
-        let mut flag = Flag::DestroyInput;
+        let mut flag = Flag::DESTROYINPUT;
         if n <= MAX_N_TO_MEASURE {
-            flag.insert(Flag::Measure);
+            flag.insert(Flag::MEASURE);
         } else {
-            flag.insert(Flag::Estimate);
+            flag.insert(Flag::ESTIMATE);
         }
         flag
     }

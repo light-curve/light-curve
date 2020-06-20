@@ -140,8 +140,8 @@ where
     Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
 {
     fn new(n: &[usize]) -> Self {
-        let mut flags = Flag::Patient;
-        flags.insert(Flag::DestroyInput);
+        let mut flags = Flag::PATIENT;
+        flags.insert(Flag::DESTROYINPUT);
         Self {
             r2cplan: n
                 .iter()
