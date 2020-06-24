@@ -684,7 +684,7 @@ where
 /// Mean magnitude
 ///
 /// $$
-/// $\langle m \rangle$ \equiv \frac1{N} \sum_i m_i.
+/// \langle m \rangle \equiv \frac1{N} \sum_i m_i.
 /// $$
 /// This is non-weighted mean, see [WeightedMean](crate::WeightedMean) for weighted mean.
 ///
