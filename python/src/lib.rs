@@ -128,6 +128,8 @@ impl MagnitudePercentageRatio {
 
 evaluator!(MaximumSlope, light_curve_feature::MaximumSlope);
 
+evaluator!(Mean, light_curve_feature::Mean);
+
 evaluator!(
     MedianAbsoluteDeviation,
     light_curve_feature::MedianAbsoluteDeviation,
@@ -328,6 +330,8 @@ evaluator!(StandardDeviation, light_curve_feature::StandardDeviation);
 
 evaluator!(StetsonK, light_curve_feature::StetsonK);
 
+evaluator!(WeightedMean, light_curve_feature::WeightedMean);
+
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Amplitude>()?;
@@ -340,6 +344,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<LinearTrend>()?;
     m.add_class::<MagnitudePercentageRatio>()?;
     m.add_class::<MaximumSlope>()?;
+    m.add_class::<Mean>()?;
     m.add_class::<MedianAbsoluteDeviation>()?;
     m.add_class::<MedianBufferRangePercentage>()?;
     m.add_class::<PercentAmplitude>()?;
@@ -349,6 +354,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Skew>()?;
     m.add_class::<StandardDeviation>()?;
     m.add_class::<StetsonK>()?;
+    m.add_class::<WeightedMean>()?;
 
     Ok(())
 }
