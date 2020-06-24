@@ -681,6 +681,42 @@ where
     }
 }
 
+/// Mean magnitude
+///
+/// $$
+/// $\langle m \rangle$ \equiv \frac1{N} \sum_i m_i.
+/// $$
+/// This is non-weighted mean, see [WeightedMean](crate::WeightedMean) for weighted mean.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+#[derive(Default)]
+pub struct Mean {}
+
+impl Mean {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for Mean
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        vec![ts.t.get_mean()]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["mean"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
 /// Median of the absolute value of the difference between magnitude and its median
 ///
 /// $$
@@ -1078,10 +1114,10 @@ where
 /// Reduced $\chi^2$ of magnitude measurements
 ///
 /// $$
-/// \mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2,
+/// \mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \bar{m}}{\delta\_i}\right)^2,
 /// $$
 /// where $N$ is the number of observations,
-/// and $\langle m \rangle$ is the mean magnitude.
+/// and $\bar{m}$ is the weighted mean magnitude.
 ///
 /// - Depends on: **magnitude**, **magnitude error**
 /// - Minimum number of observations: **2**
@@ -1258,6 +1294,42 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["stetson_K"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
+/// Weighted mean magnitude
+///
+/// $$
+/// \bar{m} \equiv \frac{\sum_i m_i / \delta_i^2}{\sum_i 1 / \delta_i^2}.
+/// $$
+/// See [Mean](crate::Mean) for non-weighted mean.
+///
+/// - Depends on: **magnitude**, **magnitude error**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+#[derive(Default)]
+pub struct WeightedMean {}
+
+impl WeightedMean {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for WeightedMean
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        vec![ts.get_m_weighted_mean().unwrap_or_else(T::nan)]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["weighted_mean"]
     }
 
     fn size_hint(&self) -> usize {
@@ -2285,6 +2357,13 @@ mod tests {
     );
 
     feature_test!(
+        mean,
+        [Box::new(Mean::new())],
+        [14.0],
+        [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
+    );
+
+    feature_test!(
         median_absolute_deviation,
         [Box::new(MedianAbsoluteDeviation::new())],
         [4.0],
@@ -2569,5 +2648,14 @@ mod tests {
         [1.0; 100], // isn't used
         [1.0; 100],
         Some(&[1.0; 100]),
+    );
+
+    feature_test!(
+        weighted_mean,
+        [Box::new(WeightedMean::new())],
+        [1.1897810218978102],
+        [1.0; 5], // isn't used
+        [0.0_f32, 1.0, 2.0, 3.0, 4.0],
+        Some(&[0.1, 0.2, 0.3, 0.4, 0.5]),
     );
 }
