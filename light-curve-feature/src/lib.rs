@@ -397,6 +397,65 @@ where
     }
 }
 
+/// Inter-percentile range
+///
+/// $$
+/// \mathrm{inter-percetile range} \equiv Q(1 - p) - Q(p),
+/// $$
+/// where $Q(p)$ is the $p$th quantile of the magnitude distribution.
+///
+/// Special cases are [the interquartile range](https://en.wikipedia.org/wiki/Interquartile_range)
+/// which is inter-percentile range for $p = 0.25$ and
+/// [the interdecile range](https://en.wikipedia.org/wiki/Interdecile_range) which is
+/// inter-percentile range for $p = 0.1$.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+pub struct InterPercentileRange {
+    quantile: f32,
+    name: String,
+}
+
+impl InterPercentileRange {
+    pub fn new(quantile: f32) -> Self {
+        assert!(
+            (quantile > 0.0) && (quantile < 0.5),
+            "Quanitle should be in range (0.0, 0.5)"
+        );
+        Self {
+            quantile,
+            name: format!("inter_percentile_range_{:.0}", 100.0 * quantile),
+        }
+    }
+}
+
+impl Default for InterPercentileRange {
+    fn default() -> Self {
+        Self::new(0.25)
+    }
+}
+
+impl<T> FeatureEvaluator<T> for InterPercentileRange
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let q = [self.quantile, 1.0 - self.quantile];
+        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
+        let value = ppf[1] - ppf[0];
+        vec![value]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
 /// Kurtosis of magnitude $G_2$
 ///
 /// $$
@@ -837,7 +896,7 @@ where
 /// Maximum deviation of magnitude from its median
 ///
 /// $$
-/// \mathrm{percent~amplitude} \equiv \max_i\left(m_i - \mathrm{Median}(m)\right)
+/// \mathrm{percent~amplitude} \equiv \max_i\left|m_i - \mathrm{Median}(m)\right|
 ///     = \max\\{\max(m) - \mathrm{Median}(m), \mathrm{Median}(m) - \min(m)\\}.
 /// $$
 ///
@@ -1643,6 +1702,17 @@ mod tests {
         let actual: f32 = fe.eval(ts)[0];
         assert!(actual.is_finite());
     }
+
+    feature_test!(
+        inter_percentile_range,
+        [
+            Box::new(InterPercentileRange::default()),
+            Box::new(InterPercentileRange::new(0.25)), // should be the same
+            Box::new(InterPercentileRange::new(0.1)),
+        ],
+        [50.0, 50.0, 80.0],
+        linspace(0.0, 99.0, 100),
+    );
 
     feature_test!(
         kurtosis,
