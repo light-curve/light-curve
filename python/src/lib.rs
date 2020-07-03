@@ -90,6 +90,28 @@ evaluator!(Eta, light_curve_feature::Eta);
 
 evaluator!(EtaE, light_curve_feature::EtaE);
 
+#[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(quantile=None)"]
+struct InterPercentileRange {}
+
+#[pymethods]
+impl InterPercentileRange {
+    #[new]
+    #[args(quantile = "None")]
+    fn __new__(quantile: Option<f32>) -> (Self, PyFeatureEvaluator) {
+        let eval = match quantile {
+            Some(quantile) => light_curve_feature::InterPercentileRange::new(quantile),
+            None => light_curve_feature::InterPercentileRange::default(),
+        };
+        (
+            Self {},
+            PyFeatureEvaluator {
+                feature_evaluator: Box::new(eval),
+            },
+        )
+    }
+}
+
 evaluator!(Kurtosis, light_curve_feature::Kurtosis);
 
 evaluator!(LinearFit, light_curve_feature::LinearFit);
@@ -339,6 +361,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Cusum>()?;
     m.add_class::<Eta>()?;
     m.add_class::<EtaE>()?;
+    m.add_class::<InterPercentileRange>()?;
     m.add_class::<Kurtosis>()?;
     m.add_class::<LinearFit>()?;
     m.add_class::<LinearTrend>()?;

@@ -22,7 +22,7 @@ numpy = "~0.8"
 
 [dependencies.light-curve-feature]
 path = "../light-curve-feature"
-version = "0.1.15"
+version = "0.1.16"
 default_features = false
 
 [dependencies.pyo3]
