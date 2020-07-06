@@ -764,7 +764,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.t.get_mean()]
+        vec![ts.m.get_mean()]
     }
 
     fn get_names(&self) -> Vec<&str> {
