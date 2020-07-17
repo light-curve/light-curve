@@ -12,6 +12,15 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # Publish source code among with Linux wheels
+          - os: ubuntu-latest
+            NOSDIST:
+          - os: macos-latest
+            NOSDIST: --no-sdist
+          - os: windows-latest
+            NOSDIST: --no-sdist
+            
 
     defaults:
       run:
@@ -26,9 +35,8 @@ jobs:
     - name: Set up Rust Nightly
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly
-        override: true
+        toolchain: stable
     - name: Install maturin
       run: pip install maturin
     - name: Publish
-      run: maturin publish --no-strip -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+      run: maturin publish ${{matrix.NOSDIST}} --no-strip -u __token__ -p ${{ secrets.PYPI_TOKEN }}

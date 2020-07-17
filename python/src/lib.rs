@@ -1,15 +1,16 @@
 use light_curve_feature::{PeriodogramPowerDirect, PeriodogramPowerFft, TimeSeries};
-use numpy::{IntoPyArray, PyArray1};
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::ValueError;
 use pyo3::prelude::{pyclass, pymethods, pymodule, Py, PyModule, PyObject, PyResult, Python};
 
 type F = f64;
 type Arr = PyArray1<F>;
+type RoArr<'a> = PyReadonlyArray1<'a, F>;
 
 fn ts_from_arrays<'a, 'b, 'c>(
-    t: &'a Arr,
-    m: &'b Arr,
-    err2: Option<&'c Arr>,
+    t: &'a RoArr<'a>,
+    m: &'b RoArr<'b>,
+    err2: &'c Option<RoArr<'c>>,
 ) -> PyResult<TimeSeries<'a, 'b, 'c, F>> {
     Ok(TimeSeries::new(
         t.as_slice()?,
@@ -30,7 +31,10 @@ struct PyFeatureEvaluator {
 impl PyFeatureEvaluator {
     #[call]
     fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> PyResult<Py<Arr>> {
-        let mut ts = ts_from_arrays(t, m, err2)?;
+        let t = t.readonly();
+        let m = m.readonly();
+        let err2 = err2.map(|a| a.readonly());
+        let mut ts = ts_from_arrays(&t, &m, &err2)?;
         Ok(self
             .feature_evaluator
             .eval(&mut ts)
@@ -335,7 +339,10 @@ impl Periodogram {
         m: &Arr,
         err2: Option<&Arr>,
     ) -> PyResult<(Py<Arr>, Py<Arr>)> {
-        let mut ts = ts_from_arrays(t, m, err2)?;
+        let t = t.readonly();
+        let m = m.readonly();
+        let err2 = err2.map(|a| a.readonly());
+        let mut ts = ts_from_arrays(&t, &m, &err2)?;
         let (freq, power) = self.eval.freq_power(&mut ts);
         Ok((
             freq.into_pyarray(py).to_owned(),

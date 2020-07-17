@@ -58,9 +58,7 @@ jobs:
     - name: Set up Rust Nightly
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly
-        override: true
-        components: rustfmt, clippy
+        toolchain: stable
     - name: Install maturin
       run: pip install maturin
     - name: Build package with static FFTW
