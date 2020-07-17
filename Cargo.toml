@@ -8,5 +8,5 @@ members = [
 ]
 
 [profile.release]
-lto = "fat"
+lto = true
 codegen-units = 1
