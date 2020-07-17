@@ -585,15 +585,15 @@ where
 
 /// The slope and noise of the light curve without observation errors in the linear fit
 ///
-/// Least squares fit of the linear stochastic model with constant gaussian noise $\Sigma$ assuming
+/// Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
 /// observation errors to be zero:
 /// $$
-/// m_i = c + \mathrm{slope}\\,t_i + \Sigma \varepsilon_i
+/// m_i = c + \mathrm{slope}\\,t_i + \Sigma \varepsilon_i,
 /// $$
-/// where $c$ is a constant,
-/// $\\{\varepsilon_i\\}$ are standard distributed random values.
+/// where $c$ and $\Sigma$ are constants,
+/// $\\{\varepsilon_i\\}$ are standard distributed random variables.
 /// $\mathrm{slope}$ and $\Sigma$ are returned, if $N = 2$ than no least squares fit is done, a
-/// slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $\Sigma = 0$ is returned.
+/// slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $0$ are returned.
 ///
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2**
@@ -633,13 +633,13 @@ where
 
 /// The slope, its error and reduced $\chi^2$ of the light curve in the linear fit
 ///
-/// Least squares fit of the linear stochastic model with gaussian noise described by observation
+/// Least squares fit of the linear stochastic model with Gaussian noise described by observation
 /// errors $\\{\delta_i\\}$:
 /// $$
 /// m_i = c + \mathrm{slope}\\,t_i + \delta_i \varepsilon_i
 /// $$
 /// where $c$ is a constant,
-/// $\\{\varepsilon_i\\}$ are standard distributed random values.
+/// $\\{\varepsilon_i\\}$ are standard distributed random variables.
 ///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **2**
@@ -765,10 +765,10 @@ where
     }
 }
 
-/// Maximum slope between two neighbour observations
+/// Maximum slope between two sub-sequential observations
 ///
 /// $$
-/// \mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)
+/// \mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left|\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right|
 /// $$
 ///
 /// - Depends on: **time**, **magnitude**
@@ -1007,7 +1007,7 @@ where
     }
 }
 
-/// Ratio of $p$ percentile interval to the median
+/// Ratio of $p$th inter-percentile range to the median
 ///
 /// $$
 /// p\mathrm{~percent~difference~magnitude~percentile} \equiv \frac{Q(1-p) - Q(p)}{\mathrm{Median}(m)}.
