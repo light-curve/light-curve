@@ -55,7 +55,7 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
-    - name: Set up Rust Nightly
+    - name: Set up Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
