@@ -1,8 +1,9 @@
 /// Natural logarythm of the error function
 /// Manually translated from GNU Scientific Library's log_erfc
-use libm;
 
+#[allow(clippy::excessive_precision)]
 const TEN_ROOT6_DBL_EPSILON: f64 = 2.4607833005759251e-02;
+#[allow(clippy::excessive_precision)]
 const SQRTPI: f64 = 1.77245385090551602729816748334;
 
 pub fn ln_erfc(x: f64) -> f64 {
@@ -19,6 +20,7 @@ fn sum_series(a: &[f64], x: f64) -> f64 {
     a.iter().fold(0.0, |acc, c| acc * x + c)
 }
 
+#[allow(clippy::excessive_precision)]
 fn log_erfc_smallabs(x: f64) -> f64 {
     let y = x / SQRTPI;
     /* series for -1/2 Log[Erfc[Sqrt[Pi] y]] */
@@ -46,6 +48,7 @@ fn log_erfc8(x: f64) -> f64 {
     f64::ln(erfc8_sum(x)) - x.powi(2)
 }
 
+#[allow(clippy::excessive_precision)]
 fn erfc8_sum(x: f64) -> f64 {
     const REVERSE_P: [f64; 6] = [
         0.5641895835477550741253201704,

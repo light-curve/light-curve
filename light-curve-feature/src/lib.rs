@@ -151,6 +151,73 @@ where
     }
 }
 
+/// Anderson–Darling normality test statistic
+/// $$
+/// A^2 \equiv \left(1 + \frac4{N} - \frac{25}{N^2}\right) \left(-N - \frac1{N} \sum_{i=0}^{N-1} {(2i + 1)\ln\Phi_i + (2(N - i) - 1)\ln(1 - \Phi_i)}\right),
+/// $$
+/// where $\Phi_i \equiv \Phi((m_i - \langle m \rangle) / sigma_m)$ is the commutative distribution
+/// function of the standard normal distribution,
+/// $N$ is the number of observations,
+/// $\langle m \rangle$ is the mean magnitude
+/// and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **4**
+/// - Number of features: **1**
+///
+/// [Wikipedia](https://en.wikipedia.org/wiki/Anderson–Darling_test)
+#[derive(Default)]
+pub struct AndersonDarlingNormal {}
+
+impl AndersonDarlingNormal {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for AndersonDarlingNormal
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        let size = ts.lenu();
+        assert!(
+            size >= 4,
+            "AndersonDarlingNormal requires at least 4 points"
+        );
+        let m_std = ts.m.get_std();
+        if m_std.is_zero() {
+            return vec![T::zero()];
+        }
+        let m_mean = ts.m.get_mean();
+        let sum: f64 =
+            ts.m.sample
+                .iter()
+                .enumerate()
+                // ln \Phi(x) = -ln2 + ln_erfc(-x / sqrt2)
+                // ln (1 - \Phi(x)) = -ln2 + ln_erfc(x / sqrt2)
+                .map(|(i, &m)| {
+                    let x = ((m - m_mean) / m_std).value_as::<f64>().unwrap()
+                        * std::f64::consts::FRAC_1_SQRT_2;
+                    ((2 * i + 1) as f64) * ln_erfc(-x) + ((2 * (size - i) - 1) as f64) * ln_erfc(x)
+                })
+                .sum();
+        let n = ts.lenf();
+        vec![
+            (T::one() + T::four() / n - (T::five() / n).powi(2))
+                * (n * (T::two() * T::LN_2() - T::one()) - sum.approx_as::<T>().unwrap() / n),
+        ]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["anderson_darling_normal"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
 /// Fraction of observations beyond $n\\,\sigma\_m$ from the mean magnitude $\langle m \rangle$
 ///
 /// $$
@@ -1450,6 +1517,17 @@ mod tests {
         [Box::new(Amplitude::new())],
         [1.0],
         [0.0_f32, 1.0, 2.0],
+    );
+
+    feature_test!(
+        anderson_darling_normal,
+        [Box::new(AndersonDarlingNormal::new())],
+        // import numpy as np
+        // from scipy.stats import anderson
+        // a = np.linspace(0.0, 1.0, 101)
+        // anderson(a).statistic * (1.0 + 4.0/a.size - 25.0/a.size**2)
+        [1.1354353876265415],
+        linspace(0.0, 1.0, 101),
     );
 
     feature_test!(
