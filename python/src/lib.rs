@@ -66,6 +66,11 @@ macro_rules! evaluator {
 
 evaluator!(Amplitude, light_curve_feature::Amplitude);
 
+evaluator!(
+    AndersonDarlingNormal,
+    light_curve_feature::AndersonDarlingNormal
+);
+
 #[pyclass(extends = PyFeatureEvaluator)]
 #[text_signature = "(nstd=None)"]
 struct BeyondNStd {}
@@ -364,6 +369,7 @@ evaluator!(WeightedMean, light_curve_feature::WeightedMean);
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Amplitude>()?;
+    m.add_class::<AndersonDarlingNormal>()?;
     m.add_class::<BeyondNStd>()?;
     m.add_class::<Cusum>()?;
     m.add_class::<Eta>()?;

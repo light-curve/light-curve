@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-python"
-version = "0.1.6"
+version = "0.1.7-beta.0"
 edition = "2018"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 description = "Feature extractor from noisy time series"
@@ -21,7 +21,7 @@ mkl-dynamic = ["light-curve-feature/fftw-mkl"]
 numpy = "~0.11"
 
 [dependencies.light-curve-feature]
-version = "0.1.17"
+version = "0.1.19"
 default_features = false
 
 [dependencies.pyo3]
