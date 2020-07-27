@@ -11,23 +11,7 @@ use rustfft::algorithm::Radix4;
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::Zero;
 use rustfft::{FFTnum, FFT};
-use std::collections::HashMap;
-
-pub trait TypeName {
-    fn type_name() -> &'static str;
-}
-
-impl TypeName for f32 {
-    fn type_name() -> &'static str {
-        "f32"
-    }
-}
-
-impl TypeName for f64 {
-    fn type_name() -> &'static str {
-        "f64"
-    }
-}
+use std::{any, collections::HashMap};
 
 trait Fft<T>: Debug {
     fn run(&mut self, a: &[T]) -> (T, T);
@@ -215,8 +199,7 @@ where
 
 pub fn bench_fft<T>(c: &mut Criterion)
 where
-    T: TypeName
-        + fmt::Display
+    T: fmt::Display
         + FFTnum
         + Float
         + FloatConst
@@ -241,7 +224,7 @@ where
             let x = s.series(n);
             for fft in ffts.iter_mut() {
                 c.bench_function(
-                    format!("FFT - {:?}, {:?}[{}; {}]", fft, s, n, T::type_name()).as_str(),
+                    format!("FFT - {:?}, {:?}[{}; {}]", fft, s, n, any::type_name::<T>()).as_str(),
                     |b| b.iter(|| fft.run(black_box(&x))),
                 );
                 // let res = fft.run(&x);
