@@ -17,6 +17,7 @@ fftw-mkl = ["fftw/intel-mkl"]
 num-complex = "0.2"
 num-traits = "0.2"
 conv = "0.3"
+libm = "^0.2.1"
 light-curve-common = "0.1.0"
 fftw = { version = "~0.6.1", default-features = false }
 
