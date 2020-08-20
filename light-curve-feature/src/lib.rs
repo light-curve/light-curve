@@ -21,7 +21,7 @@
 use conv::prelude::*;
 
 mod fit;
-use fit::fit_straight_line;
+pub use fit::fit_straight_line;
 
 mod float_trait;
 pub use float_trait::Float;
