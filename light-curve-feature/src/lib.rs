@@ -24,7 +24,7 @@ mod fit;
 use fit::fit_straight_line;
 
 mod float_trait;
-use float_trait::Float;
+pub use float_trait::Float;
 
 mod lnerfc;
 use lnerfc::ln_erfc;
