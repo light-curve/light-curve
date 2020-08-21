@@ -7,6 +7,9 @@ authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "GPL-3.0-or-later"
 edition = "2018"
 
+[lib]
+bench = false
+
 [features]
 default = ["fftw-source"]
 fftw-system = ["fftw/system"]
