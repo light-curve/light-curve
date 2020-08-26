@@ -7,7 +7,8 @@ use std::iter::Sum;
 use std::ops::{AddAssign, DivAssign, MulAssign};
 
 pub trait Float:
-    NumFloat
+    'static
+    + NumFloat
     + FloatConst
     + PartialOrd
     + Sum
@@ -28,7 +29,6 @@ pub trait Float:
     + Debug
     + LowerExp
     + FloatSupportedByFft
-    + 'static
 {
     fn half() -> Self;
     fn two() -> Self;
