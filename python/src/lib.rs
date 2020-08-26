@@ -2,7 +2,8 @@ use light_curve_feature::{PeriodogramPowerDirect, PeriodogramPowerFft, TimeSerie
 use ndarray::Array1 as NDArray;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::ValueError;
-use pyo3::prelude::{pyclass, pymethods, pymodule, Py, PyModule, PyObject, PyResult, Python};
+use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 use std::ops::Deref;
 
 type F = f64;
@@ -36,6 +37,43 @@ impl<'a> Deref for ArrWrapper<'a> {
 }
 
 #[pyclass]
+struct Extractor {
+    feature_extractor: light_curve_feature::FeatureExtractor<F>,
+}
+
+#[pymethods]
+impl Extractor {
+    #[new]
+    #[args(args = "*")]
+    fn __new__(args: &PyTuple) -> PyResult<Self> {
+        let evals = args
+            .iter()
+            .map(|arg| {
+                arg.downcast::<PyCell<PyFeatureEvaluator>>()
+                    .map(|fe| fe.borrow().feature_evaluator.clone())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            feature_extractor: light_curve_feature::FeatureExtractor::new(evals),
+        })
+    }
+
+    #[call]
+    fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> Py<Arr> {
+        let t = ArrWrapper::new(t);
+        let m = ArrWrapper::new(m);
+        let err2 = err2.map(|a| ArrWrapper::new(a));
+        let ts = TimeSeries::new(&t, &m, err2.as_deref());
+        self.feature_extractor.eval(ts).into_pyarray(py).to_owned()
+    }
+
+    #[getter]
+    fn names(&self) -> Vec<&str> {
+        self.feature_extractor.get_names()
+    }
+}
+
+#[pyclass]
 struct PyFeatureEvaluator {
     feature_evaluator: Box<dyn light_curve_feature::FeatureEvaluator<F>>,
 }
@@ -43,16 +81,15 @@ struct PyFeatureEvaluator {
 #[pymethods]
 impl PyFeatureEvaluator {
     #[call]
-    fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> PyResult<Py<Arr>> {
+    fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> Py<Arr> {
         let t = ArrWrapper::new(t);
         let m = ArrWrapper::new(m);
         let err2 = err2.map(|a| ArrWrapper::new(a));
         let mut ts = TimeSeries::new(&t, &m, err2.as_deref());
-        Ok(self
-            .feature_evaluator
+        self.feature_evaluator
             .eval(&mut ts)
             .into_pyarray(py)
-            .to_owned())
+            .to_owned()
     }
 }
 
@@ -350,22 +387,16 @@ impl Periodogram {
 
     /// Angular frequencies and periodogram values
     #[text_signature = "(t, m, err2=None)"]
-    fn freq_power(
-        &self,
-        py: Python,
-        t: &Arr,
-        m: &Arr,
-        err2: Option<&Arr>,
-    ) -> PyResult<(Py<Arr>, Py<Arr>)> {
+    fn freq_power(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> (Py<Arr>, Py<Arr>) {
         let t = ArrWrapper::new(t);
         let m = ArrWrapper::new(m);
         let err2 = err2.map(|a| ArrWrapper::new(a));
         let mut ts = TimeSeries::new(&t, &m, err2.as_deref());
         let (freq, power) = self.eval.freq_power(&mut ts);
-        Ok((
+        (
             freq.into_pyarray(py).to_owned(),
             power.into_pyarray(py).to_owned(),
-        ))
+        )
     }
 }
 
@@ -381,6 +412,8 @@ evaluator!(WeightedMean, light_curve_feature::WeightedMean);
 
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Extractor>()?;
+
     m.add_class::<Amplitude>()?;
     m.add_class::<AndersonDarlingNormal>()?;
     m.add_class::<BeyondNStd>()?;
