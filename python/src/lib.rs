@@ -1,25 +1,38 @@
 use light_curve_feature::{PeriodogramPowerDirect, PeriodogramPowerFft, TimeSeries};
+use ndarray::Array1 as NDArray;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::ValueError;
 use pyo3::prelude::{pyclass, pymethods, pymodule, Py, PyModule, PyObject, PyResult, Python};
+use std::ops::Deref;
 
 type F = f64;
 type Arr = PyArray1<F>;
 type RoArr<'a> = PyReadonlyArray1<'a, F>;
 
-fn ts_from_arrays<'a, 'b, 'c>(
-    t: &'a RoArr<'a>,
-    m: &'b RoArr<'b>,
-    err2: &'c Option<RoArr<'c>>,
-) -> PyResult<TimeSeries<'a, 'b, 'c, F>> {
-    Ok(TimeSeries::new(
-        t.as_slice()?,
-        m.as_slice()?,
-        match err2 {
-            Some(array) => Some(array.as_slice()?),
-            None => None,
-        },
-    ))
+enum ArrWrapper<'a> {
+    Readonly(RoArr<'a>),
+    Owned(NDArray<f64>),
+}
+
+impl<'a> ArrWrapper<'a> {
+    fn new(a: &'a Arr) -> Self {
+        if a.is_contiguous() {
+            Self::Readonly(a.readonly())
+        } else {
+            Self::Owned(a.to_owned_array())
+        }
+    }
+}
+
+impl<'a> Deref for ArrWrapper<'a> {
+    type Target = [f64];
+
+    fn deref(&self) -> &[f64] {
+        match self {
+            Self::Readonly(a) => a.as_slice().unwrap(),
+            Self::Owned(a) => a.as_slice().unwrap(),
+        }
+    }
 }
 
 #[pyclass]
@@ -31,10 +44,10 @@ struct PyFeatureEvaluator {
 impl PyFeatureEvaluator {
     #[call]
     fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> PyResult<Py<Arr>> {
-        let t = t.readonly();
-        let m = m.readonly();
-        let err2 = err2.map(|a| a.readonly());
-        let mut ts = ts_from_arrays(&t, &m, &err2)?;
+        let t = ArrWrapper::new(t);
+        let m = ArrWrapper::new(m);
+        let err2 = err2.map(|a| ArrWrapper::new(a));
+        let mut ts = TimeSeries::new(&t, &m, err2.as_deref());
         Ok(self
             .feature_evaluator
             .eval(&mut ts)
@@ -344,10 +357,10 @@ impl Periodogram {
         m: &Arr,
         err2: Option<&Arr>,
     ) -> PyResult<(Py<Arr>, Py<Arr>)> {
-        let t = t.readonly();
-        let m = m.readonly();
-        let err2 = err2.map(|a| a.readonly());
-        let mut ts = ts_from_arrays(&t, &m, &err2)?;
+        let t = ArrWrapper::new(t);
+        let m = ArrWrapper::new(m);
+        let err2 = err2.map(|a| ArrWrapper::new(a));
+        let mut ts = TimeSeries::new(&t, &m, err2.as_deref());
         let (freq, power) = self.eval.freq_power(&mut ts);
         Ok((
             freq.into_pyarray(py).to_owned(),
