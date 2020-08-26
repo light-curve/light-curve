@@ -1,12 +1,14 @@
 use crate::float_trait::Float;
 use crate::statistics::Statistics;
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
+use dyn_clonable::*;
 
 /// Derive Nyquist frequency from time series
 ///
 /// Nyquist frequency for unevenly time series is not well-defined. Here we define it as
 /// $\pi / \delta t$, where $\delta t$ is some typical interval between consequent observations
-pub trait NyquistFreq<T>: Send + Sync {
+#[clonable]
+pub trait NyquistFreq<T>: Send + Sync + Clone {
     fn nyquist_freq(&self, t: &[T]) -> T;
 }
 
@@ -15,6 +17,7 @@ pub trait NyquistFreq<T>: Send + Sync {
 /// The denominator is $(N-1)$ for compatibility with Nyquist frequency for uniform grid. Note that
 /// in literature definition of "average Nyquist" frequency usually differ and place $N$ to the
 /// denominator
+#[derive(Clone)]
 pub struct AverageNyquistFreq;
 
 impl<T: Float> NyquistFreq<T> for AverageNyquistFreq {
@@ -29,6 +32,7 @@ fn diff<T: Float>(x: &[T]) -> Vec<T> {
 }
 
 /// $\Delta t$ is the median time interval between observations
+#[derive(Clone)]
 pub struct MedianNyquistFreq;
 
 impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
@@ -39,6 +43,7 @@ impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
 }
 
 /// $\Delta t$ is the $q$th quantile of time intervals between subsequent observations
+#[derive(Clone)]
 pub struct QuantileNyquistFreq {
     pub quantile: f32,
 }

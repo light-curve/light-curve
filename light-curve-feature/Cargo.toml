@@ -17,6 +17,7 @@ fftw-source = ["fftw/source"]
 fftw-mkl = ["fftw/intel-mkl"]
 
 [dependencies]
+dyn-clonable = "~0.9.0"
 num-complex = "0.2"
 num-traits = "0.2"
 conv = "0.3"

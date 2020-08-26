@@ -19,6 +19,7 @@
 //! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
 //! ```
 use conv::prelude::*;
+use dyn_clonable::*;
 
 mod fit;
 pub use fit::fit_straight_line;
@@ -60,9 +61,8 @@ macro_rules! feat_extr{
 }
 
 /// The engine that extracts features one by one
-///
-/// Generic parameter `T` should be a float type
-pub struct FeatureExtractor<T> {
+#[derive(Clone)]
+pub struct FeatureExtractor<T: Float> {
     features: VecFE<T>,
 }
 
@@ -93,7 +93,8 @@ where
 }
 
 /// The trait each feature should implement
-pub trait FeatureEvaluator<T: Float>: Send + Sync {
+#[clonable]
+pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone {
     /// Should return the non-empty vector of feature values. The length and feature order should
     /// correspond to `get_names()` output
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T>;
@@ -125,7 +126,7 @@ pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
 /// let ts = TimeSeries::new(&time[..], &magn[..], None);
 /// assert_eq!(vec![1.0], fe.eval(ts));
 /// ```
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Amplitude {}
 
 impl Amplitude {
@@ -166,7 +167,7 @@ where
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Anderson–Darling_test)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct AndersonDarlingNormal {}
 
 impl AndersonDarlingNormal {
@@ -247,6 +248,7 @@ where
 /// assert!((1.0 - ts.m.get_std()).abs() < 1e-15);
 /// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(ts));
 /// ```
+#[derive(Clone)]
 pub struct BeyondNStd<T> {
     nstd: T,
     name: String,
@@ -324,7 +326,7 @@ where
 /// - Number of features: **1**
 ///
 /// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Cusum {}
 
 impl Cusum {
@@ -377,7 +379,7 @@ where
 /// - Number of features: **1**
 ///
 /// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Eta {}
 
 impl Eta {
@@ -427,7 +429,7 @@ where
 /// - Number of features: **1**
 ///
 /// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct EtaE {}
 
 impl EtaE {
@@ -482,6 +484,7 @@ where
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
+#[derive(Clone)]
 pub struct InterPercentileRange {
     quantile: f32,
     name: String,
@@ -541,7 +544,7 @@ where
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Kurtosis#Estimators_of_population_kurtosis)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Kurtosis {}
 
 impl Kurtosis {
@@ -598,7 +601,7 @@ where
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2**
 /// - Number of features: **2**
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct LinearTrend {}
 
 impl LinearTrend {
@@ -644,7 +647,7 @@ where
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **2**
 /// - Number of features: **3**
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct LinearFit {}
 
 impl LinearFit {
@@ -697,6 +700,7 @@ where
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Clone)]
 pub struct MagnitudePercentageRatio {
     quantile_numerator: f32,
     quantile_denominator: f32,
@@ -776,7 +780,7 @@ where
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MaximumSlope {}
 
 impl MaximumSlope {
@@ -820,7 +824,7 @@ where
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Mean {}
 
 impl Mean {
@@ -857,7 +861,7 @@ where
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MedianAbsoluteDeviation {}
 
 impl MedianAbsoluteDeviation {
@@ -898,6 +902,7 @@ where
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Clone)]
 pub struct MedianBufferRangePercentage<T>
 where
     T: Float,
@@ -975,7 +980,7 @@ where
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct PercentAmplitude {}
 
 impl PercentAmplitude {
@@ -1018,6 +1023,7 @@ where
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Clone)]
 pub struct PercentDifferenceMagnitudePercentile {
     quantile: f32,
     name: String,
@@ -1093,7 +1099,8 @@ where
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2**
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
-pub struct Periodogram<T> {
+#[derive(Clone)]
+pub struct Periodogram<T: Float> {
     peaks: usize,
     resolution: f32,
     max_freq_factor: f32,
@@ -1253,7 +1260,7 @@ where
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ReducedChi2 {}
 
 impl ReducedChi2 {
@@ -1293,7 +1300,7 @@ where
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Skew {}
 
 impl Skew {
@@ -1345,7 +1352,7 @@ where
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct StandardDeviation {}
 
 impl StandardDeviation {
@@ -1385,7 +1392,7 @@ where
 /// - Number of features: **1**
 ///
 /// P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct StetsonK {}
 
 impl StetsonK {
@@ -1440,7 +1447,7 @@ where
 /// - Depends on: **magnitude**, **magnitude error**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct WeightedMean {}
 
 impl WeightedMean {
