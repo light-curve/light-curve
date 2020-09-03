@@ -3,6 +3,32 @@ use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
 #[derive(Clone, Default)]
+pub struct ObservationCount {}
+
+impl ObservationCount {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for ObservationCount
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        vec![ts.lenf()]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_observation_count"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct TimeMean {}
 
 impl TimeMean {
@@ -63,6 +89,13 @@ mod tests {
     use crate::extractor::FeatureExtractor;
 
     use light_curve_common::all_close;
+
+    feature_test!(
+        observation_count,
+        [Box::new(ObservationCount::new())],
+        [5.0],
+        [0.0_f32, 1.0, 2.0, 3.0, 4.0],
+    );
 
     feature_test!(
         time_mean,

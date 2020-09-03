@@ -319,7 +319,7 @@ where
 /// $\eta^e$ — modernisation of [Eta](./struct.Eta.html) for unevenly time series
 ///
 /// $$
-/// \eta^e \equiv (t_{N-1} - t_0)^2 \frac{\sum_{i=0}^{N-2} \left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)^2}{(N - 1)\\,\sigma_m^2}
+/// \eta^e \equiv \frac{(t_{N-1} - t_0)^2}{(N - 1)^3} \frac{\sum_{i=0}^{N-2} \left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)^2}{\sigma_m^2}
 /// $$
 /// where $N$ is the number of observations,
 /// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
@@ -357,7 +357,7 @@ where
         } else {
             (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum
                 / ts.m.get_std().powi(2)
-                / (ts.lenf() - T::one())
+                / (ts.lenf() - T::one()).powi(3)
         };
         vec![value]
     }
@@ -1440,10 +1440,20 @@ mod tests {
     feature_test!(
         eta_e,
         [Box::new(EtaE::new())],
-        [6.26210526],
+        [0.6957894],
         [1.0_f32, 2.0, 5.0, 10.0],
         [1.0_f32, 1.0, 6.0, 8.0],
     );
+
+    #[test]
+    fn eta_is_eta_e_for_even_grid() {
+        let fe = feat_extr!(Eta::default(), EtaE::default());
+        let x = linspace(0.0_f64, 1.0, 11);
+        let y: Vec<_> = x.iter().map(|&t| 3.0 + t.powi(2)).collect();
+        let ts = TimeSeries::new(&x, &y, None);
+        let values = fe.eval(ts);
+        all_close(&values[0..1], &values[1..2], 1e-10);
+    }
 
     /// See [Issue #2](https://github.com/hombit/light-curve/issues/2)
     #[test]

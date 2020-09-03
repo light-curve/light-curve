@@ -28,6 +28,7 @@ pub mod antifeatures;
 mod evaluator;
 pub use evaluator::{FeatureEvaluator, VecFE};
 
+#[macro_use]
 mod extractor;
 pub use extractor::FeatureExtractor;
 
