@@ -420,6 +420,11 @@ evaluator!(StetsonK, light_curve_feature::StetsonK);
 
 evaluator!(WeightedMean, light_curve_feature::WeightedMean);
 
+evaluator!(
+    ObservationCount,
+    light_curve_feature::antifeatures::ObservationCount
+);
+
 evaluator!(TimeMean, light_curve_feature::antifeatures::TimeMean);
 
 evaluator!(
@@ -429,6 +434,7 @@ evaluator!(
 
 #[pymodule]
 fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<ObservationCount>()?;
     m.add_class::<TimeMean>()?;
     m.add_class::<TimeStandardDeviation>()?;
 
