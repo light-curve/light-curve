@@ -4,6 +4,7 @@ use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::ValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
+use pyo3::wrap_pymodule;
 use std::ops::Deref;
 
 type F = f64;
@@ -419,6 +420,21 @@ evaluator!(StetsonK, light_curve_feature::StetsonK);
 
 evaluator!(WeightedMean, light_curve_feature::WeightedMean);
 
+evaluator!(TimeMean, light_curve_feature::antifeatures::TimeMean);
+
+evaluator!(
+    TimeStandardDeviation,
+    light_curve_feature::antifeatures::TimeStandardDeviation
+);
+
+#[pymodule]
+fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<TimeMean>()?;
+    m.add_class::<TimeStandardDeviation>()?;
+
+    Ok(())
+}
+
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Extractor>()?;
@@ -446,6 +462,8 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<StandardDeviation>()?;
     m.add_class::<StetsonK>()?;
     m.add_class::<WeightedMean>()?;
+
+    m.add_wrapped(wrap_pymodule!(antifeatures))?;
 
     Ok(())
 }
