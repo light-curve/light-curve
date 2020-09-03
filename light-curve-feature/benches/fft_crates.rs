@@ -211,7 +211,7 @@ where
     Vec<T>: fmt::Debug,
     rand::distributions::Standard: Distribution<T>,
 {
-    let counts: Vec<_> = (6..=14).step_by(4).map(|i| 1_usize << i).collect();
+    let counts: Vec<_> = (8..=20).step_by(4).map(|i| 1_usize << i).collect();
     let series: Vec<Box<dyn Series<T>>> = vec![Box::new(Ones {}), Box::new(Randoms {})];
     let mut ffts: Vec<Box<dyn Fft<T>>> = vec![
         Box::new(RustFft::new(&counts)),
