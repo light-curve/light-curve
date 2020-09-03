@@ -19,14 +19,20 @@
 //! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
 //! ```
 
+#[cfg(test)]
+#[macro_use]
+mod tests;
+
+pub mod antifeatures;
+
 mod evaluator;
 pub use evaluator::{FeatureEvaluator, VecFE};
 
 mod extractor;
 pub use extractor::FeatureExtractor;
 
-mod feature;
-pub use feature::*;
+mod features;
+pub use features::*;
 
 mod fit;
 pub use fit::fit_straight_line;
@@ -36,14 +42,14 @@ pub use float_trait::Float;
 
 mod lnerfc;
 
-pub mod statistics;
-
 pub mod periodogram;
 pub use periodogram::recurrent_sin_cos::RecurrentSinCos;
 pub use periodogram::{
     AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerDirect,
     PeriodogramPowerFft, QuantileNyquistFreq,
 };
+
+pub mod statistics;
 
 pub mod time_series;
 pub use time_series::TimeSeries;
