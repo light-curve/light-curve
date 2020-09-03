@@ -90,6 +90,11 @@ where
     pub fn size_hint(&self) -> usize {
         self.features.iter().map(|x| x.size_hint()).sum()
     }
+
+    /// Copy of the feature vector
+    pub fn clone_features(&self) -> VecFE<T> {
+        self.features.clone()
+    }
 }
 
 /// The trait each feature should implement
