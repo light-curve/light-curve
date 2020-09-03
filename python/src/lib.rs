@@ -289,7 +289,7 @@ impl PercentDifferenceMagnitudePercentile {
 ///     Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None)"]
+#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, extractor=None)"]
 struct Periodogram {
     eval: light_curve_feature::Periodogram<F>,
 }
@@ -302,6 +302,7 @@ impl Periodogram {
         max_freq_factor: Option<f32>,
         nyquist: Option<PyObject>,
         fast: Option<bool>,
+        extractor: Option<Py<Extractor>>,
     ) -> PyResult<light_curve_feature::Periodogram<F>> {
         let mut eval = match peaks {
             Some(peaks) => light_curve_feature::Periodogram::new(peaks),
@@ -339,6 +340,10 @@ impl Periodogram {
                 eval.set_periodogram_algorithm(move || Box::new(PeriodogramPowerDirect));
             }
         }
+        if let Some(extractor) = extractor {
+            let features = extractor.borrow(py).feature_extractor.clone_features();
+            eval.add_features(features);
+        }
         Ok(eval)
     }
 }
@@ -351,7 +356,8 @@ impl Periodogram {
         resolution = "None",
         max_freq_factor = "None",
         nyquist = "None",
-        fast = "None"
+        fast = "None",
+        extractor = "None"
     )]
     fn __new__(
         py: Python,
@@ -360,6 +366,7 @@ impl Periodogram {
         max_freq_factor: Option<f32>,
         nyquist: Option<PyObject>,
         fast: Option<bool>,
+        extractor: Option<Py<Extractor>>,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
         Ok((
             Self {
@@ -370,6 +377,7 @@ impl Periodogram {
                     max_freq_factor,
                     nyquist.as_ref().map(|x| x.clone_ref(py)),
                     fast,
+                    extractor.as_ref().map(|x| x.clone_ref(py)),
                 )?,
             },
             PyFeatureEvaluator {
@@ -380,6 +388,7 @@ impl Periodogram {
                     max_freq_factor,
                     nyquist,
                     fast,
+                    extractor,
                 )?),
             },
         ))
