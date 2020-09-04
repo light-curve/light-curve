@@ -29,6 +29,68 @@ where
 }
 
 #[derive(Clone, Default)]
+pub struct MaximumTimeInterval {}
+
+impl MaximumTimeInterval {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MaximumTimeInterval
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        assert!(ts.lenu() >= 2);
+        let dt = (0..ts.lenu() - 1)
+            .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        vec![dt]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_maximum_time_interval"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct MinimumTimeInterval {}
+
+impl MinimumTimeInterval {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MinimumTimeInterval
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        assert!(ts.lenu() >= 2);
+        let dt = (0..ts.lenu() - 1)
+            .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
+        vec![dt]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_minimum_time_interval"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct ObservationCount {}
 
 impl ObservationCount {
@@ -121,6 +183,20 @@ mod tests {
         [Box::new(Duration::new())],
         [4.0],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
+    );
+
+    feature_test!(
+        maximum_time_interval,
+        [Box::new(MaximumTimeInterval::new())],
+        [9.0],
+        [0.0_f32, 0.5, 0.6, 1.6, 10.6],
+    );
+
+    feature_test!(
+        minimum_time_interval,
+        [Box::new(MinimumTimeInterval::new())],
+        [0.1],
+        [0.0_f32, 0.5, 0.6, 1.6, 10.6],
     );
 
     feature_test!(
