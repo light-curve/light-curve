@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-feature"
-version = "0.1.25"
+version = "0.1.26"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
