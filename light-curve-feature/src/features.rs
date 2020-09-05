@@ -9,6 +9,8 @@ use crate::statistics::Statistics;
 use crate::time_series::TimeSeries;
 
 use conv::prelude::*;
+use itertools::Itertools;
+use unzip3::Unzip3;
 
 /// Half amplitude of magnitude
 ///
@@ -207,6 +209,123 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+}
+
+/// Bins — sampled light curve
+///
+/// Binning light curve to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
+/// $j-th$ bin boundaries are
+/// $[j \mathrm{window} + \mathrm{offset}; (j + 1) \mathrm{window} + \mathrm{offset}]$. Binned light
+/// curve is defined by
+/// $$
+/// t_j^* = (j + \frac12) \mathrm{window} + \mathrm{offset},
+/// m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta^{-2}}},
+/// \delta_j^* = \frac1{\sum{\delta^{-2}}},
+/// $$
+/// where sums are over points inside considering bin
+///
+/// - Depends on: **time**, **magnitude**, **magnitude error**
+/// - Minimum number of observations: **1** (or as required by sub-features)
+/// - Number of features: **$...$**
+#[derive(Clone)]
+pub struct Bins<T: Float> {
+    window: T,
+    offset: T,
+    feature_names: Vec<String>,
+    features_extractor: FeatureExtractor<T>,
+}
+
+impl<T> Bins<T>
+where
+    T: Float,
+{
+    pub fn new(window: T, offset: T) -> Self {
+        assert!(window.is_sign_positive(), "window must be positive");
+        Self {
+            window,
+            offset,
+            feature_names: vec![],
+            features_extractor: feat_extr!(),
+        }
+    }
+
+    /// Extend a list of features to extract from binned time series
+    pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
+        let window = self.window;
+        let offset = self.offset;
+        for feature in features.into_iter() {
+            self.feature_names.extend(
+                feature
+                    .get_names()
+                    .iter()
+                    .map(|name| format!("bins_window{:.1}_offset{:.1}_{}", window, offset, name)),
+            );
+            self.features_extractor.add_feature(feature);
+        }
+        self
+    }
+
+    fn bin(&self, t: &[T], m: &[T], err2: &[T]) -> (Vec<T>, Vec<T>, Vec<T>) {
+        t.iter()
+            .zip(m.iter())
+            .zip(err2.iter())
+            .group_by(|((&t, _), _)| ((t - self.offset) / self.window).floor())
+            .into_iter()
+            .map(|(x, group)| {
+                let bin_t = (x + T::half()) * self.window;
+                let (n, bin_m, norm) = group.fold(
+                    (T::zero(), T::zero(), T::zero()),
+                    |acc, ((_, &m), &err2)| {
+                        let w = err2.recip();
+                        (acc.0 + T::one(), acc.1 + m * w, acc.2 + w)
+                    },
+                );
+                let norm = norm.recip();
+                let bin_m = bin_m * norm;
+                let bin_err2 = n * norm;
+                (bin_t, bin_m, bin_err2)
+            })
+            .unzip3()
+    }
+}
+
+impl<T> Default for Bins<T>
+where
+    T: Float,
+{
+    fn default() -> Self {
+        Self::new(T::one(), T::zero())
+    }
+}
+
+impl<T> FeatureEvaluator<T> for Bins<T>
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        if self.size_hint() == 0 {
+            return vec![];
+        }
+        match ts.err2.as_ref() {
+            Some(err2) => {
+                let (t, m, err2) = self.bin(ts.t.sample, ts.m.sample, err2.sample);
+                let bin_ts = TimeSeries::new(&t, &m, Some(&err2));
+                self.features_extractor.eval(bin_ts)
+            }
+            None => vec![T::nan(); self.size_hint()],
+        }
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        self.feature_names
+            .iter()
+            .map(|name| name.as_str())
+            .collect()
+    }
+
+    fn size_hint(&self) -> usize {
+        self.features_extractor.size_hint()
     }
 }
 
@@ -999,7 +1118,7 @@ where
 /// one if you are crazy enough
 ///
 /// - Depends on: **time**, **magnitude**
-/// - Minimum number of observations: **2**
+/// - Minimum number of observations: **2** (or as required by sub-features)
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 #[derive(Clone)]
 pub struct Periodogram<T: Float> {
@@ -1422,6 +1541,39 @@ mod tests {
         [0.2, 0.2, 0.0],
         [1.0_f32, 2.0, 3.0, 4.0, 100.0],
     );
+
+    #[test]
+    fn bins() {
+        let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
+        let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        let err2 = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1];
+
+        let desired_t = [0.5, 1.5, 2.5, 5.5];
+        let desired_m = [0.0, 2.0, 6.333333333333333, 10.0];
+        let desired_err2 = [0.1, 0.15, 0.13333333333333333, 0.1];
+
+        let bins = Bins::new(1.0, 0.0);
+        let (actual_t, actual_m, actual_err2) = bins.bin(&t, &m, &err2);
+
+        assert_eq!(actual_t.len(), actual_m.len());
+        assert_eq!(actual_t.len(), actual_err2.len());
+        all_close(&actual_t, &desired_t, 1e-6);
+        all_close(&actual_m, &desired_m, 1e-6);
+        all_close(&actual_err2, &desired_err2, 1e-6);
+    }
+
+    #[test]
+    fn bins_windows_and_offsets() {
+        let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
+        let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        let err2 = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1];
+        assert_eq!(Bins::new(2.0, 0.0).bin(&t, &m, &err2).0.len(), 3);
+        assert_eq!(Bins::new(3.0, 0.0).bin(&t, &m, &err2).0.len(), 2);
+        assert_eq!(Bins::new(10.0, 0.0).bin(&t, &m, &err2).0.len(), 1);
+        assert_eq!(Bins::new(1.0, 0.1).bin(&t, &m, &err2).0.len(), 5);
+        assert_eq!(Bins::new(1.0, 0.5).bin(&t, &m, &err2).0.len(), 5);
+        assert_eq!(Bins::new(2.0, 1.0).bin(&t, &m, &err2).0.len(), 3);
+    }
 
     feature_test!(
         cumsum,
