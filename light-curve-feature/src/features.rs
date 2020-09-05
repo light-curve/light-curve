@@ -212,18 +212,23 @@ where
     }
 }
 
-/// Bins — sampled light curve
+/// Bins — sampled time series
 ///
-/// Binning light curve to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
+/// Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
 /// $j-th$ bin boundaries are
-/// $[j \mathrm{window} + \mathrm{offset}; (j + 1) \mathrm{window} + \mathrm{offset}]$. Binned light
-/// curve is defined by
+/// $[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset}]$.
+/// Binned time series is defined by
 /// $$
-/// t_j^* = (j + \frac12) \mathrm{window} + \mathrm{offset},
-/// m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta^{-2}}},
-/// \delta_j^* = \frac1{\sum{\delta^{-2}}},
+/// t_j^* = (j + \frac12) \cdot \mathrm{window} + \mathrm{offset},
 /// $$
-/// where sums are over points inside considering bin
+/// $$
+/// m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta_i^{-2}}},
+/// $$
+/// $$
+/// \delta_j^* = \frac{N_j}{\sum{\delta_i^{-2}}},
+/// $$
+/// where $N_j$ is a number of sampling observations and all sums are over observations inside
+/// considering bin
 ///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **1** (or as required by sub-features)
