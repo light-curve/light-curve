@@ -876,6 +876,41 @@ where
     }
 }
 
+/// Median magnitude
+///
+/// $$
+/// \mathrm{Median}
+/// $$
+///
+/// - Depends on: **magnitude**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
+#[derive(Clone, Default)]
+pub struct Median {}
+
+impl Median {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for Median
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        vec![ts.m.get_median()]
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["median"]
+    }
+
+    fn size_hint(&self) -> usize {
+        1
+    }
+}
+
 /// Median of the absolute value of the difference between magnitude and its median
 ///
 /// $$
@@ -2735,6 +2770,13 @@ mod tests {
         [Box::new(Mean::new())],
         [14.0],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
+    );
+
+    feature_test!(
+        median,
+        [Box::new(Median::new())],
+        [3.0],
+        [-99.0, 0.0, 3.0, 3.1, 3.2],
     );
 
     feature_test!(
