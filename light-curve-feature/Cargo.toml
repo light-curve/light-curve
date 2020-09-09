@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-feature"
-version = "0.1.27-beta.2"
+version = "0.1.27"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
@@ -33,11 +33,6 @@ rand_distr = "~0.2"
 criterion = "~0.3"
 rustfft = "~3.0"
 chfft = "~0.3.4"
-
-[build-dependencies]
-# Temporary to fix fftw-src build
-# https://github.com/rust-math/fftw/issues/99
-fs_extra = "~1.1.0"
 
 [[bench]]
 name = "benchmark"
