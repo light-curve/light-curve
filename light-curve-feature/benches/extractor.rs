@@ -72,8 +72,8 @@ where
 }
 
 fn run<T: Float>(fe: &FeatureExtractor<T>, x: &[T], y: &[T], err: &[T]) -> Vec<T> {
-    let err2: Vec<_> = err.iter().map(|&e| e.powi(2)).collect();
-    let ts = TimeSeries::new(&x, &y, Some(&err2));
+    let w: Vec<_> = err.iter().map(|&e| e.powi(-2)).collect();
+    let ts = TimeSeries::new(&x, &y, Some(&w));
     fe.eval(ts)
 }
 

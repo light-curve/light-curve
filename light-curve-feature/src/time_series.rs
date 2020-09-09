@@ -3,6 +3,9 @@ use conv::prelude::*;
 use crate::float_trait::Float;
 use crate::statistics::Statistics;
 
+use itertools::Either;
+use std::iter;
+
 #[derive(Clone)]
 pub struct DataSample<'a, T>
 where
@@ -109,54 +112,50 @@ where
 }
 
 #[derive(Clone)]
-pub struct TimeSeries<'a, 'b, 'c, T>
+pub struct TimeSeries<'a, T>
 where
     T: Float,
 {
     pub t: DataSample<'a, T>,
-    pub m: DataSample<'b, T>,
-    pub err2: Option<DataSample<'c, T>>,
-    weight_sum: Option<T>,
+    pub m: DataSample<'a, T>,
+    pub w: Option<DataSample<'a, T>>,
     m_weighted_mean: Option<T>,
     m_reduced_chi2: Option<T>,
 }
 
 macro_rules! time_series_getter {
     ($attr: ident, $getter: ident, $func: expr) => {
-        pub fn $getter(&mut self) -> Option<T> {
-            match self.err2 {
-                Some(_) => Some(match self.$attr {
-                    Some(x) => x,
-                    None => {
-                        self.$attr = Some($func(self));
-                        self.$attr.unwrap()
-                    }
-                }),
-                None => None,
+        pub fn $getter(&mut self) -> T {
+            match self.$attr {
+                Some(x) => x,
+                None => {
+                    self.$attr = Some($func(self));
+                    self.$attr.unwrap()
+                }
             }
         }
     };
 }
 
-impl<'a, 'b, 'c, T> TimeSeries<'a, 'b, 'c, T>
+impl<'a, T> TimeSeries<'a, T>
 where
     T: Float,
 {
-    pub fn new(t: &'a [T], m: &'b [T], err2: Option<&'c [T]>) -> Self {
+    pub fn new(t: &'a [T], m: &'a [T], w: Option<&'a [T]>) -> Self {
         assert_eq!(t.len(), m.len(), "t and m should have the same size");
         Self {
             t: DataSample::new(t),
             m: DataSample::new(m),
-            err2: err2.map(|err2| {
-                assert_eq!(m.len(), err2.len(), "m and err should have the same size");
-                DataSample::new(err2)
+            w: w.map(|w| {
+                assert_eq!(m.len(), w.len(), "m and err should have the same size");
+                DataSample::new(w)
             }),
-            weight_sum: None,
             m_weighted_mean: None,
             m_reduced_chi2: None,
         }
     }
 
+    #[inline]
     pub fn lenu(&self) -> usize {
         self.t.sample.len()
     }
@@ -165,40 +164,50 @@ where
         self.lenu().value_as::<T>().unwrap()
     }
 
-    /// Get m and err2 pair iterator
-    ///
-    /// Save to use only if err2 is Some, i.e. inside time_series_getter!()
-    fn m_err2_iter(&mut self) -> impl Iterator<Item = (&T, &T)> {
-        self.m
-            .sample
-            .iter()
-            .zip(self.err2.as_ref().unwrap().sample.iter())
+    /// Weight iterator, if weight is None, returns iterator with ones
+    pub fn w_iter(&self) -> impl Iterator<Item = T> + 'a {
+        match self.w.as_ref() {
+            Some(w) => Either::Left(w.sample.iter().copied()),
+            None => Either::Right(iter::repeat_with(T::one).take(self.lenu())),
+        }
     }
 
-    time_series_getter!(weight_sum, get_weight_sum, |ts: &mut TimeSeries<T>| {
-        ts.err2
-            .as_ref()
-            .unwrap()
+    /// (t, m) pair iter
+    pub fn tm_iter(&self) -> impl Iterator<Item = (T, T)> + 'a {
+        self.t
             .sample
             .iter()
-            .map(|&x| x.recip())
-            .sum::<T>()
-    });
+            .copied()
+            .zip(self.m.sample.iter().copied())
+    }
+
+    /// (m, w) pair iterator
+    pub fn mw_iter(&self) -> impl Iterator<Item = (T, T)> + 'a {
+        self.m.sample.iter().copied().zip(self.w_iter())
+    }
+
+    pub fn tmw_iter(&self) -> impl Iterator<Item = (T, T, T)> + 'a {
+        self.t
+            .sample
+            .iter()
+            .zip(self.m.sample.iter().zip(self.w_iter()))
+            .map(|(&t, (&m, w))| (t, m, w))
+    }
 
     time_series_getter!(
         m_weighted_mean,
         get_m_weighted_mean,
         |ts: &mut TimeSeries<T>| {
-            ts.m_err2_iter().map(|(&y, &err2)| y / err2).sum::<T>() / ts.get_weight_sum().unwrap()
+            ts.mw_iter().map(|(y, w)| y * w).sum::<T>() / ts.w_iter().sum()
         }
     );
 
     time_series_getter!(m_reduced_chi2, get_m_reduced_chi2, |ts: &mut TimeSeries<
         T,
     >| {
-        let m_weighed_mean = ts.get_m_weighted_mean().unwrap();
-        ts.m_err2_iter()
-            .map(|(&y, &err2)| (y - m_weighed_mean).powi(2) / err2)
+        let m_weighed_mean = ts.get_m_weighted_mean();
+        ts.mw_iter()
+            .map(|(y, w)| (y - m_weighed_mean).powi(2) * w)
             .sum::<T>()
             / (ts.lenf() - T::one())
     });
@@ -283,10 +292,11 @@ mod tests {
             18.36073996,
             11.83854198,
         ];
-        let err2 = [7.7973377, 9.45495344, 3.11500361, 7.71464925, 9.30566326];
-        let mut ts = TimeSeries::new(&t[..], &m[..], Some(&err2[..]));
-        let desired = [16.318170478908428];
-        all_close(&[ts.get_m_weighted_mean().unwrap()], &desired[..], 1e-6);
+        let w = [0.1282489, 0.10576467, 0.32102692, 0.12962352, 0.10746144];
+        let mut ts = TimeSeries::new(&t[..], &m[..], Some(&w[..]));
+        // np.average(m, weights=w)
+        let desired = [16.31817047752941];
+        all_close(&[ts.get_m_weighted_mean()], &desired[..], 1e-6);
     }
 
     #[test]
@@ -299,9 +309,9 @@ mod tests {
             18.36073996,
             11.83854198,
         ];
-        let err2 = [7.7973377, 9.45495344, 3.11500361, 7.71464925, 9.30566326];
-        let mut ts = TimeSeries::new(&t[..], &m[..], Some(&err2[..]));
-        let desired = [1.3752251300760054];
-        all_close(&[ts.get_m_reduced_chi2().unwrap()], &desired[..], 1e-6);
+        let w = [0.1282489, 0.10576467, 0.32102692, 0.12962352, 0.10746144];
+        let mut ts = TimeSeries::new(&t[..], &m[..], Some(&w[..]));
+        let desired = [1.3752251301435465];
+        all_close(&[ts.get_m_reduced_chi2()], &desired[..], 1e-6);
     }
 }

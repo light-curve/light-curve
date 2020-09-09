@@ -6,17 +6,17 @@ macro_rules! feature_test{
     ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr $(,)?) => {
         feature_test!($name, $fe, $desired, $x, $y, None);
     };
-    ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr, $err2: expr $(,)?) => {
-        feature_test!($name, $fe, $desired, $x, $y, $err2, 1e-6);
+    ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr, $w: expr $(,)?) => {
+        feature_test!($name, $fe, $desired, $x, $y, $w, 1e-6);
     };
-    ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr, $err2: expr, $tol: expr $(,)?) => {
+    ($name: ident, $fe: tt, $desired: expr, $x: expr, $y: expr, $w: expr, $tol: expr $(,)?) => {
         #[test]
         fn $name() {
             let fe = FeatureExtractor::new(vec!$fe);
             let desired = $desired;
             let x = $x;
             let y = $y;
-            let ts = TimeSeries::new(&x[..], &y[..], $err2);
+            let ts = TimeSeries::new(&x[..], &y[..], $w);
             let actual = fe.eval(ts);
             all_close(&desired[..], &actual[..], $tol);
 

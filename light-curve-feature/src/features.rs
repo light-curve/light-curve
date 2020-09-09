@@ -194,8 +194,7 @@ where
         vec![
             ts.m.sample
                 .iter()
-                .cloned()
-                .filter(|&y| T::abs(y - m_mean) > threshold)
+                .filter(|&&y| T::abs(y - m_mean) > threshold)
                 .count()
                 .value_as::<T>()
                 .unwrap()
@@ -282,25 +281,19 @@ where
         self
     }
 
-    fn bin(&self, t: &[T], m: &[T], err2: &[T]) -> (Vec<T>, Vec<T>, Vec<T>) {
-        t.iter()
-            .zip(m.iter())
-            .zip(err2.iter())
-            .group_by(|((&t, _), _)| ((t - self.offset) / self.window).floor())
+    fn bin(&self, ts: &TimeSeries<T>) -> (Vec<T>, Vec<T>, Vec<T>) {
+        ts.tmw_iter()
+            .group_by(|(t, _, _)| ((*t - self.offset) / self.window).floor())
             .into_iter()
             .map(|(x, group)| {
                 let bin_t = (x + T::half()) * self.window;
-                let (n, bin_m, norm) = group.fold(
-                    (T::zero(), T::zero(), T::zero()),
-                    |acc, ((_, &m), &err2)| {
-                        let w = err2.recip();
+                let (n, bin_m, norm) = group
+                    .fold((T::zero(), T::zero(), T::zero()), |acc, (_, m, w)| {
                         (acc.0 + T::one(), acc.1 + m * w, acc.2 + w)
-                    },
-                );
-                let norm = norm.recip();
-                let bin_m = bin_m * norm;
-                let bin_err2 = n * norm;
-                (bin_t, bin_m, bin_err2)
+                    });
+                let bin_m = bin_m / norm;
+                let bin_w = norm / n;
+                (bin_t, bin_m, bin_w)
             })
             .unzip3()
     }
@@ -323,14 +316,9 @@ where
         if self.size_hint() == 0 {
             return vec![];
         }
-        match ts.err2.as_ref() {
-            Some(err2) => {
-                let (t, m, err2) = self.bin(ts.t.sample, ts.m.sample, err2.sample);
-                let bin_ts = TimeSeries::new(&t, &m, Some(&err2));
-                self.features_extractor.eval(bin_ts)
-            }
-            None => vec![T::nan(); self.size_hint()],
-        }
+        let (t, m, w) = self.bin(ts);
+        let bin_ts = TimeSeries::new(&t, &m, Some(&w));
+        self.features_extractor.eval(bin_ts)
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -658,7 +646,7 @@ where
                 T::zero(),
             ];
         }
-        let result = fit_straight_line(ts.t.sample, ts.m.sample, None);
+        let result = fit_straight_line(ts, false);
         vec![result.slope, T::sqrt(result.slope_sigma2)]
     }
 
@@ -698,17 +686,12 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        match ts.err2.as_ref() {
-            Some(err2) => {
-                let result = fit_straight_line(ts.t.sample, ts.m.sample, Some(err2.sample));
-                vec![
-                    result.slope,
-                    T::sqrt(result.slope_sigma2),
-                    result.reduced_chi2,
-                ]
-            }
-            None => vec![T::nan(); 3],
-        }
+        let result = fit_straight_line(ts, true);
+        vec![
+            result.slope,
+            T::sqrt(result.slope_sigma2),
+            result.reduced_chi2,
+        ]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1348,7 +1331,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.get_m_reduced_chi2().unwrap_or_else(T::nan)]
+        vec![ts.get_m_reduced_chi2()]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1480,26 +1463,17 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let m_weighted_mean = ts.get_m_weighted_mean();
-        let m_reduced_chi2 = ts.get_m_reduced_chi2();
-        match ts.err2.as_ref() {
-            Some(err2) => {
-                let mean = m_weighted_mean.unwrap();
-                let chi2 = (ts.lenf() - T::one()) * m_reduced_chi2.unwrap();
-                let value = if chi2.is_zero() {
-                    T::zero()
-                } else {
-                    ts.m.sample
-                        .iter()
-                        .zip(err2.sample.iter())
-                        .map(|(&y, &err2)| T::abs(y - mean) / T::sqrt(err2))
-                        .sum::<T>()
-                        / T::sqrt(ts.lenf() * chi2)
-                };
-                vec![value]
-            }
-            None => vec![T::nan()],
-        }
+        let mean = ts.get_m_weighted_mean();
+        let chi2 = (ts.lenf() - T::one()) * ts.get_m_reduced_chi2();
+        let value = if chi2.is_zero() {
+            T::zero()
+        } else {
+            ts.mw_iter()
+                .map(|(y, w)| T::abs(y - mean) * T::sqrt(w))
+                .sum::<T>()
+                / T::sqrt(ts.lenf() * chi2)
+        };
+        vec![value]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1535,7 +1509,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.get_m_weighted_mean().unwrap_or_else(T::nan)]
+        vec![ts.get_m_weighted_mean()]
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1597,33 +1571,34 @@ mod tests {
     fn bins() {
         let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
         let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let err2 = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1];
+        let w = [10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0];
+        let ts = TimeSeries::new(&t, &m, Some(&w));
 
         let desired_t = [0.5, 1.5, 2.5, 5.5];
         let desired_m = [0.0, 2.0, 6.333333333333333, 10.0];
-        let desired_err2 = [0.1, 0.15, 0.13333333333333333, 0.1];
+        let desired_w = [10.0, 6.666666666666667, 7.5, 10.0];
 
         let bins = Bins::new(1.0, 0.0);
-        let (actual_t, actual_m, actual_err2) = bins.bin(&t, &m, &err2);
+        let (actual_t, actual_m, actual_w) = bins.bin(&ts);
 
         assert_eq!(actual_t.len(), actual_m.len());
-        assert_eq!(actual_t.len(), actual_err2.len());
+        assert_eq!(actual_t.len(), actual_w.len());
         all_close(&actual_t, &desired_t, 1e-6);
         all_close(&actual_m, &desired_m, 1e-6);
-        all_close(&actual_err2, &desired_err2, 1e-6);
+        all_close(&actual_w, &desired_w, 1e-6);
     }
 
     #[test]
     fn bins_windows_and_offsets() {
         let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
         let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let err2 = [0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1, 0.2, 0.1];
-        assert_eq!(Bins::new(2.0, 0.0).bin(&t, &m, &err2).0.len(), 3);
-        assert_eq!(Bins::new(3.0, 0.0).bin(&t, &m, &err2).0.len(), 2);
-        assert_eq!(Bins::new(10.0, 0.0).bin(&t, &m, &err2).0.len(), 1);
-        assert_eq!(Bins::new(1.0, 0.1).bin(&t, &m, &err2).0.len(), 5);
-        assert_eq!(Bins::new(1.0, 0.5).bin(&t, &m, &err2).0.len(), 5);
-        assert_eq!(Bins::new(2.0, 1.0).bin(&t, &m, &err2).0.len(), 3);
+        let ts = TimeSeries::new(&t, &m, None);
+        assert_eq!(Bins::new(2.0, 0.0).bin(&ts).0.len(), 3);
+        assert_eq!(Bins::new(3.0, 0.0).bin(&ts).0.len(), 2);
+        assert_eq!(Bins::new(10.0, 0.0).bin(&ts).0.len(), 1);
+        assert_eq!(Bins::new(1.0, 0.1).bin(&ts).0.len(), 5);
+        assert_eq!(Bins::new(1.0, 0.5).bin(&ts).0.len(), 5);
+        assert_eq!(Bins::new(2.0, 1.0).bin(&ts).0.len(), 3);
     }
 
     feature_test!(
@@ -3026,7 +3001,7 @@ mod tests {
             .iter()
             .map(|&x| f64::sin(x))
             .collect::<Vec<_>>(),
-        Some(&[1.0; 1000]),
+        None,
         1e-3,
     );
 
@@ -3036,7 +3011,7 @@ mod tests {
         [12_f64.sqrt() / 4.0],
         [1.0; 1000], // isn't used
         linspace(0.0, 1.0, 1000),
-        Some(&[1.0; 1000]),
+        None,
     );
 
     // It seems that Stetson (1996) formula for this case is wrong by the factor of 2 * sqrt((N-1) / N)
@@ -3054,7 +3029,7 @@ mod tests {
                 }
             })
             .collect::<Vec<_>>(),
-        Some(&[1.0; 100]),
+        None,
     );
 
     feature_test!(
@@ -3063,15 +3038,15 @@ mod tests {
         [0.0],
         [1.0; 100], // isn't used
         [1.0; 100],
-        Some(&[1.0; 100]),
+        None,
     );
 
     feature_test!(
         weighted_mean,
         [Box::new(WeightedMean::new())],
-        [1.1897810218978102],
+        [1.1777777777777778],
         [1.0; 5], // isn't used
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
-        Some(&[0.1, 0.2, 0.3, 0.4, 0.5]),
+        Some(&[10.0, 5.0, 3.0, 2.5, 2.0]),
     );
 }

@@ -146,7 +146,7 @@ fn spread_arrays_for_fft<T: Float>(
     let t0 = ts.t.sample[0];
     let m_mean = ts.m.get_mean();
 
-    for (&t, &m) in ts.t.sample.iter().zip(ts.m.sample.iter()) {
+    for (t, m) in ts.tm_iter() {
         let x = (t - t0) / grid.dt;
         spread(&mut mh, x, m - m_mean);
         let double_x = T::two() * x;
