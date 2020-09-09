@@ -255,6 +255,17 @@ where
         }
     }
 
+    pub fn set_window(&mut self, window: T) -> &mut Self {
+        assert!(window.is_sign_positive(), "window must be positive");
+        self.window = window;
+        self
+    }
+
+    pub fn set_offset(&mut self, offset: T) -> &mut Self {
+        self.offset = offset;
+        self
+    }
+
     /// Extend a list of features to extract from binned time series
     pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
         let window = self.window;
