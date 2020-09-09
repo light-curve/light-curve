@@ -27,8 +27,8 @@ use unzip3::Unzip3;
 /// let fe = feat_extr!(Amplitude::default());
 /// let time = [0.0, 1.0];  // Doesn't depend on time
 /// let magn = [0.0, 2.0];
-/// let ts = TimeSeries::new(&time[..], &magn[..], None);
-/// assert_eq!(vec![1.0], fe.eval(ts));
+/// let mut ts = TimeSeries::new(&time[..], &magn[..], None);
+/// assert_eq!(vec![1.0], fe.eval(&mut ts));
 /// ```
 #[derive(Clone, Default)]
 pub struct Amplitude {}
@@ -150,7 +150,7 @@ where
 /// let mut ts = TimeSeries::new(&time[..], &magn[..], None);
 /// assert_eq!(0.0, ts.m.get_mean());
 /// assert!((1.0 - ts.m.get_std()).abs() < 1e-15);
-/// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(ts));
+/// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(&mut ts));
 /// ```
 #[derive(Clone)]
 pub struct BeyondNStd<T> {
@@ -317,8 +317,8 @@ where
             return vec![];
         }
         let (t, m, w) = self.bin(ts);
-        let bin_ts = TimeSeries::new(&t, &m, Some(&w));
-        self.features_extractor.eval(bin_ts)
+        let mut bin_ts = TimeSeries::new(&t, &m, Some(&w));
+        self.features_extractor.eval(&mut bin_ts)
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1287,7 +1287,7 @@ where
             .chain(vec![T::zero()].into_iter().cycle())
             .take(2 * self.peaks)
             .collect();
-        features.extend(self.features_extractor.eval(pg_as_ts));
+        features.extend(self.features_extractor.eval(&mut pg_as_ts));
         features
     }
 
@@ -1628,8 +1628,8 @@ mod tests {
         let fe = feat_extr!(Eta::default(), EtaE::default());
         let x = linspace(0.0_f64, 1.0, 11);
         let y: Vec<_> = x.iter().map(|&t| 3.0 + t.powi(2)).collect();
-        let ts = TimeSeries::new(&x, &y, None);
-        let values = fe.eval(ts);
+        let mut ts = TimeSeries::new(&x, &y, None);
+        let values = fe.eval(&mut ts);
         all_close(&values[0..1], &values[1..2], 1e-10);
     }
 
@@ -1847,8 +1847,8 @@ mod tests {
             17.284000396728516,
             17.257999420166016,
         ];
-        let ts = TimeSeries::new(&x[..], &y[..], None);
-        let actual: f32 = fe.eval(ts)[0];
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let actual: f32 = fe.eval(&mut ts)[0];
         assert!(actual.is_finite());
     }
 
@@ -2100,8 +2100,8 @@ mod tests {
             18.677000045776367,
             18.69700050354004,
         ];
-        let ts = TimeSeries::new(&x[..], &y[..], None);
-        let sigma: f32 = fe.eval(ts)[1];
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let sigma: f32 = fe.eval(&mut ts)[1];
         assert!(sigma.is_finite());
     }
 
@@ -2313,8 +2313,8 @@ mod tests {
             19.143999099731445,
             19.21500015258789,
         ];
-        let ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(ts);
+        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
+        let actual = fe.eval(&mut ts);
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2526,8 +2526,8 @@ mod tests {
             18.020999908447266,
             18.075000762939453,
         ];
-        let ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(ts);
+        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
+        let actual = fe.eval(&mut ts);
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2617,8 +2617,8 @@ mod tests {
             16.614, 16.605, 16.623, 16.603, 16.604, 16.618, 16.592, 16.578, 16.59, 16.598, 16.572,
             16.609, 16.592, 16.574, 16.562, 16.558, 16.581, 16.581, 16.602, 16.581, 16.595,
         ];
-        let ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(ts);
+        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
+        let actual = fe.eval(&mut ts);
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2708,8 +2708,8 @@ mod tests {
             16.582, 16.636, 16.581, 16.597, 16.595, 16.573, 16.595, 16.612, 16.578, 16.554, 16.586,
             16.586, 16.585, 16.583, 16.662, 16.613, 16.607, 16.592, 16.603, 16.608,
         ];
-        let ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(ts);
+        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
+        let actual = fe.eval(&mut ts);
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2816,9 +2816,9 @@ mod tests {
         let fe = FeatureExtractor::new(vec![Box::new(Periodogram::default())]);
         let x = linspace(0.0_f32, 1.0, 100);
         let y = [0.0_f32; 100];
-        let ts = TimeSeries::new(&x[..], &y[..], None);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = vec![0.0, 0.0];
-        let actual = fe.eval(ts);
+        let actual = fe.eval(&mut ts);
         assert_eq!(desired, actual);
     }
 
@@ -2836,9 +2836,9 @@ mod tests {
                     + 0.01 * rng.gen::<f32>() // noise stabilizes solution
             })
             .collect();
-        let ts = TimeSeries::new(&x[..], &y[..], None);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
-        let actual = [fe.eval(ts)[0]]; // Test period only
+        let actual = [fe.eval(&mut ts)[0]]; // Test period only
         all_close(&desired[..], &actual[..], 5e-3);
     }
 
@@ -2853,9 +2853,9 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let ts = TimeSeries::new(&x[..], &y[..], None);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
-        let actual = [fe.eval(ts)[0]]; // Test period only
+        let actual = [fe.eval(&mut ts)[0]]; // Test period only
         all_close(&desired[..], &actual[..], 5e-3);
     }
 
@@ -2873,8 +2873,8 @@ mod tests {
             .iter()
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
-        let ts = TimeSeries::new(&x[..], &y[..], None);
-        let features = fe.eval(ts);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
+        let features = fe.eval(&mut ts);
         all_close(
             &[features[0], features[1]],
             &[features[2], features[3]],
@@ -2898,9 +2898,9 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let ts = TimeSeries::new(&x[..], &y[..], None);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period2, period1];
-        let features = fe.eval(ts);
+        let features = fe.eval(&mut ts);
         let actual = [features[0], features[2]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3]);
@@ -2923,9 +2923,9 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let ts = TimeSeries::new(&x[..], &y[..], None);
+        let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period2, period1];
-        let features = fe.eval(ts);
+        let features = fe.eval(&mut ts);
         let actual = [features[0], features[2]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3]);
@@ -2953,8 +2953,8 @@ mod tests {
                     + 4.0
             })
             .collect();
-        let ts = TimeSeries::new(&x, &y, None);
-        let features = fe.eval(ts);
+        let mut ts = TimeSeries::new(&x, &y, None);
+        let features = fe.eval(&mut ts);
         assert!(f32::abs(features[0] - period2) / period2 < 1.0 / n as f32);
         assert!(f32::abs(features[2] - period1) / period1 < 1.0 / n as f32);
         assert!(features[1] > features[3]);

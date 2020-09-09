@@ -33,23 +33,6 @@ where
         Self { features }
     }
 
-    /// Get a vector of computed features.
-    /// The length of the returned vector is guaranteed to be the same as returned by `get_names()`
-    pub fn eval(&self, mut ts: TimeSeries<T>) -> Vec<T> {
-        self.features.iter().flat_map(|x| x.eval(&mut ts)).collect()
-    }
-
-    /// Get a vector of feature names.
-    /// The length of the returned vector is guaranteed to be the same as returned by `eval()`
-    pub fn get_names(&self) -> Vec<&str> {
-        self.features.iter().flat_map(|x| x.get_names()).collect()
-    }
-
-    /// Total number of features
-    pub fn size_hint(&self) -> usize {
-        self.features.iter().map(|x| x.size_hint()).sum()
-    }
-
     /// Copy of the feature vector
     pub fn clone_features(&self) -> VecFE<T> {
         self.features.clone()
@@ -57,5 +40,27 @@ where
 
     pub fn add_feature(&mut self, feature: Box<dyn FeatureEvaluator<T>>) {
         self.features.push(feature);
+    }
+}
+
+impl<T> FeatureEvaluator<T> for FeatureExtractor<T>
+where
+    T: Float,
+{
+    /// Get a vector of computed features.
+    /// The length of the returned vector is guaranteed to be the same as returned by `get_names()`
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+        self.features.iter().flat_map(|x| x.eval(ts)).collect()
+    }
+
+    /// Get a vector of feature names.
+    /// The length of the returned vector is guaranteed to be the same as returned by `eval()`
+    fn get_names(&self) -> Vec<&str> {
+        self.features.iter().flat_map(|x| x.get_names()).collect()
+    }
+
+    /// Total number of features
+    fn size_hint(&self) -> usize {
+        self.features.iter().map(|x| x.size_hint()).sum()
     }
 }

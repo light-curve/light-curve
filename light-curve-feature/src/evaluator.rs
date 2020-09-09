@@ -6,10 +6,11 @@ use dyn_clonable::*;
 /// The trait each feature should implement
 #[clonable]
 pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone {
-    /// Should return the non-empty vector of feature values. The length and feature order should
+    /// Should return the vector of feature values. The length and feature order should
     /// correspond to `get_names()` output
     fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T>;
-    /// Should return the non-empty vector of feature names. The length and feature order should
+
+    /// Should return the vector of feature names. The length and feature order should
     /// correspond to `eval()` output
     fn get_names(&self) -> Vec<&str>;
 

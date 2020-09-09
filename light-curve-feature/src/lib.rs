@@ -12,9 +12,9 @@
 //! let time = [0.0, 1.0, 2.0, 3.0, 4.0];
 //! let magn = [-1.0, 2.0, 1.0, 3.0, 4.5];
 //! let magn_err_squared = [0.2, 0.1, 0.5, 0.1, 0.2];
-//! let ts = TimeSeries::new(&time[..], &magn[..], Some(&magn_err_squared[..]));
+//! let mut ts = TimeSeries::new(&time[..], &magn[..], Some(&magn_err_squared[..]));
 //! // Get results and print
-//! let result = fe.eval(ts);
+//! let result = fe.eval(&mut ts);
 //! let names = fe.get_names();
 //! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
 //! ```

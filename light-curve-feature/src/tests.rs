@@ -16,8 +16,8 @@ macro_rules! feature_test{
             let desired = $desired;
             let x = $x;
             let y = $y;
-            let ts = TimeSeries::new(&x[..], &y[..], $w);
-            let actual = fe.eval(ts);
+            let mut ts = TimeSeries::new(&x[..], &y[..], $w);
+            let actual = fe.eval(&mut ts);
             all_close(&desired[..], &actual[..], $tol);
 
             let names = fe.get_names();

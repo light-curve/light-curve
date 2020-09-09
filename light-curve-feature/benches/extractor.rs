@@ -73,8 +73,8 @@ where
 
 fn run<T: Float>(fe: &FeatureExtractor<T>, x: &[T], y: &[T], err: &[T]) -> Vec<T> {
     let w: Vec<_> = err.iter().map(|&e| e.powi(-2)).collect();
-    let ts = TimeSeries::new(&x, &y, Some(&w));
-    fe.eval(ts)
+    let mut ts = TimeSeries::new(&x, &y, Some(&w));
+    fe.eval(&mut ts)
 }
 
 fn randvec<T>(n: usize) -> Vec<T>
