@@ -26,6 +26,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 #[derive(Clone, Default)]
@@ -56,6 +60,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -88,6 +96,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        2
+    }
 }
 
 #[derive(Clone, Default)]
@@ -113,6 +125,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        0
     }
 }
 
@@ -140,6 +156,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 #[derive(Clone, Default)]
@@ -165,6 +185,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 

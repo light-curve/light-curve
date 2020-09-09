@@ -54,6 +54,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 /// Anderson–Darling normality test statistic
@@ -120,6 +124,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        4
     }
 }
 
@@ -208,6 +216,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -331,6 +343,10 @@ where
     fn size_hint(&self) -> usize {
         self.features_extractor.size_hint()
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 /// Cusum — a range of cumulative sums
@@ -389,6 +405,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        2
+    }
 }
 
 /// Von Neummann $\eta$
@@ -436,6 +456,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -491,6 +515,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -552,6 +580,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 /// Kurtosis of magnitude $G_2$
@@ -609,6 +641,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        4
+    }
 }
 
 /// The slope and noise of the light curve without observation errors in the linear fit
@@ -655,6 +691,10 @@ where
     }
 
     fn size_hint(&self) -> usize {
+        2
+    }
+
+    fn min_ts_length(&self) -> usize {
         2
     }
 }
@@ -704,6 +744,10 @@ where
 
     fn size_hint(&self) -> usize {
         3
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -787,6 +831,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 /// Maximum slope between two sub-sequential observations
@@ -832,6 +880,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        2
+    }
 }
 
 /// Mean magnitude
@@ -868,6 +920,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 /// Median magnitude
@@ -901,6 +957,10 @@ where
     }
 
     fn size_hint(&self) -> usize {
+        1
+    }
+
+    fn min_ts_length(&self) -> usize {
         1
     }
 }
@@ -940,6 +1000,10 @@ where
     }
 
     fn size_hint(&self) -> usize {
+        1
+    }
+
+    fn min_ts_length(&self) -> usize {
         1
     }
 }
@@ -1021,6 +1085,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
 }
 
 /// Maximum deviation of magnitude from its median
@@ -1063,6 +1131,10 @@ where
     }
 
     fn size_hint(&self) -> usize {
+        1
+    }
+
+    fn min_ts_length(&self) -> usize {
         1
     }
 }
@@ -1132,6 +1204,10 @@ where
     }
 
     fn size_hint(&self) -> usize {
+        1
+    }
+
+    fn min_ts_length(&self) -> usize {
         1
     }
 }
@@ -1302,6 +1378,10 @@ where
     fn size_hint(&self) -> usize {
         2 * self.peaks + self.features_extractor.size_hint()
     }
+
+    fn min_ts_length(&self) -> usize {
+        usize::max(2, self.features_extractor.min_ts_length())
+    }
 }
 
 /// Reduced $\chi^2$ of magnitude measurements
@@ -1340,6 +1420,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -1393,6 +1477,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        3
+    }
 }
 
 /// Standard deviation of magnitude $\sigma_m$
@@ -1432,6 +1520,10 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        2
     }
 }
 
@@ -1483,6 +1575,10 @@ where
     fn size_hint(&self) -> usize {
         1
     }
+
+    fn min_ts_length(&self) -> usize {
+        2
+    }
 }
 
 /// Weighted mean magnitude
@@ -1517,6 +1613,10 @@ where
     }
 
     fn size_hint(&self) -> usize {
+        1
+    }
+
+    fn min_ts_length(&self) -> usize {
         1
     }
 }

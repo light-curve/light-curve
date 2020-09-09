@@ -63,4 +63,13 @@ where
     fn size_hint(&self) -> usize {
         self.features.iter().map(|x| x.size_hint()).sum()
     }
+
+    /// Minimum time series length
+    fn min_ts_length(&self) -> usize {
+        self.features
+            .iter()
+            .map(|x| x.min_ts_length())
+            .max()
+            .unwrap_or(0)
+    }
 }

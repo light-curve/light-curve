@@ -16,6 +16,9 @@ pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone {
 
     /// Should return the size of vectors returned by `eval()` and `get_names()`
     fn size_hint(&self) -> usize;
+
+    /// Should return minimum time series length to successfully find feature value
+    fn min_ts_length(&self) -> usize;
 }
 
 pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
