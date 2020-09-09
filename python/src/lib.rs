@@ -144,6 +144,37 @@ impl BeyondNStd {
     }
 }
 
+#[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(window=None, offset=None, extractor=None)"]
+struct Bins {}
+
+#[pymethods]
+impl Bins {
+    #[new]
+    #[args(extractor, window = "None", offset = "None")]
+    fn __new__(
+        py: Python,
+        extractor: Py<Extractor>,
+        window: Option<F>,
+        offset: Option<F>,
+    ) -> (Self, PyFeatureEvaluator) {
+        let mut eval = light_curve_feature::Bins::default();
+        eval.add_features(extractor.borrow(py).feature_extractor.clone_features());
+        if let Some(window) = window {
+            eval.set_window(window);
+        }
+        if let Some(offset) = offset {
+            eval.set_offset(offset);
+        }
+        (
+            Self {},
+            PyFeatureEvaluator {
+                feature_evaluator: Box::new(eval),
+            },
+        )
+    }
+}
+
 evaluator!(Cusum, light_curve_feature::Cusum);
 
 evaluator!(Eta, light_curve_feature::Eta);
@@ -211,6 +242,8 @@ impl MagnitudePercentageRatio {
 evaluator!(MaximumSlope, light_curve_feature::MaximumSlope);
 
 evaluator!(Mean, light_curve_feature::Mean);
+
+evaluator!(Median, light_curve_feature::Median);
 
 evaluator!(
     MedianAbsoluteDeviation,
@@ -420,6 +453,18 @@ evaluator!(StetsonK, light_curve_feature::StetsonK);
 
 evaluator!(WeightedMean, light_curve_feature::WeightedMean);
 
+evaluator!(Duration, light_curve_feature::antifeatures::Duration);
+
+evaluator!(
+    MaximumTimeInterval,
+    light_curve_feature::antifeatures::MaximumTimeInterval
+);
+
+evaluator!(
+    MinimumTimeInterval,
+    light_curve_feature::antifeatures::MinimumTimeInterval
+);
+
 evaluator!(
     ObservationCount,
     light_curve_feature::antifeatures::ObservationCount
@@ -434,6 +479,9 @@ evaluator!(
 
 #[pymodule]
 fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Duration>()?;
+    m.add_class::<MaximumTimeInterval>()?;
+    m.add_class::<MinimumTimeInterval>()?;
     m.add_class::<ObservationCount>()?;
     m.add_class::<TimeMean>()?;
     m.add_class::<TimeStandardDeviation>()?;
@@ -448,6 +496,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Amplitude>()?;
     m.add_class::<AndersonDarlingNormal>()?;
     m.add_class::<BeyondNStd>()?;
+    m.add_class::<Bins>()?;
     m.add_class::<Cusum>()?;
     m.add_class::<Eta>()?;
     m.add_class::<EtaE>()?;
@@ -458,6 +507,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<MagnitudePercentageRatio>()?;
     m.add_class::<MaximumSlope>()?;
     m.add_class::<Mean>()?;
+    m.add_class::<Median>()?;
     m.add_class::<MedianAbsoluteDeviation>()?;
     m.add_class::<MedianBufferRangePercentage>()?;
     m.add_class::<PercentAmplitude>()?;
