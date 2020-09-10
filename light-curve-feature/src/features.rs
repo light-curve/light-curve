@@ -1,4 +1,5 @@
-use crate::evaluator::{FeatureEvaluator, VecFE};
+use crate::error::EvaluatorError;
+use crate::evaluator::*;
 use crate::extractor::FeatureExtractor;
 use crate::fit::fit_straight_line;
 use crate::float_trait::Float;
@@ -10,6 +11,7 @@ use crate::time_series::TimeSeries;
 
 use conv::prelude::*;
 use itertools::Itertools;
+use std::iter;
 use unzip3::Unzip3;
 
 /// Half amplitude of magnitude
@@ -28,7 +30,7 @@ use unzip3::Unzip3;
 /// let time = [0.0, 1.0];  // Doesn't depend on time
 /// let magn = [0.0, 2.0];
 /// let mut ts = TimeSeries::new(&time[..], &magn[..], None);
-/// assert_eq!(vec![1.0], fe.eval(&mut ts));
+/// assert_eq!(vec![1.0], fe.eval(&mut ts).unwrap());
 /// ```
 #[derive(Clone, Default)]
 pub struct Amplitude {}
@@ -43,8 +45,9 @@ impl<T> FeatureEvaluator<T> for Amplitude
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![T::half() * (ts.m.get_max() - ts.m.get_min())]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![T::half() * (ts.m.get_max() - ts.m.get_min())])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -88,16 +91,9 @@ impl<T> FeatureEvaluator<T> for AndersonDarlingNormal
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let size = ts.lenu();
-        assert!(
-            size >= 4,
-            "AndersonDarlingNormal requires at least 4 points"
-        );
-        let m_std = ts.m.get_std();
-        if m_std.is_zero() {
-            return vec![T::zero()];
-        }
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        let size = check_ts_length(self, ts)?;
+        let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let sum: f64 =
             ts.m.get_sorted()
@@ -112,10 +108,10 @@ where
                 })
                 .sum();
         let n = ts.lenf();
-        vec![
+        Ok(vec![
             (T::one() + T::four() / n - (T::five() / n).powi(2))
                 * (n * (T::two() * T::LN_2() - T::one()) - sum.approx_as::<T>().unwrap() / n),
-        ]
+        ])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -158,7 +154,7 @@ where
 /// let mut ts = TimeSeries::new(&time[..], &magn[..], None);
 /// assert_eq!(0.0, ts.m.get_mean());
 /// assert!((1.0 - ts.m.get_std()).abs() < 1e-15);
-/// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(&mut ts));
+/// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(&mut ts).unwrap());
 /// ```
 #[derive(Clone)]
 pub struct BeyondNStd<T> {
@@ -196,10 +192,11 @@ impl<T> FeatureEvaluator<T> for BeyondNStd<T>
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let m_mean = ts.m.get_mean();
         let threshold = ts.m.get_std() * self.nstd;
-        vec![
+        Ok(vec![
             ts.m.sample
                 .iter()
                 .filter(|&&y| T::abs(y - m_mean) > threshold)
@@ -207,7 +204,7 @@ where
                 .value_as::<T>()
                 .unwrap()
                 / ts.lenf(),
-        ]
+        ])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -249,7 +246,7 @@ pub struct Bins<T: Float> {
     window: T,
     offset: T,
     feature_names: Vec<String>,
-    features_extractor: FeatureExtractor<T>,
+    feature_extractor: FeatureExtractor<T>,
 }
 
 impl<T> Bins<T>
@@ -262,7 +259,7 @@ where
             window,
             offset,
             feature_names: vec![],
-            features_extractor: feat_extr!(),
+            feature_extractor: feat_extr!(),
         }
     }
 
@@ -288,13 +285,15 @@ where
                     .iter()
                     .map(|name| format!("bins_window{:.1}_offset{:.1}_{}", window, offset, name)),
             );
-            self.features_extractor.add_feature(feature);
+            self.feature_extractor.add_feature(feature);
         }
         self
     }
 
-    fn bin(&self, ts: &TimeSeries<T>) -> (Vec<T>, Vec<T>, Vec<T>) {
-        ts.tmw_iter()
+    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let (t, m, w) = ts
+            .tmw_iter()
             .group_by(|(t, _, _)| ((*t - self.offset) / self.window).floor())
             .into_iter()
             .map(|(x, group)| {
@@ -307,7 +306,8 @@ where
                 let bin_w = norm / n;
                 (bin_t, bin_m, bin_w)
             })
-            .unzip3()
+            .unzip3();
+        Ok(TMWVectors { t, m, w: Some(w) })
     }
 }
 
@@ -324,25 +324,7 @@ impl<T> FeatureEvaluator<T> for Bins<T>
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        if self.size_hint() == 0 {
-            return vec![];
-        }
-        let (t, m, w) = self.bin(ts);
-        let mut bin_ts = TimeSeries::new(&t, &m, Some(&w));
-        self.features_extractor.eval(&mut bin_ts)
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        self.feature_names
-            .iter()
-            .map(|name| name.as_str())
-            .collect()
-    }
-
-    fn size_hint(&self) -> usize {
-        self.features_extractor.size_hint()
-    }
+    transformer_eval!();
 
     fn min_ts_length(&self) -> usize {
         1
@@ -380,7 +362,9 @@ impl<T> FeatureEvaluator<T> for Cusum
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let cumsum: Vec<_> =
             ts.m.sample
@@ -390,12 +374,9 @@ where
                     Some(*sum)
                 })
                 .collect();
-        let value = if ts.m.get_std().is_zero() {
-            T::zero()
-        } else {
-            (cumsum[..].maximum() - cumsum[..].minimum()) / (ts.m.get_std() * ts.lenf())
-        };
-        vec![value]
+        Ok(vec![
+            (cumsum[..].maximum() - cumsum[..].minimum()) / (m_std * ts.lenf()),
+        ])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -437,17 +418,15 @@ impl<T> FeatureEvaluator<T> for Eta
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let value = if ts.m.get_std().is_zero() {
-            T::zero()
-        } else {
-            (1..ts.lenu())
-                .map(|i| (ts.m.sample[i] - ts.m.sample[i - 1]).powi(2))
-                .sum::<T>()
-                / (ts.lenf() - T::one())
-                / ts.m.get_std().powi(2)
-        };
-        vec![value]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let m_std = get_nonzero_m_std(ts)?;
+        let value = (1..ts.lenu())
+            .map(|i| (ts.m.sample[i] - ts.m.sample[i - 1]).powi(2))
+            .sum::<T>()
+            / (ts.lenf() - T::one())
+            / m_std.powi(2);
+        Ok(vec![value])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -491,7 +470,9 @@ impl<T> FeatureEvaluator<T> for EtaE
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let m_std = get_nonzero_m_std(ts)?;
         let sq_slope_sum = (1..ts.lenu())
             .map(|i| {
                 ((ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]))
@@ -499,14 +480,10 @@ where
             })
             .filter(|&x| x.is_finite())
             .sum::<T>();
-        let value = if ts.m.get_std().is_zero() {
-            T::zero()
-        } else {
-            (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum
-                / ts.m.get_std().powi(2)
-                / (ts.lenf() - T::one()).powi(3)
-        };
-        vec![value]
+        let value = (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum
+            / m_std.powi(2)
+            / (ts.lenf() - T::one()).powi(3);
+        Ok(vec![value])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -566,11 +543,12 @@ impl<T> FeatureEvaluator<T> for InterPercentileRange
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let q = [self.quantile, 1.0 - self.quantile];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
         let value = ppf[1] - ppf[0];
-        vec![value]
+        Ok(vec![value])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -614,24 +592,20 @@ impl<T> FeatureEvaluator<T> for Kurtosis
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        assert!(ts.lenu() > 3, "Kurtosis requires at least 4 points");
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
         let n1 = n + T::one();
         let n_1 = n - T::one();
         let n_2 = n - T::two();
         let n_3 = n - T::three();
-        let value = if ts.m.get_std().is_zero() {
-            T::zero()
-        } else {
-            ts.m.sample.iter().map(|&x| (x - m_mean).powi(4)).sum::<T>() / ts.m.get_std().powi(4)
-                * n
-                * n1
+        let value =
+            ts.m.sample.iter().map(|&x| (x - m_mean).powi(4)).sum::<T>() / m_std.powi(4) * n * n1
                 / (n_1 * n_2 * n_3)
-                - T::three() * n_1.powi(2) / (n_2 * n_3)
-        };
-        vec![value]
+                - T::three() * n_1.powi(2) / (n_2 * n_3);
+        Ok(vec![value])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -675,15 +649,16 @@ impl<T> FeatureEvaluator<T> for LinearTrend
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        if ts.lenu() == 2 {
-            return vec![
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        let size = check_ts_length(self, ts)?;
+        if size == 2 {
+            return Ok(vec![
                 (ts.m.sample[1] - ts.m.sample[0]) / (ts.t.sample[1] - ts.t.sample[0]),
                 T::zero(),
-            ];
+            ]);
         }
         let result = fit_straight_line(ts, false);
-        vec![result.slope, T::sqrt(result.slope_sigma2)]
+        Ok(vec![result.slope, T::sqrt(result.slope_sigma2)])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -710,7 +685,7 @@ where
 /// $\\{\varepsilon_i\\}$ are standard distributed random variables.
 ///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **2**
+/// - Minimum number of observations: **3**
 /// - Number of features: **3**
 #[derive(Clone, Default)]
 pub struct LinearFit {}
@@ -725,13 +700,14 @@ impl<T> FeatureEvaluator<T> for LinearFit
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let result = fit_straight_line(ts, true);
-        vec![
+        Ok(vec![
             result.slope,
             T::sqrt(result.slope_sigma2),
             result.reduced_chi2,
-        ]
+        ])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -747,7 +723,7 @@ where
     }
 
     fn min_ts_length(&self) -> usize {
-        2
+        3
     }
 }
 
@@ -806,7 +782,8 @@ impl<T> FeatureEvaluator<T> for MagnitudePercentageRatio
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let q = [
             self.quantile_numerator,
             1.0 - self.quantile_numerator,
@@ -816,12 +793,11 @@ where
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
         let numerator = ppf[1] - ppf[0];
         let denumerator = ppf[3] - ppf[2];
-        let value = if numerator.is_zero() & denumerator.is_zero() {
-            T::zero()
+        if numerator.is_zero() & denumerator.is_zero() {
+            Err(EvaluatorError::FlatTimeSeries)
         } else {
-            numerator / denumerator
-        };
-        vec![value]
+            Ok(vec![numerator / denumerator])
+        }
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -861,8 +837,9 @@ impl<T> FeatureEvaluator<T> for MaximumSlope
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![(1..ts.lenu())
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![(1..ts.lenu())
             .map(|i| {
                 T::abs(
                     (ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]),
@@ -870,7 +847,9 @@ where
             })
             .filter(|&x| x.is_finite())
             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .expect("All points of the light curve have the same time")]
+            .expect(
+                "All points of the light curve have the same time",
+            )])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -909,8 +888,9 @@ impl<T> FeatureEvaluator<T> for Mean
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.m.get_mean()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.m.get_mean()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -948,8 +928,9 @@ impl<T> FeatureEvaluator<T> for Median
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.m.get_median()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.m.get_median()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -989,10 +970,11 @@ impl<T> FeatureEvaluator<T> for MedianAbsoluteDeviation
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let m_median = ts.m.get_median();
         let deviation: Vec<_> = ts.m.sample.iter().map(|&y| T::abs(y - m_median)).collect();
-        vec![deviation[..].median()]
+        Ok(vec![deviation[..].median()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1063,10 +1045,11 @@ impl<T> FeatureEvaluator<T> for MedianBufferRangePercentage<T>
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let m_median = ts.m.get_median();
         let threshold = self.quantile * m_median;
-        vec![
+        Ok(vec![
             ts.m.sample
                 .iter()
                 .cloned()
@@ -1075,7 +1058,7 @@ where
                 .value_as::<T>()
                 .unwrap()
                 / ts.lenf(),
-        ]
+        ])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1116,14 +1099,15 @@ impl<T> FeatureEvaluator<T> for PercentAmplitude
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let m_min = ts.m.get_min();
         let m_max = ts.m.get_max();
         let m_median = ts.m.get_median();
-        vec![*[m_max - m_median, m_median - m_min]
+        Ok(vec![*[m_max - m_median, m_median - m_min]
             .iter()
             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap()]
+            .unwrap()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1186,17 +1170,17 @@ impl<T> FeatureEvaluator<T> for PercentDifferenceMagnitudePercentile
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let q = [self.quantile, 1.0 - self.quantile];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
         let nominator = ppf[1] - ppf[0];
         let denominator = ts.m.get_median();
-        let value = if nominator.is_zero() & denominator.is_zero() {
-            T::zero()
+        if nominator.is_zero() & denominator.is_zero() {
+            Err(EvaluatorError::FlatTimeSeries)
         } else {
-            (ppf[1] - ppf[0]) / ts.m.get_median()
-        };
-        vec![value]
+            Ok(vec![(ppf[1] - ppf[0]) / ts.m.get_median()])
+        }
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1205,6 +1189,64 @@ where
 
     fn size_hint(&self) -> usize {
         1
+    }
+
+    fn min_ts_length(&self) -> usize {
+        1
+    }
+}
+
+/// Peak evaluator for `Periodogram`
+#[derive(Clone)]
+struct PeriodogramPeaks {
+    peaks: usize,
+    names: Vec<String>,
+}
+
+impl PeriodogramPeaks {
+    fn new(peaks: usize) -> Self {
+        assert!(peaks > 0, "Number of peaks should be at least one");
+        Self {
+            peaks,
+            names: (0..peaks)
+                .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
+                .collect(),
+        }
+    }
+}
+
+impl Default for PeriodogramPeaks {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
+impl<T> FeatureEvaluator<T> for PeriodogramPeaks
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(ts
+            .m
+            .sample
+            .peak_indices_reverse_sorted()
+            .iter()
+            .flat_map(|&i| {
+                iter::once(Periodogram::period(ts.t.sample[i]))
+                    .chain(iter::once(ts.m.signal_to_noise(ts.m.sample[i])))
+            })
+            .chain(iter::repeat(T::zero()))
+            .take(2 * self.peaks)
+            .collect())
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        self.names.iter().map(|name| name.as_str()).collect()
+    }
+
+    fn size_hint(&self) -> usize {
+        2 * self.peaks
     }
 
     fn min_ts_length(&self) -> usize {
@@ -1232,13 +1274,11 @@ where
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 #[derive(Clone)]
 pub struct Periodogram<T: Float> {
-    peaks: usize,
     resolution: f32,
     max_freq_factor: f32,
     nyquist: Box<dyn NyquistFreq<T>>,
-    features_extractor: FeatureExtractor<T>,
-    peak_names: Vec<String>,
-    features_names: Vec<String>,
+    feature_extractor: FeatureExtractor<T>,
+    feature_names: Vec<String>,
     periodogram_algorithm: fn() -> Box<dyn PeriodogramPower<T>>,
 }
 
@@ -1248,17 +1288,14 @@ where
 {
     /// New [Periodogram] that finds given number of peaks
     pub fn new(peaks: usize) -> Self {
-        assert!(peaks > 0, "Number of peaks should be at least one");
+        let peaks = PeriodogramPeaks::new(peaks);
+        let peak_names = peaks.names.clone();
         Self {
-            peaks,
             resolution: 10.0,
             max_freq_factor: 1.0,
             nyquist: Box::new(AverageNyquistFreq),
-            features_extractor: FeatureExtractor::new(vec![]),
-            peak_names: (0..peaks)
-                .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
-                .collect(),
-            features_names: vec![],
+            feature_extractor: feat_extr!(peaks),
+            feature_names: peak_names,
             periodogram_algorithm: || Box::new(PeriodogramPowerFft),
         }
     }
@@ -1290,13 +1327,13 @@ where
     /// Extend a list of features to extract from periodogram
     pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
         for feature in features.into_iter() {
-            self.features_names.extend(
+            self.feature_names.extend(
                 feature
                     .get_names()
                     .iter()
                     .map(|name| "periodogram_".to_owned() + name),
             );
-            self.features_extractor.add_feature(feature);
+            self.feature_extractor.add_feature(feature);
         }
         self
     }
@@ -1334,6 +1371,16 @@ where
         (freq, power)
     }
 
+    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let (freq, power) = self.freq_power(ts);
+        Ok(TMWVectors {
+            t: freq,
+            m: power,
+            w: None,
+        })
+    }
+
     fn period(omega: T) -> T {
         T::two() * T::PI() / omega
     }
@@ -1352,35 +1399,10 @@ impl<T> FeatureEvaluator<T> for Periodogram<T>
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let (freq, power) = self.freq_power(ts);
-        let mut pg_as_ts = TimeSeries::new(&freq, &power, None);
-        let mut features: Vec<_> = power
-            .peak_indices_reverse_sorted()
-            .iter()
-            .map(|&i| vec![Self::period(freq[i]), pg_as_ts.m.signal_to_noise(power[i])].into_iter())
-            .flatten()
-            .chain(vec![T::zero()].into_iter().cycle())
-            .take(2 * self.peaks)
-            .collect();
-        features.extend(self.features_extractor.eval(&mut pg_as_ts));
-        features
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        self.peak_names
-            .iter()
-            .chain(self.features_names.iter())
-            .map(|name| name.as_str())
-            .collect()
-    }
-
-    fn size_hint(&self) -> usize {
-        2 * self.peaks + self.features_extractor.size_hint()
-    }
+    transformer_eval!();
 
     fn min_ts_length(&self) -> usize {
-        usize::max(2, self.features_extractor.min_ts_length())
+        2
     }
 }
 
@@ -1410,8 +1432,9 @@ impl<T> FeatureEvaluator<T> for ReducedChi2
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.get_m_reduced_chi2()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.get_m_reduced_chi2()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1454,20 +1477,17 @@ impl<T> FeatureEvaluator<T> for Skew
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        assert!(ts.lenu() > 2, "Skew requires at least 3 points");
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
         let n_1 = n - T::one();
         let n_2 = n_1 - T::one();
-        let value = if ts.m.get_std().is_zero() {
-            T::zero()
-        } else {
-            ts.m.sample.iter().map(|&x| (x - m_mean).powi(3)).sum::<T>() / ts.m.get_std().powi(3)
-                * n
-                / (n_1 * n_2)
-        };
-        vec![value]
+        Ok(vec![
+            ts.m.sample.iter().map(|&x| (x - m_mean).powi(3)).sum::<T>() / m_std.powi(3) * n
+                / (n_1 * n_2),
+        ])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1510,8 +1530,9 @@ impl<T> FeatureEvaluator<T> for StandardDeviation
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.m.get_std()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.m.get_std()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1554,18 +1575,16 @@ impl<T> FeatureEvaluator<T> for StetsonK
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        let chi2 = get_nonzero_reduced_chi2(ts)? * (ts.lenf() - T::one());
         let mean = ts.get_m_weighted_mean();
-        let chi2 = (ts.lenf() - T::one()) * ts.get_m_reduced_chi2();
-        let value = if chi2.is_zero() {
-            T::zero()
-        } else {
-            ts.mw_iter()
-                .map(|(y, w)| T::abs(y - mean) * T::sqrt(w))
-                .sum::<T>()
-                / T::sqrt(ts.lenf() * chi2)
-        };
-        vec![value]
+        let value = ts
+            .mw_iter()
+            .map(|(y, w)| T::abs(y - mean) * T::sqrt(w))
+            .sum::<T>()
+            / T::sqrt(ts.lenf() * chi2);
+        Ok(vec![value])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1604,8 +1623,9 @@ impl<T> FeatureEvaluator<T> for WeightedMean
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.get_m_weighted_mean()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.get_m_weighted_mean()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -1672,33 +1692,41 @@ mod tests {
         let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
         let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
         let w = [10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0];
-        let ts = TimeSeries::new(&t, &m, Some(&w));
+        let mut ts = TimeSeries::new(&t, &m, Some(&w));
 
         let desired_t = [0.5, 1.5, 2.5, 5.5];
         let desired_m = [0.0, 2.0, 6.333333333333333, 10.0];
         let desired_w = [10.0, 6.666666666666667, 7.5, 10.0];
 
         let bins = Bins::new(1.0, 0.0);
-        let (actual_t, actual_m, actual_w) = bins.bin(&ts);
+        let actual_tmw = bins.transform_ts(&mut ts).unwrap();
 
-        assert_eq!(actual_t.len(), actual_m.len());
-        assert_eq!(actual_t.len(), actual_w.len());
-        all_close(&actual_t, &desired_t, 1e-6);
-        all_close(&actual_m, &desired_m, 1e-6);
-        all_close(&actual_w, &desired_w, 1e-6);
+        assert_eq!(actual_tmw.t.len(), actual_tmw.m.len());
+        assert_eq!(actual_tmw.t.len(), actual_tmw.w.as_ref().unwrap().len());
+        all_close(&actual_tmw.t, &desired_t, 1e-6);
+        all_close(&actual_tmw.m, &desired_m, 1e-6);
+        all_close(&actual_tmw.w.unwrap(), &desired_w, 1e-6);
     }
 
     #[test]
     fn bins_windows_and_offsets() {
         let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
         let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let ts = TimeSeries::new(&t, &m, None);
-        assert_eq!(Bins::new(2.0, 0.0).bin(&ts).0.len(), 3);
-        assert_eq!(Bins::new(3.0, 0.0).bin(&ts).0.len(), 2);
-        assert_eq!(Bins::new(10.0, 0.0).bin(&ts).0.len(), 1);
-        assert_eq!(Bins::new(1.0, 0.1).bin(&ts).0.len(), 5);
-        assert_eq!(Bins::new(1.0, 0.5).bin(&ts).0.len(), 5);
-        assert_eq!(Bins::new(2.0, 1.0).bin(&ts).0.len(), 3);
+        let mut ts = TimeSeries::new(&t, &m, None);
+
+        let mut len = |window, offset| {
+            let tmw = Bins::new(window, offset).transform_ts(&mut ts).unwrap();
+            assert_eq!(tmw.t.len(), tmw.m.len());
+            assert_eq!(tmw.m.len(), tmw.w.as_ref().unwrap().len());
+            tmw.t.len()
+        };
+
+        assert_eq!(len(2.0, 0.0), 3);
+        assert_eq!(len(3.0, 0.0), 2);
+        assert_eq!(len(10.0, 0.0), 1);
+        assert_eq!(len(1.0, 0.1), 5);
+        assert_eq!(len(1.0, 0.5), 5);
+        assert_eq!(len(2.0, 1.0), 3);
     }
 
     feature_test!(
@@ -1729,7 +1757,7 @@ mod tests {
         let x = linspace(0.0_f64, 1.0, 11);
         let y: Vec<_> = x.iter().map(|&t| 3.0 + t.powi(2)).collect();
         let mut ts = TimeSeries::new(&x, &y, None);
-        let values = fe.eval(&mut ts);
+        let values = fe.eval(&mut ts).unwrap();
         all_close(&values[0..1], &values[1..2], 1e-10);
     }
 
@@ -1948,7 +1976,7 @@ mod tests {
             17.257999420166016,
         ];
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
-        let actual: f32 = fe.eval(&mut ts)[0];
+        let actual: f32 = fe.eval(&mut ts).unwrap()[0];
         assert!(actual.is_finite());
     }
 
@@ -2201,7 +2229,7 @@ mod tests {
             18.69700050354004,
         ];
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
-        let sigma: f32 = fe.eval(&mut ts)[1];
+        let sigma: f32 = fe.eval(&mut ts).unwrap()[1];
         assert!(sigma.is_finite());
     }
 
@@ -2414,7 +2442,7 @@ mod tests {
             19.21500015258789,
         ];
         let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts);
+        let actual = fe.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2627,7 +2655,7 @@ mod tests {
             18.075000762939453,
         ];
         let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts);
+        let actual = fe.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2718,7 +2746,7 @@ mod tests {
             16.609, 16.592, 16.574, 16.562, 16.558, 16.581, 16.581, 16.602, 16.581, 16.595,
         ];
         let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts);
+        let actual = fe.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2809,7 +2837,7 @@ mod tests {
             16.586, 16.585, 16.583, 16.662, 16.613, 16.607, 16.592, 16.603, 16.608,
         ];
         let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts);
+        let actual = fe.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
@@ -2828,12 +2856,13 @@ mod tests {
         ],
     );
 
-    feature_test!(
-        magnitude_percentage_ratio_plateau,
-        [Box::new(MagnitudePercentageRatio::default())],
-        [0.0],
-        [0.0; 10],
-    );
+    #[test]
+    fn magnitude_percentage_ratio_plateau() {
+        let fe = feat_extr!(MagnitudePercentageRatio::default());
+        let x = [0.0; 10];
+        let mut ts = TimeSeries::new(&x, &x, None);
+        assert_eq!(fe.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
+    }
 
     feature_test!(
         maximum_slope_positive,
@@ -2918,7 +2947,7 @@ mod tests {
         let y = [0.0_f32; 100];
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = vec![0.0, 0.0];
-        let actual = fe.eval(&mut ts);
+        let actual = fe.eval(&mut ts).unwrap();
         assert_eq!(desired, actual);
     }
 
@@ -2938,7 +2967,7 @@ mod tests {
             .collect();
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
-        let actual = [fe.eval(&mut ts)[0]]; // Test period only
+        let actual = [fe.eval(&mut ts).unwrap()[0]]; // Test period only
         all_close(&desired[..], &actual[..], 5e-3);
     }
 
@@ -2955,7 +2984,7 @@ mod tests {
             .collect();
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period];
-        let actual = [fe.eval(&mut ts)[0]]; // Test period only
+        let actual = [fe.eval(&mut ts).unwrap()[0]]; // Test period only
         all_close(&desired[..], &actual[..], 5e-3);
     }
 
@@ -2974,7 +3003,7 @@ mod tests {
             .map(|&x| 3.0 * f32::sin(2.0 * std::f32::consts::PI / period * x + 0.5) + 4.0)
             .collect();
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
-        let features = fe.eval(&mut ts);
+        let features = fe.eval(&mut ts).unwrap();
         all_close(
             &[features[0], features[1]],
             &[features[2], features[3]],
@@ -3000,7 +3029,7 @@ mod tests {
             .collect();
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period2, period1];
-        let features = fe.eval(&mut ts);
+        let features = fe.eval(&mut ts).unwrap();
         let actual = [features[0], features[2]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3]);
@@ -3025,7 +3054,7 @@ mod tests {
             .collect();
         let mut ts = TimeSeries::new(&x[..], &y[..], None);
         let desired = [period2, period1];
-        let features = fe.eval(&mut ts);
+        let features = fe.eval(&mut ts).unwrap();
         let actual = [features[0], features[2]]; // Test period only
         all_close(&desired[..], &actual[..], 1e-2);
         assert!(features[1] > features[3]);
@@ -3054,7 +3083,7 @@ mod tests {
             })
             .collect();
         let mut ts = TimeSeries::new(&x, &y, None);
-        let features = fe.eval(&mut ts);
+        let features = fe.eval(&mut ts).unwrap();
         assert!(f32::abs(features[0] - period2) / period2 < 1.0 / n as f32);
         assert!(f32::abs(features[2] - period1) / period1 < 1.0 / n as f32);
         assert!(features[1] > features[3]);
@@ -3132,14 +3161,13 @@ mod tests {
         None,
     );
 
-    feature_test!(
-        stetson_k_plateau,
-        [Box::new(StetsonK::new())],
-        [0.0],
-        [1.0; 100], // isn't used
-        [1.0; 100],
-        None,
-    );
+    #[test]
+    fn stetson_k_plateau() {
+        let fe = feat_extr!(StetsonK::new());
+        let x = [0.0; 10];
+        let mut ts = TimeSeries::new(&x, &x, None);
+        assert_eq!(fe.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
+    }
 
     feature_test!(
         weighted_mean,

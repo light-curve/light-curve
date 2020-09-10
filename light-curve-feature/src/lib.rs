@@ -14,9 +14,10 @@
 //! let magn_err_squared = [0.2, 0.1, 0.5, 0.1, 0.2];
 //! let mut ts = TimeSeries::new(&time[..], &magn[..], Some(&magn_err_squared[..]));
 //! // Get results and print
-//! let result = fe.eval(&mut ts);
+//! let result = fe.eval(&mut ts)?;
 //! let names = fe.get_names();
 //! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
+//! # Ok::<(), EvaluatorError>(())
 //! ```
 
 #[cfg(test)]
@@ -25,8 +26,12 @@ mod tests;
 
 pub mod antifeatures;
 
+#[macro_use]
 mod evaluator;
 pub use evaluator::{FeatureEvaluator, VecFE};
+
+mod error;
+pub use error::EvaluatorError;
 
 #[macro_use]
 mod extractor;

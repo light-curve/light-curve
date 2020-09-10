@@ -1,5 +1,5 @@
 #[macro_export]
-macro_rules! feature_test{
+macro_rules! feature_test {
     ($name: ident, $fe: tt, $desired: expr, $y: expr $(,)?) => {
         feature_test!($name, $fe, $desired, $y, $y);
     };
@@ -17,7 +17,7 @@ macro_rules! feature_test{
             let x = $x;
             let y = $y;
             let mut ts = TimeSeries::new(&x[..], &y[..], $w);
-            let actual = fe.eval(&mut ts);
+            let actual = fe.eval(&mut ts).unwrap();
             all_close(&desired[..], &actual[..], $tol);
 
             let names = fe.get_names();

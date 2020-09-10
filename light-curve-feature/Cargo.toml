@@ -25,6 +25,7 @@ libm = "^0.2.1"
 light-curve-common = "0.1.0"
 num-complex = "0.2"
 num-traits = "0.2"
+thiserror = "^1.0"
 unzip3 = "^1.0"
 
 [dev-dependencies]

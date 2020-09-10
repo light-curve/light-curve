@@ -1,3 +1,4 @@
+use crate::error::EvaluatorError;
 use crate::evaluator::{FeatureEvaluator, VecFE};
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
@@ -47,10 +48,19 @@ impl<T> FeatureEvaluator<T> for FeatureExtractor<T>
 where
     T: Float,
 {
-    /// Get a vector of computed features.
-    /// The length of the returned vector is guaranteed to be the same as returned by `get_names()`
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        self.features.iter().flat_map(|x| x.eval(ts)).collect()
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        let mut vec = Vec::with_capacity(self.size_hint());
+        for x in self.features.iter() {
+            vec.extend(x.eval(ts)?);
+        }
+        Ok(vec)
+    }
+
+    fn eval_or_fill(&self, ts: &mut TimeSeries<T>, fill_value: T) -> Vec<T> {
+        self.features
+            .iter()
+            .flat_map(|x| x.eval_or_fill(ts, fill_value))
+            .collect()
     }
 
     /// Get a vector of feature names.

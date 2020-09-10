@@ -1,4 +1,5 @@
-use crate::evaluator::FeatureEvaluator;
+use crate::error::EvaluatorError;
+use crate::evaluator::*;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
@@ -15,8 +16,9 @@ impl<T> FeatureEvaluator<T> for Duration
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -45,13 +47,13 @@ impl<T> FeatureEvaluator<T> for MaximumTimeInterval
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        assert!(ts.lenu() >= 2);
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let dt = (0..ts.lenu() - 1)
             .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap();
-        vec![dt]
+        Ok(vec![dt])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -80,13 +82,13 @@ impl<T> FeatureEvaluator<T> for MinimumTimeInterval
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        assert!(ts.lenu() >= 2);
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
         let dt = (0..ts.lenu() - 1)
             .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
             .min_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap();
-        vec![dt]
+        Ok(vec![dt])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -115,8 +117,9 @@ impl<T> FeatureEvaluator<T> for ObservationCount
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.lenf()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.lenf()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -145,8 +148,9 @@ impl<T> FeatureEvaluator<T> for TimeMean
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.t.get_mean()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.t.get_mean()])
     }
 
     fn get_names(&self) -> Vec<&str> {
@@ -175,8 +179,9 @@ impl<T> FeatureEvaluator<T> for TimeStandardDeviation
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Vec<T> {
-        vec![ts.t.get_std()]
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        check_ts_length(self, ts)?;
+        Ok(vec![ts.t.get_std()])
     }
 
     fn get_names(&self) -> Vec<&str> {

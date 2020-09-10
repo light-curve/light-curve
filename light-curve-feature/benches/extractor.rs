@@ -63,7 +63,7 @@ where
                 format!("FeatureExtractor {}: [{}; {}]", name, n, type_name::<T>()).as_str(),
                 |b| {
                     b.iter(|| {
-                        run(black_box(fe), black_box(&x), black_box(&y), black_box(&err));
+                        run(black_box(fe), black_box(&x), black_box(&y), black_box(&err)).unwrap();
                     });
                 },
             );
@@ -71,7 +71,12 @@ where
     }
 }
 
-fn run<T: Float>(fe: &FeatureExtractor<T>, x: &[T], y: &[T], err: &[T]) -> Vec<T> {
+fn run<T: Float>(
+    fe: &FeatureExtractor<T>,
+    x: &[T],
+    y: &[T],
+    err: &[T],
+) -> Result<Vec<T>, EvaluatorError> {
     let w: Vec<_> = err.iter().map(|&e| e.powi(-2)).collect();
     let mut ts = TimeSeries::new(&x, &y, Some(&w));
     fe.eval(&mut ts)
