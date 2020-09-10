@@ -20,20 +20,17 @@
 //! # Ok::<(), EvaluatorError>(())
 //! ```
 
-#[cfg(test)]
 #[macro_use]
-mod tests;
-
-#[macro_use]
-mod evaluator;
-pub use evaluator::{FeatureEvaluator, VecFE};
+mod macros;
 
 pub mod antifeatures;
+
+mod evaluator;
+pub use evaluator::{FeatureEvaluator, VecFE};
 
 mod error;
 pub use error::EvaluatorError;
 
-#[macro_use]
 mod extractor;
 pub use extractor::FeatureExtractor;
 

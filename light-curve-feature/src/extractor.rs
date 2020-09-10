@@ -3,23 +3,6 @@ use crate::evaluator::*;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
-/// Constructs a `FeatureExtractor` object from a list of objects that implement `FeatureEvaluator`
-/// ```
-/// use light_curve_feature::*;
-///
-/// let fe = feat_extr!(BeyondNStd::new(1.0), Cusum::default());
-/// ```
-#[macro_export]
-macro_rules! feat_extr{
-    ( $( $x: expr ),* $(,)? ) => {
-        FeatureExtractor::new(
-            vec![$(
-                Box::new($x),
-            )*]
-        )
-    }
-}
-
 /// The engine that extracts features one by one
 #[derive(Clone)]
 pub struct FeatureExtractor<T: Float> {
