@@ -11,7 +11,9 @@ use crate::time_series::TimeSeries;
 
 use conv::prelude::*;
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use std::iter;
+use std::marker::PhantomData;
 use unzip3::Unzip3;
 
 /// Half amplitude of magnitude
@@ -41,6 +43,16 @@ impl Amplitude {
     }
 }
 
+lazy_info!(
+    AMPLITUDE_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl<T> FeatureEvaluator<T> for Amplitude
 where
     T: Float,
@@ -50,16 +62,12 @@ where
         Ok(vec![T::half() * (ts.m.get_max() - ts.m.get_min())])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &AMPLITUDE_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["amplitude"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -86,6 +94,16 @@ impl AndersonDarlingNormal {
         Self {}
     }
 }
+
+lazy_info!(
+    ANDERSON_DARLING_NORMAL_INFO,
+    size: 1,
+    min_ts_length: 4,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl<T> FeatureEvaluator<T> for AndersonDarlingNormal
 where
@@ -114,16 +132,12 @@ where
         ])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &ANDERSON_DARLING_NORMAL_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["anderson_darling_normal"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        4
     }
 }
 
@@ -179,6 +193,16 @@ where
     }
 }
 
+lazy_info!(
+    BEYOND_N_STD_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl<T> Default for BeyondNStd<T>
 where
     T: Float,
@@ -207,16 +231,12 @@ where
         ])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &BEYOND_N_STD_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -245,6 +265,7 @@ where
 pub struct Bins<T: Float> {
     window: T,
     offset: T,
+    info: EvaluatorInfo,
     feature_names: Vec<String>,
     feature_extractor: FeatureExtractor<T>,
 }
@@ -258,6 +279,14 @@ where
         Self {
             window,
             offset,
+            info: EvaluatorInfo {
+                size: 0,
+                min_ts_length: 1,
+                t_required: true,
+                m_required: true,
+                w_required: true,
+                sorting_required: true,
+            },
             feature_names: vec![],
             feature_extractor: feat_extr!(),
         }
@@ -279,6 +308,7 @@ where
         let window = self.window;
         let offset = self.offset;
         for feature in features.into_iter() {
+            self.info.size += feature.size_hint();
             self.feature_names.extend(
                 feature
                     .get_names()
@@ -325,10 +355,6 @@ where
     T: Float,
 {
     transformer_eval!();
-
-    fn min_ts_length(&self) -> usize {
-        1
-    }
 }
 
 /// Cusum — a range of cumulative sums
@@ -358,6 +384,16 @@ impl Cusum {
     }
 }
 
+lazy_info!(
+    CUSUM_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: true,
+);
+
 impl<T> FeatureEvaluator<T> for Cusum
 where
     T: Float,
@@ -379,16 +415,12 @@ where
         ])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &CUSUM_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["cusum"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -414,6 +446,16 @@ impl Eta {
     }
 }
 
+lazy_info!(
+    ETA_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: true,
+);
+
 impl<T> FeatureEvaluator<T> for Eta
 where
     T: Float,
@@ -429,16 +471,12 @@ where
         Ok(vec![value])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &ETA_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["eta"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -466,6 +504,16 @@ impl EtaE {
     }
 }
 
+lazy_info!(
+    ETA_E_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: true,
+    w_required: false,
+    sorting_required: true,
+);
+
 impl<T> FeatureEvaluator<T> for EtaE
 where
     T: Float,
@@ -486,16 +534,12 @@ where
         Ok(vec![value])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &ETA_E_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["eta_e"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -519,6 +563,16 @@ pub struct InterPercentileRange {
     quantile: f32,
     name: String,
 }
+
+lazy_info!(
+    INTER_PERCENTILE_RANGE_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl InterPercentileRange {
     pub fn new(quantile: f32) -> Self {
@@ -551,16 +605,12 @@ where
         Ok(vec![value])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &INTER_PERCENTILE_RANGE_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -588,6 +638,16 @@ impl Kurtosis {
     }
 }
 
+lazy_info!(
+    KURTOSIS_INFO,
+    size: 1,
+    min_ts_length: 4,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl<T> FeatureEvaluator<T> for Kurtosis
 where
     T: Float,
@@ -608,16 +668,12 @@ where
         Ok(vec![value])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &KURTOSIS_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["kurtosis"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        4
     }
 }
 
@@ -645,6 +701,16 @@ impl LinearTrend {
     }
 }
 
+lazy_info!(
+    LINEAR_TREND_INFO,
+    size: 2,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: true,
+    w_required: false,
+    sorting_required: true,
+);
+
 impl<T> FeatureEvaluator<T> for LinearTrend
 where
     T: Float,
@@ -661,16 +727,12 @@ where
         Ok(vec![result.slope, T::sqrt(result.slope_sigma2)])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &LINEAR_TREND_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["linear_trend", "linear_trend_sigma"]
-    }
-
-    fn size_hint(&self) -> usize {
-        2
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -696,6 +758,16 @@ impl LinearFit {
     }
 }
 
+lazy_info!(
+    LINEAR_FIT_INFO,
+    size: 3,
+    min_ts_length: 3,
+    t_required: true,
+    m_required: true,
+    w_required: true,
+    sorting_required: false,
+);
+
 impl<T> FeatureEvaluator<T> for LinearFit
 where
     T: Float,
@@ -710,20 +782,16 @@ where
         ])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &LINEAR_FIT_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec![
             "linear_fit_slope",
             "linear_fit_slope_sigma",
             "linear_fit_reduced_chi2",
         ]
-    }
-
-    fn size_hint(&self) -> usize {
-        3
-    }
-
-    fn min_ts_length(&self) -> usize {
-        3
     }
 }
 
@@ -746,6 +814,16 @@ pub struct MagnitudePercentageRatio {
     quantile_denominator: f32,
     name: String,
 }
+
+lazy_info!(
+    MAGNITUDE_PERCENTAGE_RATIO_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl MagnitudePercentageRatio {
     pub fn new(quantile_numerator: f32, quantile_denominator: f32) -> Self {
@@ -800,16 +878,12 @@ where
         }
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MAGNITUDE_PERCENTAGE_RATIO_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -826,6 +900,16 @@ where
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
 #[derive(Clone, Default)]
 pub struct MaximumSlope {}
+
+lazy_info!(
+    MAXIMUM_SLOPE_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: true,
+    w_required: false,
+    sorting_required: true,
+);
 
 impl MaximumSlope {
     pub fn new() -> Self {
@@ -852,16 +936,12 @@ where
             )])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MAXIMUM_SLOPE_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["maximum_slope"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -878,6 +958,16 @@ where
 #[derive(Clone, Default)]
 pub struct Mean {}
 
+lazy_info!(
+    MEAN_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl Mean {
     pub fn new() -> Self {
         Self {}
@@ -893,16 +983,12 @@ where
         Ok(vec![ts.m.get_mean()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MEAN_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["mean"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -917,6 +1003,16 @@ where
 /// - Number of features: **1**
 #[derive(Clone, Default)]
 pub struct Median {}
+
+lazy_info!(
+    MEDIAN_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl Median {
     pub fn new() -> Self {
@@ -933,16 +1029,12 @@ where
         Ok(vec![ts.m.get_median()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MEDIAN_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["median"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -959,6 +1051,16 @@ where
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
 #[derive(Clone, Default)]
 pub struct MedianAbsoluteDeviation {}
+
+lazy_info!(
+    MEDIAN_ABSOLUTE_DEVIATION_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl MedianAbsoluteDeviation {
     pub fn new() -> Self {
@@ -977,16 +1079,12 @@ where
         Ok(vec![deviation[..].median()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MEDIAN_ABSOLUTE_DEVIATION_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["median_absolute_deviation"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -1011,6 +1109,16 @@ where
     quantile: T,
     name: String,
 }
+
+lazy_info!(
+    MEDIAN_BUFFER_RANGE_PERCENTAGE_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl<T> MedianBufferRangePercentage<T>
 where
@@ -1061,16 +1169,12 @@ where
         ])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MEDIAN_BUFFER_RANGE_PERCENTAGE_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -1089,6 +1193,16 @@ where
 #[derive(Clone, Default)]
 pub struct PercentAmplitude {}
 
+lazy_info!(
+    PERCENT_AMPLITUDE_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl PercentAmplitude {
     pub fn new() -> Self {
         Self {}
@@ -1104,22 +1218,15 @@ where
         let m_min = ts.m.get_min();
         let m_max = ts.m.get_max();
         let m_median = ts.m.get_median();
-        Ok(vec![*[m_max - m_median, m_median - m_min]
-            .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap()])
+        Ok(vec![T::max(m_max - m_median, m_median - m_min)])
+    }
+
+    fn get_info(&self) -> &EvaluatorInfo {
+        &PERCENT_AMPLITUDE_INFO
     }
 
     fn get_names(&self) -> Vec<&str> {
         vec!["percent_amplitude"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -1139,6 +1246,16 @@ pub struct PercentDifferenceMagnitudePercentile {
     quantile: f32,
     name: String,
 }
+
+lazy_info!(
+    PERCENT_DIFFERENCE_MAGNITUDE_PERCENTILE_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl PercentDifferenceMagnitudePercentile {
     pub fn new(quantile: f32) -> Self {
@@ -1177,51 +1294,64 @@ where
         let nominator = ppf[1] - ppf[0];
         let denominator = ts.m.get_median();
         if nominator.is_zero() & denominator.is_zero() {
-            Err(EvaluatorError::FlatTimeSeries)
+            Err(EvaluatorError::ZeroDivision("median magnitude is zero"))
         } else {
-            Ok(vec![(ppf[1] - ppf[0]) / ts.m.get_median()])
+            Ok(vec![nominator / denominator])
         }
+    }
+
+    fn get_info(&self) -> &EvaluatorInfo {
+        &PERCENT_DIFFERENCE_MAGNITUDE_PERCENTILE_INFO
     }
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
     }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
-    }
 }
 
 /// Peak evaluator for `Periodogram`
 #[derive(Clone)]
-struct PeriodogramPeaks {
+struct PeriodogramPeaks<T: Float> {
+    info: EvaluatorInfo,
     peaks: usize,
     names: Vec<String>,
+    phantom: PhantomData<T>,
 }
 
-impl PeriodogramPeaks {
+impl<T> PeriodogramPeaks<T>
+where
+    T: Float,
+{
     fn new(peaks: usize) -> Self {
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
+            info: EvaluatorInfo {
+                size: 2 * peaks,
+                min_ts_length: 1,
+                t_required: true,
+                m_required: true,
+                w_required: false,
+                sorting_required: true,
+            },
             peaks,
             names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
                 .collect(),
+            phantom: PhantomData {},
         }
     }
 }
 
-impl Default for PeriodogramPeaks {
+impl<T> Default for PeriodogramPeaks<T>
+where
+    T: Float,
+{
     fn default() -> Self {
         Self::new(1)
     }
 }
 
-impl<T> FeatureEvaluator<T> for PeriodogramPeaks
+impl<T> FeatureEvaluator<T> for PeriodogramPeaks<T>
 where
     T: Float,
 {
@@ -1241,16 +1371,12 @@ where
             .collect())
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &self.info
+    }
+
     fn get_names(&self) -> Vec<&str> {
         self.names.iter().map(|name| name.as_str()).collect()
-    }
-
-    fn size_hint(&self) -> usize {
-        2 * self.peaks
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -1274,6 +1400,7 @@ where
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
 #[derive(Clone)]
 pub struct Periodogram<T: Float> {
+    info: EvaluatorInfo,
     resolution: f32,
     max_freq_factor: f32,
     nyquist: Box<dyn NyquistFreq<T>>,
@@ -1288,9 +1415,19 @@ where
 {
     /// New [Periodogram] that finds given number of peaks
     pub fn new(peaks: usize) -> Self {
-        let peaks = PeriodogramPeaks::new(peaks);
+        let peaks = PeriodogramPeaks::<T>::new(peaks);
         let peak_names = peaks.names.clone();
+        let peaks_size_hint = peaks.size_hint();
+        let peaks_min_ts_length = peaks.min_ts_length();
         Self {
+            info: EvaluatorInfo {
+                size: peaks_size_hint,
+                min_ts_length: usize::max(peaks_min_ts_length, 2),
+                t_required: true,
+                m_required: true,
+                w_required: false,
+                sorting_required: true,
+            },
             resolution: 10.0,
             max_freq_factor: 1.0,
             nyquist: Box::new(AverageNyquistFreq),
@@ -1327,6 +1464,7 @@ where
     /// Extend a list of features to extract from periodogram
     pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
         for feature in features.into_iter() {
+            self.info.size += feature.size_hint();
             self.feature_names.extend(
                 feature
                     .get_names()
@@ -1400,10 +1538,6 @@ where
     T: Float,
 {
     transformer_eval!();
-
-    fn min_ts_length(&self) -> usize {
-        2
-    }
 }
 
 /// Reduced $\chi^2$ of magnitude measurements
@@ -1422,6 +1556,16 @@ where
 #[derive(Clone, Default)]
 pub struct ReducedChi2 {}
 
+lazy_info!(
+    REDUCED_CHI2_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: false,
+    m_required: true,
+    w_required: true,
+    sorting_required: false,
+);
+
 impl ReducedChi2 {
     pub fn new() -> Self {
         Self {}
@@ -1437,16 +1581,12 @@ where
         Ok(vec![ts.get_m_reduced_chi2()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &REDUCED_CHI2_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["chi2"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -1466,6 +1606,16 @@ where
 /// [Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)
 #[derive(Clone, Default)]
 pub struct Skew {}
+
+lazy_info!(
+    SKEW_INFO,
+    size: 1,
+    min_ts_length: 3,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
 
 impl Skew {
     pub fn new() -> Self {
@@ -1490,16 +1640,12 @@ where
         ])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &SKEW_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["skew"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        3
     }
 }
 
@@ -1520,6 +1666,16 @@ where
 #[derive(Clone, Default)]
 pub struct StandardDeviation {}
 
+lazy_info!(
+    STANDARD_DEVIATION_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: false,
+    m_required: true,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl StandardDeviation {
     pub fn new() -> Self {
         Self {}
@@ -1535,16 +1691,12 @@ where
         Ok(vec![ts.m.get_std()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &STANDARD_DEVIATION_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["standard_deviation"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -1564,6 +1716,16 @@ where
 /// P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
 #[derive(Clone, Default)]
 pub struct StetsonK {}
+
+lazy_info!(
+    STETSON_K_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: false,
+    m_required: true,
+    w_required: true,
+    sorting_required: true,
+);
 
 impl StetsonK {
     pub fn new() -> Self {
@@ -1587,16 +1749,12 @@ where
         Ok(vec![value])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &STETSON_K_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["stetson_K"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -1613,6 +1771,16 @@ where
 #[derive(Clone, Default)]
 pub struct WeightedMean {}
 
+lazy_info!(
+    WEIGHTED_MEAN_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: false,
+    m_required: true,
+    w_required: true,
+    sorting_required: false,
+);
+
 impl WeightedMean {
     pub fn new() -> Self {
         Self {}
@@ -1628,16 +1796,12 @@ where
         Ok(vec![ts.get_m_weighted_mean()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &WEIGHTED_MEAN_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["weighted_mean"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 

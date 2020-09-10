@@ -5,4 +5,7 @@ pub enum EvaluatorError {
 
     #[error("feature value is undefined for a flat time series")]
     FlatTimeSeries,
+
+    #[error("zero division: {0}")]
+    ZeroDivision(&'static str),
 }

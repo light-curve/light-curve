@@ -24,11 +24,11 @@
 #[macro_use]
 mod tests;
 
-pub mod antifeatures;
-
 #[macro_use]
 mod evaluator;
 pub use evaluator::{FeatureEvaluator, VecFE};
+
+pub mod antifeatures;
 
 mod error;
 pub use error::EvaluatorError;

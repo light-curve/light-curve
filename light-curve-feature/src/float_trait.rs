@@ -27,6 +27,7 @@ pub trait Float:
     + Display
     + Debug
     + FloatSupportedByFft
+    + 'static
 {
     fn half() -> Self;
     fn two() -> Self;

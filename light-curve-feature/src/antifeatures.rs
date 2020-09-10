@@ -3,6 +3,8 @@ use crate::evaluator::*;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
+use lazy_static::lazy_static;
+
 #[derive(Clone, Default)]
 pub struct Duration {}
 
@@ -11,6 +13,16 @@ impl Duration {
         Self {}
     }
 }
+
+lazy_info!(
+    DURATION_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: true,
+    m_required: false,
+    w_required: false,
+    sorting_required: true,
+);
 
 impl<T> FeatureEvaluator<T> for Duration
 where
@@ -21,16 +33,12 @@ where
         Ok(vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &DURATION_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_duration"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -42,6 +50,16 @@ impl MaximumTimeInterval {
         Self {}
     }
 }
+
+lazy_info!(
+    MAXIMUM_TIME_INTERVAL_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: false,
+    w_required: false,
+    sorting_required: true,
+);
 
 impl<T> FeatureEvaluator<T> for MaximumTimeInterval
 where
@@ -56,16 +74,12 @@ where
         Ok(vec![dt])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MAXIMUM_TIME_INTERVAL_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_maximum_time_interval"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -77,6 +91,16 @@ impl MinimumTimeInterval {
         Self {}
     }
 }
+
+lazy_info!(
+    MINIMUM_TIME_INTERVAL_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: false,
+    w_required: false,
+    sorting_required: true,
+);
 
 impl<T> FeatureEvaluator<T> for MinimumTimeInterval
 where
@@ -91,16 +115,12 @@ where
         Ok(vec![dt])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MINIMUM_TIME_INTERVAL_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_minimum_time_interval"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
@@ -113,6 +133,16 @@ impl ObservationCount {
     }
 }
 
+lazy_info!(
+    OBSERVATION_COUNT_INFO,
+    size: 1,
+    min_ts_length: 0,
+    t_required: false,
+    m_required: false,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl<T> FeatureEvaluator<T> for ObservationCount
 where
     T: Float,
@@ -122,16 +152,12 @@ where
         Ok(vec![ts.lenf()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &OBSERVATION_COUNT_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_observation_count"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        0
     }
 }
 
@@ -144,6 +170,16 @@ impl TimeMean {
     }
 }
 
+lazy_info!(
+    TIME_MEAN_INFO,
+    size: 1,
+    min_ts_length: 1,
+    t_required: true,
+    m_required: false,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl<T> FeatureEvaluator<T> for TimeMean
 where
     T: Float,
@@ -153,16 +189,12 @@ where
         Ok(vec![ts.t.get_mean()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &TIME_MEAN_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_time_mean"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        1
     }
 }
 
@@ -175,6 +207,16 @@ impl TimeStandardDeviation {
     }
 }
 
+lazy_info!(
+    TIME_STANDARD_DEVIATION_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: false,
+    w_required: false,
+    sorting_required: false,
+);
+
 impl<T> FeatureEvaluator<T> for TimeStandardDeviation
 where
     T: Float,
@@ -184,16 +226,12 @@ where
         Ok(vec![ts.t.get_std()])
     }
 
+    fn get_info(&self) -> &EvaluatorInfo {
+        &TIME_STANDARD_DEVIATION_INFO
+    }
+
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_time_standard_deviation"]
-    }
-
-    fn size_hint(&self) -> usize {
-        1
-    }
-
-    fn min_ts_length(&self) -> usize {
-        2
     }
 }
 
