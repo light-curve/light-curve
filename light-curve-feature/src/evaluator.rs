@@ -1,8 +1,9 @@
-use crate::error::EvaluatorError;
-use crate::float_trait::Float;
-use crate::time_series::TimeSeries;
+pub use crate::error::EvaluatorError;
+pub use crate::float_trait::Float;
+pub use crate::time_series::TimeSeries;
 
 use dyn_clonable::*;
+pub use lazy_static::lazy_static;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EvaluatorInfo {

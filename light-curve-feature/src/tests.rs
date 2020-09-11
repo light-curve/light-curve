@@ -1,4 +1,6 @@
+pub use crate::extractor::FeatureExtractor;
 pub use crate::float_trait::Float;
+pub use light_curve_common::all_close;
 pub use rand::prelude::*;
 use rand_distr::StandardNormal;
 
