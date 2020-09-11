@@ -12,7 +12,7 @@ use crate::statistics::Statistics;
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct MedianAbsoluteDeviation {}
 
 lazy_info!(

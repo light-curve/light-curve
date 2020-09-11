@@ -1,6 +1,6 @@
 use crate::evaluator::*;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Duration {}
 
 impl Duration {

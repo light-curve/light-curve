@@ -25,7 +25,7 @@ use unzip3::Unzip3;
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **1** (or as required by sub-features)
 /// - Number of features: **$...$**
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Bins<T: Float> {
     window: T,
     offset: T,

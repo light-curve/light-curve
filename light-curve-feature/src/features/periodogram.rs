@@ -8,7 +8,7 @@ use std::iter;
 use std::marker::PhantomData;
 
 /// Peak evaluator for `Periodogram`
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct PeriodogramPeaks<T: Float> {
     info: EvaluatorInfo,
     peaks: usize,
@@ -96,7 +96,7 @@ where
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2** (or as required by sub-features)
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Periodogram<T: Float> {
     info: EvaluatorInfo,
     resolution: f32,

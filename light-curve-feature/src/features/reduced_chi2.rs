@@ -13,7 +13,7 @@ use crate::evaluator::*;
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ReducedChi2 {}
 
 lazy_info!(

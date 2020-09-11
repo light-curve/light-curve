@@ -31,7 +31,7 @@ use conv::ConvUtil;
 /// assert!((1.0 - ts.m.get_std()).abs() < 1e-15);
 /// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(&mut ts).unwrap());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BeyondNStd<T> {
     nstd: T,
     name: String,

@@ -12,7 +12,7 @@ use crate::evaluator::*;
 /// - Number of features: **1**
 ///
 /// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Eta {}
 
 impl Eta {

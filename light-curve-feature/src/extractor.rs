@@ -4,7 +4,7 @@ use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
 /// The engine that extracts features one by one
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FeatureExtractor<T: Float> {
     info: EvaluatorInfo,
     features: VecFE<T>,

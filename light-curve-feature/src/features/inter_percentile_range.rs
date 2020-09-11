@@ -16,7 +16,7 @@ use crate::statistics::Statistics;
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InterPercentileRange {
     quantile: f32,
     name: String,

@@ -4,6 +4,7 @@ pub use crate::time_series::TimeSeries;
 
 use dyn_clonable::*;
 pub use lazy_static::lazy_static;
+pub use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EvaluatorInfo {
@@ -17,7 +18,7 @@ pub struct EvaluatorInfo {
 
 /// The trait each feature should implement
 #[clonable]
-pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone {
+pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone + Debug {
     /// Should return the vector of feature values
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
 

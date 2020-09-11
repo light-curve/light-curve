@@ -14,7 +14,7 @@ use crate::evaluator::*;
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Skew {}
 
 lazy_info!(

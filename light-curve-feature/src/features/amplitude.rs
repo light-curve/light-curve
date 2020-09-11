@@ -18,7 +18,7 @@ use crate::evaluator::*;
 /// let mut ts = TimeSeries::new(&time[..], &magn[..], None);
 /// assert_eq!(vec![1.0], fe.eval(&mut ts).unwrap());
 /// ```
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Amplitude {}
 
 impl Amplitude {

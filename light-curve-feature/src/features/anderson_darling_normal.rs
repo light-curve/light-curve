@@ -18,7 +18,7 @@ use conv::ConvUtil;
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Anderson–Darling_test)
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct AndersonDarlingNormal {}
 
 impl AndersonDarlingNormal {
