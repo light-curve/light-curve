@@ -303,20 +303,18 @@ where
         self
     }
 
-    /// Extend a list of features to extract from binned time series
-    pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
+    /// Extend a feature to extract from binned time series
+    pub fn add_feature(&mut self, feature: Box<dyn FeatureEvaluator<T>>) -> &mut Self {
         let window = self.window;
         let offset = self.offset;
-        for feature in features.into_iter() {
-            self.info.size += feature.size_hint();
-            self.feature_names.extend(
-                feature
-                    .get_names()
-                    .iter()
-                    .map(|name| format!("bins_window{:.1}_offset{:.1}_{}", window, offset, name)),
-            );
-            self.feature_extractor.add_feature(feature);
-        }
+        self.info.size += feature.size_hint();
+        self.feature_names.extend(
+            feature
+                .get_names()
+                .iter()
+                .map(|name| format!("bins_window{:.1}_offset{:.1}_{}", window, offset, name)),
+        );
+        self.feature_extractor.add_feature(feature);
         self
     }
 
@@ -1461,18 +1459,16 @@ where
         self
     }
 
-    /// Extend a list of features to extract from periodogram
-    pub fn add_features(&mut self, features: VecFE<T>) -> &mut Self {
-        for feature in features.into_iter() {
-            self.info.size += feature.size_hint();
-            self.feature_names.extend(
-                feature
-                    .get_names()
-                    .iter()
-                    .map(|name| "periodogram_".to_owned() + name),
-            );
-            self.feature_extractor.add_feature(feature);
-        }
+    /// Extend a feature to extract from periodogram
+    pub fn add_feature(&mut self, feature: Box<dyn FeatureEvaluator<T>>) -> &mut Self {
+        self.info.size += feature.size_hint();
+        self.feature_names.extend(
+            feature
+                .get_names()
+                .iter()
+                .map(|name| "periodogram_".to_owned() + name),
+        );
+        self.feature_extractor.add_feature(feature);
         self
     }
 
@@ -1904,7 +1900,7 @@ mod tests {
 
     eval_info_test!(bins_info, {
         let mut bins = Bins::default();
-        bins.add_features(vec![Box::new(Amplitude::default())]);
+        bins.add_feature(Box::new(Amplitude::default()));
         bins
     });
 
@@ -3326,7 +3322,7 @@ mod tests {
 
     eval_info_test!(periodogram_info_3, {
         let mut periodogram = Periodogram::default();
-        periodogram.add_features(vec![Box::new(Amplitude::default())]);
+        periodogram.add_feature(Box::new(Amplitude::default()));
         periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
         periodogram
     });
