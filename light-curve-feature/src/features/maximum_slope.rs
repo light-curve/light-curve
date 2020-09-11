@@ -1,0 +1,85 @@
+use crate::evaluator::*;
+
+/// Maximum slope between two sub-sequential observations
+///
+/// $$
+/// \mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left|\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right|
+/// $$
+///
+/// - Depends on: **time**, **magnitude**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
+///
+/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+#[derive(Clone, Default)]
+pub struct MaximumSlope {}
+
+lazy_info!(
+    MAXIMUM_SLOPE_INFO,
+    size: 1,
+    min_ts_length: 2,
+    t_required: true,
+    m_required: true,
+    w_required: false,
+    sorting_required: true,
+);
+
+impl MaximumSlope {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<T> FeatureEvaluator<T> for MaximumSlope
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        self.check_ts_length(ts)?;
+        Ok(vec![(1..ts.lenu())
+            .map(|i| {
+                T::abs(
+                    (ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]),
+                )
+            })
+            .filter(|&x| x.is_finite())
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .expect(
+                "All points of the light curve have the same time",
+            )])
+    }
+
+    fn get_info(&self) -> &EvaluatorInfo {
+        &MAXIMUM_SLOPE_INFO
+    }
+
+    fn get_names(&self) -> Vec<&str> {
+        vec!["maximum_slope"]
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unreadable_literal)]
+#[allow(clippy::excessive_precision)]
+mod tests {
+    use super::*;
+    use crate::tests::*;
+
+    eval_info_test!(maximum_slope_info, MaximumSlope::default());
+
+    feature_test!(
+        maximum_slope_positive,
+        [Box::new(MaximumSlope::new())],
+        [1.0],
+        [0.0_f32, 2.0, 4.0, 5.0, 7.0, 9.0],
+        [0.0_f32, 1.0, 2.0, 3.0, 4.0, 5.0],
+    );
+
+    feature_test!(
+        maximum_slope_negative,
+        [Box::new(MaximumSlope::new())],
+        [1.0],
+        [0.0_f32, 1.0, 2.0, 3.0, 4.0, 5.0],
+        [0.0_f32, 0.5, 1.0, 0.0, 0.5, 1.0],
+    );
+}

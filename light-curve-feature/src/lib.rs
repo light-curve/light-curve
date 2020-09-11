@@ -21,7 +21,7 @@
 
 #[cfg(test)]
 #[macro_use]
-mod tests;
+pub mod tests;
 
 #[macro_use]
 mod macros;
