@@ -29,7 +29,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]])
     }
 
@@ -66,7 +66,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let dt = (0..ts.lenu() - 1)
             .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
             .max_by(|a, b| a.partial_cmp(b).unwrap())
@@ -107,7 +107,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let dt = (0..ts.lenu() - 1)
             .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
             .min_by(|a, b| a.partial_cmp(b).unwrap())
@@ -148,7 +148,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.lenf()])
     }
 
@@ -185,7 +185,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.t.get_mean()])
     }
 
@@ -222,7 +222,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.t.get_std()])
     }
 
@@ -242,6 +242,7 @@ mod tests {
     use super::*;
 
     use crate::extractor::FeatureExtractor;
+    use crate::tests::*;
 
     use light_curve_common::all_close;
 
@@ -252,12 +253,16 @@ mod tests {
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );
 
+    eval_info_test!(duration_info, Duration::default());
+
     feature_test!(
         maximum_time_interval,
         [Box::new(MaximumTimeInterval::new())],
         [9.0],
         [0.0_f32, 0.5, 0.6, 1.6, 10.6],
     );
+
+    eval_info_test!(maximum_time_interval_info, MaximumTimeInterval::default());
 
     feature_test!(
         minimum_time_interval,
@@ -266,12 +271,16 @@ mod tests {
         [0.0_f32, 0.5, 0.6, 1.6, 10.6],
     );
 
+    eval_info_test!(minimum_time_interval_info, MinimumTimeInterval::default());
+
     feature_test!(
         observation_count,
         [Box::new(ObservationCount::new())],
         [5.0],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );
+
+    eval_info_test!(observation_count_info, MaximumTimeInterval::default());
 
     feature_test!(
         time_mean,
@@ -280,10 +289,17 @@ mod tests {
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
     );
 
+    eval_info_test!(time_mean_info, TimeMean::default());
+
     feature_test!(
         time_standard_deviation,
         [Box::new(TimeStandardDeviation::new())],
         [1.5811388300841898],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
+    );
+
+    eval_info_test!(
+        time_standard_deviation_info,
+        TimeStandardDeviation::default()
     );
 }

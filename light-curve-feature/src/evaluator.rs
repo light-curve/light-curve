@@ -59,28 +59,21 @@ pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone {
     fn is_sorting_required(&self) -> bool {
         self.get_info().sorting_required
     }
+
+    fn check_ts_length(&self, ts: &TimeSeries<T>) -> Result<usize, EvaluatorError> {
+        let length = ts.lenu();
+        if length < self.min_ts_length() {
+            Err(EvaluatorError::ShortTimeSeries {
+                actual: length,
+                minimum: self.min_ts_length(),
+            })
+        } else {
+            Ok(length)
+        }
+    }
 }
 
 pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
-
-pub fn check_ts_length<FE, T>(
-    feature_evaluator: &FE,
-    ts: &TimeSeries<T>,
-) -> Result<usize, EvaluatorError>
-where
-    T: Float,
-    FE: FeatureEvaluator<T>,
-{
-    let length = ts.lenu();
-    if length < feature_evaluator.size_hint() {
-        Err(EvaluatorError::ShortTimeSeries {
-            actual: length,
-            minimum: feature_evaluator.size_hint(),
-        })
-    } else {
-        Ok(length)
-    }
-}
 
 pub fn get_nonzero_m_std<T: Float>(ts: &mut TimeSeries<T>) -> Result<T, EvaluatorError> {
     let std = ts.m.get_std();

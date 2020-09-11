@@ -1,4 +1,3 @@
-//! # Light curve feature
 //!
 //! `light-curve-feature` is a part of [`light-curve`](https://docs.rs/light-curve) family that
 //! implements extraction of numerous light curve features used in astrophysics.
@@ -19,6 +18,10 @@
 //! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
 //! # Ok::<(), EvaluatorError>(())
 //! ```
+
+#[cfg(test)]
+#[macro_use]
+mod tests;
 
 #[macro_use]
 mod macros;

@@ -58,7 +58,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![T::half() * (ts.m.get_max() - ts.m.get_min())])
     }
 
@@ -110,7 +110,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        let size = check_ts_length(self, ts)?;
+        let size = self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let sum: f64 =
@@ -217,7 +217,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_mean = ts.m.get_mean();
         let threshold = ts.m.get_std() * self.nstd;
         Ok(vec![
@@ -321,7 +321,7 @@ where
     }
 
     fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let (t, m, w) = ts
             .tmw_iter()
             .group_by(|(t, _, _)| ((*t - self.offset) / self.window).floor())
@@ -399,7 +399,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let cumsum: Vec<_> =
@@ -461,7 +461,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
         let value = (1..ts.lenu())
             .map(|i| (ts.m.sample[i] - ts.m.sample[i - 1]).powi(2))
@@ -519,7 +519,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
         let sq_slope_sum = (1..ts.lenu())
             .map(|i| {
@@ -598,7 +598,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let q = [self.quantile, 1.0 - self.quantile];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
         let value = ppf[1] - ppf[0];
@@ -653,7 +653,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
@@ -716,7 +716,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        let size = check_ts_length(self, ts)?;
+        let size = self.check_ts_length(ts)?;
         if size == 2 {
             return Ok(vec![
                 (ts.m.sample[1] - ts.m.sample[0]) / (ts.t.sample[1] - ts.t.sample[0]),
@@ -765,7 +765,7 @@ lazy_info!(
     t_required: true,
     m_required: true,
     w_required: true,
-    sorting_required: false,
+    sorting_required: true,
 );
 
 impl<T> FeatureEvaluator<T> for LinearFit
@@ -773,7 +773,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let result = fit_straight_line(ts, true);
         Ok(vec![
             result.slope,
@@ -818,7 +818,7 @@ pub struct MagnitudePercentageRatio {
 lazy_info!(
     MAGNITUDE_PERCENTAGE_RATIO_INFO,
     size: 1,
-    min_ts_length: 1,
+    min_ts_length: 2,
     t_required: false,
     m_required: true,
     w_required: false,
@@ -861,7 +861,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let q = [
             self.quantile_numerator,
             1.0 - self.quantile_numerator,
@@ -922,7 +922,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![(1..ts.lenu())
             .map(|i| {
                 T::abs(
@@ -979,7 +979,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_mean()])
     }
 
@@ -1025,7 +1025,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_median()])
     }
 
@@ -1073,7 +1073,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_median = ts.m.get_median();
         let deviation: Vec<_> = ts.m.sample.iter().map(|&y| T::abs(y - m_median)).collect();
         Ok(vec![deviation[..].median()])
@@ -1154,7 +1154,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_median = ts.m.get_median();
         let threshold = self.quantile * m_median;
         Ok(vec![
@@ -1214,7 +1214,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_min = ts.m.get_min();
         let m_max = ts.m.get_max();
         let m_median = ts.m.get_median();
@@ -1288,7 +1288,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let q = [self.quantile, 1.0 - self.quantile];
         let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
         let nominator = ppf[1] - ppf[0];
@@ -1356,7 +1356,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(ts
             .m
             .sample
@@ -1510,7 +1510,7 @@ where
     }
 
     fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let (freq, power) = self.freq_power(ts);
         Ok(TMWVectors {
             t: freq,
@@ -1577,7 +1577,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.get_m_reduced_chi2()])
     }
 
@@ -1628,7 +1628,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
@@ -1687,7 +1687,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_std()])
     }
 
@@ -1724,7 +1724,7 @@ lazy_info!(
     t_required: false,
     m_required: true,
     w_required: true,
-    sorting_required: true,
+    sorting_required: false,
 );
 
 impl StetsonK {
@@ -1738,7 +1738,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         let chi2 = get_nonzero_reduced_chi2(ts)? * (ts.lenf() - T::one());
         let mean = ts.get_m_weighted_mean();
         let value = ts
@@ -1792,7 +1792,7 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        check_ts_length(self, ts)?;
+        self.check_ts_length(ts)?;
         Ok(vec![ts.get_m_weighted_mean()])
     }
 
@@ -1811,10 +1811,10 @@ where
 mod tests {
     use super::*;
 
-    use crate::periodogram::QuantileNyquistFreq;
+    use crate::periodogram::{PeriodogramPowerDirect, QuantileNyquistFreq};
+    use crate::tests::*;
 
     use light_curve_common::{all_close, linspace};
-    use rand::prelude::*;
     use std::f64;
 
     feature_test!(
@@ -1823,6 +1823,8 @@ mod tests {
         [1.0],
         [0.0_f32, 1.0, 2.0],
     );
+
+    eval_info_test!(amplitude_info, Amplitude::default());
 
     feature_test!(
         anderson_darling_normal,
@@ -1840,6 +1842,11 @@ mod tests {
         },
     );
 
+    eval_info_test!(
+        anderson_darling_normal_info,
+        AndersonDarlingNormal::default()
+    );
+
     feature_test!(
         beyond_n_std,
         [
@@ -1850,6 +1857,8 @@ mod tests {
         [0.2, 0.2, 0.0],
         [1.0_f32, 2.0, 3.0, 4.0, 100.0],
     );
+
+    eval_info_test!(beyond_n_std_info, BeyondNStd::default());
 
     #[test]
     fn bins() {
@@ -1893,6 +1902,14 @@ mod tests {
         assert_eq!(len(2.0, 1.0), 3);
     }
 
+    eval_info_test!(bins_info, {
+        let mut bins = Bins::default();
+        bins.add_features(vec![Box::new(Amplitude::default())]);
+        bins
+    });
+
+    // Add more Bins::get_info() tests for non-trivial cases
+
     feature_test!(
         cumsum,
         [Box::new(Cusum::new())],
@@ -1900,12 +1917,16 @@ mod tests {
         [1.0_f32, 1.0, 1.0, 5.0, 8.0, 20.0],
     );
 
+    eval_info_test!(cusum_info, Cusum::default());
+
     feature_test!(
         eta,
         [Box::new(Eta::new())],
         [1.11338],
         [1.0_f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 109.0],
     );
+
+    eval_info_test!(eta_info, Eta::default());
 
     feature_test!(
         eta_e,
@@ -2144,6 +2165,8 @@ mod tests {
         assert!(actual.is_finite());
     }
 
+    eval_info_test!(eta_e_info, EtaE::default());
+
     feature_test!(
         inter_percentile_range,
         [
@@ -2155,12 +2178,18 @@ mod tests {
         linspace(0.0, 99.0, 100),
     );
 
+    eval_info_test!(inter_percentile_range_info, InterPercentileRange::default());
+
     feature_test!(
         kurtosis,
         [Box::new(Kurtosis::new())],
         [-1.2],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );
+
+    eval_info_test!(kurtosis_info, Kurtosis::default());
+
+    eval_info_test!(linear_fit_info, LinearFit::default());
 
     feature_test!(
         linear_trend,
@@ -3005,6 +3034,8 @@ mod tests {
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
+    eval_info_test!(linear_trend_info, LinearTrend::default());
+
     feature_test!(
         magnitude_percentage_ratio,
         [
@@ -3028,6 +3059,11 @@ mod tests {
         assert_eq!(fe.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
     }
 
+    eval_info_test!(
+        magnitude_percentage_ratio_info,
+        MagnitudePercentageRatio::default()
+    );
+
     feature_test!(
         maximum_slope_positive,
         [Box::new(MaximumSlope::new())],
@@ -3044,12 +3080,16 @@ mod tests {
         [0.0_f32, 0.5, 1.0, 0.0, 0.5, 1.0],
     );
 
+    eval_info_test!(maximum_slope_info, MaximumSlope::default());
+
     feature_test!(
         mean,
         [Box::new(Mean::new())],
         [14.0],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
     );
+
+    eval_info_test!(mean_info, Mean::default());
 
     feature_test!(
         median,
@@ -3058,11 +3098,18 @@ mod tests {
         [-99.0, 0.0, 3.0, 3.1, 3.2],
     );
 
+    eval_info_test!(median_info, Median::default());
+
     feature_test!(
         median_absolute_deviation,
         [Box::new(MedianAbsoluteDeviation::new())],
         [4.0],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 100.0],
+    );
+
+    eval_info_test!(
+        median_absolute_deviation_info,
+        MedianAbsoluteDeviation::default()
     );
 
     feature_test!(
@@ -3083,12 +3130,19 @@ mod tests {
         [0.0; 10],
     );
 
+    eval_info_test!(
+        median_buffer_range_percentage_info,
+        MedianBufferRangePercentage::default()
+    );
+
     feature_test!(
         percent_amplitude,
         [Box::new(PercentAmplitude::new())],
         [96.0],
         [1.0_f32, 1.0, 1.0, 2.0, 4.0, 5.0, 5.0, 98.0, 100.0],
     );
+
+    eval_info_test!(percent_amplitude_info, PercentAmplitude::default());
 
     feature_test!(
         percent_difference_magnitude_percentile,
@@ -3102,6 +3156,11 @@ mod tests {
             80.0_f32, 13.0, 20.0, 20.0, 75.0, 25.0, 100.0, 1.0, 2.0, 3.0, 7.0, 30.0, 5.0, 9.0,
             10.0, 70.0, 80.0, 92.0, 97.0, 17.0
         ],
+    );
+
+    eval_info_test!(
+        percent_difference_magnitude_percentile_info,
+        PercentDifferenceMagnitudePercentile::default()
     );
 
     #[test]
@@ -3253,6 +3312,25 @@ mod tests {
         assert!(features[1] > features[3]);
     }
 
+    eval_info_test!(periodogram_info_1, {
+        let mut periodogram = Periodogram::default();
+        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
+        periodogram
+    });
+
+    eval_info_test!(periodogram_info_2, {
+        let mut periodogram = Periodogram::new(5);
+        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
+        periodogram
+    });
+
+    eval_info_test!(periodogram_info_3, {
+        let mut periodogram = Periodogram::default();
+        periodogram.add_features(vec![Box::new(Amplitude::default())]);
+        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
+        periodogram
+    });
+
     feature_test!(
         skew,
         [Box::new(Skew::new())],
@@ -3260,12 +3338,16 @@ mod tests {
         [2.0_f32, 3.0, 5.0, 7.0, 11.0, 13.0],
     );
 
+    eval_info_test!(skew_info, Skew::default());
+
     feature_test!(
         standard_deviation,
         [Box::new(StandardDeviation::new())],
         [1.5811388300841898],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );
+
+    eval_info_test!(standard_deviation_info, StandardDeviation::default());
 
     feature_test!(
         stetson_k_square_wave,
@@ -3333,6 +3415,8 @@ mod tests {
         assert_eq!(fe.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
     }
 
+    eval_info_test!(stetson_k_info, StetsonK::default());
+
     feature_test!(
         weighted_mean,
         [Box::new(WeightedMean::new())],
@@ -3341,4 +3425,6 @@ mod tests {
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
         Some(&[10.0, 5.0, 3.0, 2.5, 2.0]),
     );
+
+    eval_info_test!(weighted_mean_info, WeightedMean::default());
 }

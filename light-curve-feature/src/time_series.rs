@@ -66,10 +66,6 @@ where
     [T]: Statistics<T>,
 {
     fn new(sample: &'a [T]) -> Self {
-        assert!(
-            sample.len() > 1,
-            "DataSample should has at least two points"
-        );
         Self {
             sample,
             sorted: vec![],
