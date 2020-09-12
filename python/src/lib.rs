@@ -201,34 +201,34 @@ struct Bins {}
 #[pymethods]
 impl Bins {
     #[new]
-    #[args(extractor, window = "None", offset = "None")]
+    #[args(features, window = "None", offset = "None")]
     fn __new__(
         py: Python,
-        extractor: Py<Extractor>,
+        features: PyObject,
         window: Option<F>,
         offset: Option<F>,
-    ) -> (Self, PyFeatureEvaluator) {
+    ) -> PyResult<(Self, PyFeatureEvaluator)> {
         let mut eval = light_curve_feature::Bins::default();
-        extractor
-            .borrow(py)
-            .feature_extractor
-            .clone_features()
-            .into_iter()
-            .for_each(|f| {
-                eval.add_feature(f);
-            });
+        for x in features.extract::<&PyAny>(py)?.iter()? {
+            let feature = x?
+                .downcast::<PyCell<PyFeatureEvaluator>>()?
+                .borrow()
+                .feature_evaluator
+                .clone();
+            eval.add_feature(feature);
+        }
         if let Some(window) = window {
             eval.set_window(window);
         }
         if let Some(offset) = offset {
             eval.set_offset(offset);
         }
-        (
+        Ok((
             Self {},
             PyFeatureEvaluator {
                 feature_evaluator: Box::new(eval),
             },
-        )
+        ))
     }
 }
 
@@ -380,7 +380,7 @@ impl PercentDifferenceMagnitudePercentile {
 ///     Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, extractor=None)"]
+#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"]
 struct Periodogram {
     eval: light_curve_feature::Periodogram<F>,
 }
@@ -393,7 +393,7 @@ impl Periodogram {
         max_freq_factor: Option<f32>,
         nyquist: Option<PyObject>,
         fast: Option<bool>,
-        extractor: Option<Py<Extractor>>,
+        features: Option<PyObject>,
     ) -> PyResult<light_curve_feature::Periodogram<F>> {
         let mut eval = match peaks {
             Some(peaks) => light_curve_feature::Periodogram::new(peaks),
@@ -431,15 +431,15 @@ impl Periodogram {
                 eval.set_periodogram_algorithm(move || Box::new(PeriodogramPowerDirect));
             }
         }
-        if let Some(extractor) = extractor {
-            extractor
-                .borrow(py)
-                .feature_extractor
-                .clone_features()
-                .into_iter()
-                .for_each(|f| {
-                    eval.add_feature(f);
-                });
+        if let Some(features) = features {
+            for x in features.extract::<&PyAny>(py)?.iter()? {
+                let feature = x?
+                    .downcast::<PyCell<PyFeatureEvaluator>>()?
+                    .borrow()
+                    .feature_evaluator
+                    .clone();
+                eval.add_feature(feature);
+            }
         }
         Ok(eval)
     }
@@ -454,7 +454,7 @@ impl Periodogram {
         max_freq_factor = "None",
         nyquist = "None",
         fast = "None",
-        extractor = "None"
+        features = "None"
     )]
     fn __new__(
         py: Python,
@@ -463,7 +463,7 @@ impl Periodogram {
         max_freq_factor: Option<f32>,
         nyquist: Option<PyObject>,
         fast: Option<bool>,
-        extractor: Option<Py<Extractor>>,
+        features: Option<PyObject>,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
         Ok((
             Self {
@@ -474,7 +474,7 @@ impl Periodogram {
                     max_freq_factor,
                     nyquist.as_ref().map(|x| x.clone_ref(py)),
                     fast,
-                    extractor.as_ref().map(|x| x.clone_ref(py)),
+                    features.as_ref().map(|x| x.clone_ref(py)),
                 )?,
             },
             PyFeatureEvaluator {
@@ -485,7 +485,7 @@ impl Periodogram {
                     max_freq_factor,
                     nyquist,
                     fast,
-                    extractor,
+                    features,
                 )?),
             },
         ))
