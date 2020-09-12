@@ -1,7 +1,10 @@
-use light_curve_feature::{PeriodogramPowerDirect, PeriodogramPowerFft, TimeSeries};
+use itertools::Itertools;
+use light_curve_feature::{
+    FeatureEvaluator, PeriodogramPowerDirect, PeriodogramPowerFft, TimeSeries,
+};
 use ndarray::Array1 as NDArray;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::ValueError;
+use pyo3::exceptions::{NotImplementedError, ValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
@@ -13,23 +16,34 @@ type RoArr<'a> = PyReadonlyArray1<'a, F>;
 
 enum ArrWrapper<'a> {
     Readonly(RoArr<'a>),
-    Owned(NDArray<f64>),
+    Owned(NDArray<F>),
 }
 
 impl<'a> ArrWrapper<'a> {
-    fn new(a: &'a Arr) -> Self {
+    fn new(a: &'a Arr, required: bool) -> PyResult<Self> {
         if a.is_contiguous() {
-            Self::Readonly(a.readonly())
+            Ok(Self::Readonly(a.readonly()))
+        } else if required {
+            if a.strides().iter().any(|&i| i < 0) {
+                return Err(ValueError::py_err(
+                    "input array has a negative stride, which is currently unsupported due to \
+                    https://github.com/PyO3/rust-numpy/issues/151, \
+                    please copy the array before passing",
+                ));
+            }
+            Ok(Self::Owned(a.to_owned_array()))
         } else {
-            Self::Owned(a.to_owned_array())
+            Ok(Self::Owned(unsafe {
+                ndarray::Array1::<F>::uninitialized(a.len())
+            }))
         }
     }
 }
 
 impl<'a> Deref for ArrWrapper<'a> {
-    type Target = [f64];
+    type Target = [F];
 
-    fn deref(&self) -> &[f64] {
+    fn deref(&self) -> &[F] {
         match self {
             Self::Readonly(a) => a.as_slice().unwrap(),
             Self::Owned(a) => a.as_slice().unwrap(),
@@ -37,41 +51,8 @@ impl<'a> Deref for ArrWrapper<'a> {
     }
 }
 
-#[pyclass]
-struct Extractor {
-    feature_extractor: light_curve_feature::FeatureExtractor<F>,
-}
-
-#[pymethods]
-impl Extractor {
-    #[new]
-    #[args(args = "*")]
-    fn __new__(args: &PyTuple) -> PyResult<Self> {
-        let evals = args
-            .iter()
-            .map(|arg| {
-                arg.downcast::<PyCell<PyFeatureEvaluator>>()
-                    .map(|fe| fe.borrow().feature_evaluator.clone())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self {
-            feature_extractor: light_curve_feature::FeatureExtractor::new(evals),
-        })
-    }
-
-    #[call]
-    fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> Py<Arr> {
-        let t = ArrWrapper::new(t);
-        let m = ArrWrapper::new(m);
-        let err2 = err2.map(|a| ArrWrapper::new(a));
-        let ts = TimeSeries::new(&t, &m, err2.as_deref());
-        self.feature_extractor.eval(ts).into_pyarray(py).to_owned()
-    }
-
-    #[getter]
-    fn names(&self) -> Vec<&str> {
-        self.feature_extractor.get_names()
-    }
+fn is_sorted(a: &[F]) -> bool {
+    a.iter().tuple_windows().all(|(&a, &b)| a < b)
 }
 
 #[pyclass]
@@ -82,15 +63,84 @@ struct PyFeatureEvaluator {
 #[pymethods]
 impl PyFeatureEvaluator {
     #[call]
-    fn __call__(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> Py<Arr> {
-        let t = ArrWrapper::new(t);
-        let m = ArrWrapper::new(m);
-        let err2 = err2.map(|a| ArrWrapper::new(a));
-        let mut ts = TimeSeries::new(&t, &m, err2.as_deref());
-        self.feature_evaluator
-            .eval(&mut ts)
-            .into_pyarray(py)
-            .to_owned()
+    #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
+    fn __call__(
+        &self,
+        py: Python,
+        t: &Arr,
+        m: &Arr,
+        sigma: Option<&Arr>,
+        sorted: Option<bool>,
+        fill_value: Option<F>,
+    ) -> PyResult<Py<Arr>> {
+        let t = ArrWrapper::new(t, self.feature_evaluator.is_t_required())?;
+        match sorted {
+            Some(true) => {}
+            Some(false) => {
+                return Err(NotImplementedError::py_err(
+                    "sorting is not implemented, please provide time-sorted arrays",
+                ))
+            }
+            None => {
+                if self.feature_evaluator.is_sorting_required() & !is_sorted(&t) {
+                    return Err(ValueError::py_err("t must be in ascending order"));
+                }
+            }
+        }
+        let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required())?;
+        let w = sigma.and_then(|sigma| {
+            if self.feature_evaluator.is_w_required() {
+                let mut w = sigma.to_owned_array();
+                w.mapv_inplace(|x| x.powi(-2));
+                Some(ArrWrapper::Owned(w))
+            } else {
+                None
+            }
+        });
+        let mut ts = TimeSeries::new(&t, &m, w.as_deref());
+        let result = match fill_value {
+            Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
+            None => self
+                .feature_evaluator
+                .eval(&mut ts)
+                .map_err(|e| ValueError::py_err(e.to_string()))?,
+        };
+        Ok(result.into_pyarray(py).to_owned())
+    }
+}
+
+#[pyclass(extends = PyFeatureEvaluator)]
+#[text_signature = "(*args)"]
+struct Extractor {
+    feature_extractor: light_curve_feature::FeatureExtractor<F>,
+}
+
+#[pymethods]
+impl Extractor {
+    #[new]
+    #[args(args = "*")]
+    fn __new__(args: &PyTuple) -> PyResult<(Self, PyFeatureEvaluator)> {
+        let evals = args
+            .iter()
+            .map(|arg| {
+                arg.downcast::<PyCell<PyFeatureEvaluator>>()
+                    .map(|fe| fe.borrow().feature_evaluator.clone())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let eval = light_curve_feature::FeatureExtractor::new(evals);
+        Ok((
+            Self {
+                feature_extractor: eval.clone(),
+            },
+            PyFeatureEvaluator {
+                feature_evaluator: Box::new(eval),
+            },
+        ))
+    }
+
+    #[getter]
+    fn names(&self) -> Vec<&str> {
+        self.feature_extractor.get_names()
     }
 }
 
@@ -145,7 +195,7 @@ impl BeyondNStd {
 }
 
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(window=None, offset=None, extractor=None)"]
+#[text_signature = "(extractor, window=None, offset=None)"]
 struct Bins {}
 
 #[pymethods]
@@ -159,7 +209,14 @@ impl Bins {
         offset: Option<F>,
     ) -> (Self, PyFeatureEvaluator) {
         let mut eval = light_curve_feature::Bins::default();
-        eval.add_features(extractor.borrow(py).feature_extractor.clone_features());
+        extractor
+            .borrow(py)
+            .feature_extractor
+            .clone_features()
+            .into_iter()
+            .for_each(|f| {
+                eval.add_feature(f);
+            });
         if let Some(window) = window {
             eval.set_window(window);
         }
@@ -375,8 +432,14 @@ impl Periodogram {
             }
         }
         if let Some(extractor) = extractor {
-            let features = extractor.borrow(py).feature_extractor.clone_features();
-            eval.add_features(features);
+            extractor
+                .borrow(py)
+                .feature_extractor
+                .clone_features()
+                .into_iter()
+                .for_each(|f| {
+                    eval.add_feature(f);
+                });
         }
         Ok(eval)
     }
@@ -430,16 +493,15 @@ impl Periodogram {
 
     /// Angular frequencies and periodogram values
     #[text_signature = "(t, m, err2=None)"]
-    fn freq_power(&self, py: Python, t: &Arr, m: &Arr, err2: Option<&Arr>) -> (Py<Arr>, Py<Arr>) {
-        let t = ArrWrapper::new(t);
-        let m = ArrWrapper::new(m);
-        let err2 = err2.map(|a| ArrWrapper::new(a));
-        let mut ts = TimeSeries::new(&t, &m, err2.as_deref());
+    fn freq_power(&self, py: Python, t: &Arr, m: &Arr) -> PyResult<(Py<Arr>, Py<Arr>)> {
+        let t = ArrWrapper::new(t, true)?;
+        let m = ArrWrapper::new(m, true)?;
+        let mut ts = TimeSeries::new(&t, &m, None);
         let (freq, power) = self.eval.freq_power(&mut ts);
-        (
+        Ok((
             freq.into_pyarray(py).to_owned(),
             power.into_pyarray(py).to_owned(),
-        )
+        ))
     }
 }
 
