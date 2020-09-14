@@ -28,19 +28,19 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python
+    - name: Set up Python 3.5
       uses: actions/setup-python@v2
       with:
         python-version: 3.5
-    - name: Set up Python
+    - name: Set up Python 3.6
       uses: actions/setup-python@v2
       with:
         python-version: 3.6
-    - name: Set up Python
+    - name: Set up Python 3.7
       uses: actions/setup-python@v2
       with:
         python-version: 3.7
-    - name: Set up Python
+    - name: Set up Python 3.8
       uses: actions/setup-python@v2
       with:
         python-version: 3.8
@@ -48,7 +48,9 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Install maturin
+    - name: Install maturin and tox
       run: pip install maturin
+    - name: Run Python tests
+      run: tox -p -q
     - name: Publish
       run: maturin publish ${{matrix.NOSDIST}} --no-strip -u __token__ -p ${{ secrets.PYPI_TOKEN }}

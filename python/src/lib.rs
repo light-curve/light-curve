@@ -87,7 +87,9 @@ impl PyFeatureEvaluator {
                 }
             }
         }
+
         let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required())?;
+
         let w = sigma.and_then(|sigma| {
             if self.feature_evaluator.is_w_required() {
                 let mut w = sigma.to_owned_array();
@@ -97,7 +99,9 @@ impl PyFeatureEvaluator {
                 None
             }
         });
+
         let mut ts = TimeSeries::new(&t, &m, w.as_deref());
+
         let result = match fill_value {
             Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
             None => self
