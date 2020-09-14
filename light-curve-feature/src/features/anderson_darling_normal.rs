@@ -4,6 +4,7 @@ use crate::lnerfc::ln_erfc;
 use conv::ConvUtil;
 
 /// Anderson–Darling normality test statistic
+///
 /// $$
 /// A^2 \equiv \left(1 + \frac4{N} - \frac{25}{N^2}\right) \left(-N - \frac1{N} \sum_{i=0}^{N-1} {(2i + 1)\ln\Phi_i + (2(N - i) - 1)\ln(1 - \Phi_i)}\right),
 /// $$
