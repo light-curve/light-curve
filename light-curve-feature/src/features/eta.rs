@@ -1,4 +1,6 @@
 use crate::evaluator::*;
+use itertools::Itertools;
+
 /// Von Neummann $\eta$
 ///
 /// $$
@@ -38,11 +40,14 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
-        let value = (1..ts.lenu())
-            .map(|i| (ts.m.sample[i] - ts.m.sample[i - 1]).powi(2))
-            .sum::<T>()
-            / (ts.lenf() - T::one())
-            / m_std.powi(2);
+        let value =
+            ts.m.sample
+                .iter()
+                .tuple_windows()
+                .map(|(&a, &b)| (b - a).powi(2))
+                .sum::<T>()
+                / (ts.lenf() - T::one())
+                / m_std.powi(2);
         Ok(vec![value])
     }
 

@@ -1,4 +1,5 @@
 use crate::evaluator::*;
+use itertools::Itertools;
 
 #[derive(Clone, Default, Debug)]
 pub struct MinimumTimeInterval {}
@@ -25,10 +26,13 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let dt = (0..ts.lenu() - 1)
-            .map(|i| ts.t.sample[i + 1] - ts.t.sample[i])
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap();
+        let dt =
+            ts.t.sample
+                .iter()
+                .tuple_windows()
+                .map(|(&a, &b)| b - a)
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap();
         Ok(vec![dt])
     }
 

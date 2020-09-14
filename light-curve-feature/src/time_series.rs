@@ -11,8 +11,8 @@ pub struct DataSample<'a, T>
 where
     T: Float,
 {
-    pub(super) sample: &'a [T],
-    sorted: Vec<T>,
+    pub sample: &'a [T],
+    sorted: Option<Vec<T>>,
     min: Option<T>,
     max: Option<T>,
     mean: Option<T>,
@@ -37,10 +37,9 @@ macro_rules! data_sample_getter {
             match self.$attr {
                 Some(x) => x,
                 None => {
-                    self.$attr = Some(if self.sorted.is_empty() {
-                        self.sample.$method()
-                    } else {
-                        self.sorted[..].$method_sorted()
+                    self.$attr = Some(match self.sorted.as_ref() {
+                        Some(sorted) => sorted.$method_sorted(),
+                        None => self.sample.$method(),
                     });
                     self.$attr.unwrap()
                 }
@@ -68,7 +67,7 @@ where
     fn new(sample: &'a [T]) -> Self {
         Self {
             sample,
-            sorted: vec![],
+            sorted: None,
             min: None,
             max: None,
             mean: None,
@@ -77,11 +76,11 @@ where
         }
     }
 
-    pub(super) fn get_sorted(&mut self) -> &[T] {
-        if self.sorted.is_empty() {
-            self.sorted.extend(self.sample.sorted());
+    pub fn get_sorted(&mut self) -> &[T] {
+        if self.sorted.is_none() {
+            self.sorted = Some(self.sample.sorted());
         }
-        &self.sorted[..]
+        self.sorted.as_ref().unwrap()
     }
 
     data_sample_getter!(min, get_min, minimum, min_from_sorted);

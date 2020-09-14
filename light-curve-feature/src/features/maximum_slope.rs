@@ -1,4 +1,5 @@
 use crate::evaluator::*;
+use itertools::Itertools;
 
 /// Maximum slope between two sub-sequential observations
 ///
@@ -36,17 +37,14 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        Ok(vec![(1..ts.lenu())
-            .map(|i| {
-                T::abs(
-                    (ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]),
-                )
-            })
+        let result = ts
+            .tm_iter()
+            .tuple_windows()
+            .map(|((t1, m1), (t2, m2))| T::abs((m1 - m2) / (t2 - t1)))
             .filter(|&x| x.is_finite())
             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .expect(
-                "All points of the light curve have the same time",
-            )])
+            .expect("All points of the light curve have the same time");
+        Ok(vec![result])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {

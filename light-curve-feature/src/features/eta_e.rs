@@ -1,4 +1,6 @@
 use crate::evaluator::*;
+use itertools::Itertools;
+
 /// $\eta^e$ — modernisation of [Eta](./struct.Eta.html) for unevenly time series
 ///
 /// $$
@@ -40,11 +42,10 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let m_std = get_nonzero_m_std(ts)?;
-        let sq_slope_sum = (1..ts.lenu())
-            .map(|i| {
-                ((ts.m.sample[i] - ts.m.sample[i - 1]) / (ts.t.sample[i] - ts.t.sample[i - 1]))
-                    .powi(2)
-            })
+        let sq_slope_sum = ts
+            .tm_iter()
+            .tuple_windows()
+            .map(|((t1, m1), (t2, m2))| ((m2 - m1) / (t2 - t1)).powi(2))
             .filter(|&x| x.is_finite())
             .sum::<T>();
         let value = (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum

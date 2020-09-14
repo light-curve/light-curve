@@ -25,7 +25,9 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        Ok(vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]])
+        Ok(vec![
+            *ts.t.sample.last().unwrap() - *ts.t.sample.first().unwrap(),
+        ])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
