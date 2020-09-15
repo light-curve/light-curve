@@ -1,7 +1,8 @@
 use crate::float_trait::Float;
-use crate::statistics::Statistics;
+use crate::sorted_vec::SortedVec;
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 use dyn_clonable::*;
+use itertools::Itertools;
 use std::fmt::Debug;
 
 /// Derive Nyquist frequency from time series
@@ -29,7 +30,7 @@ impl<T: Float> NyquistFreq<T> for AverageNyquistFreq {
 }
 
 fn diff<T: Float>(x: &[T]) -> Vec<T> {
-    (1..x.len()).map(|i| x[i] - x[i - 1]).collect()
+    x.iter().tuple_windows().map(|(&a, &b)| b - a).collect()
 }
 
 /// $\Delta t$ is the median time interval between observations
@@ -38,7 +39,8 @@ pub struct MedianNyquistFreq;
 
 impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
     fn nyquist_freq(&self, t: &[T]) -> T {
-        let dt = diff(t).median();
+        let sorted_dt: SortedVec<_> = diff(t).into();
+        let dt = sorted_dt.median();
         T::PI() / dt
     }
 }
@@ -51,7 +53,8 @@ pub struct QuantileNyquistFreq {
 
 impl<T: Float> NyquistFreq<T> for QuantileNyquistFreq {
     fn nyquist_freq(&self, t: &[T]) -> T {
-        let dt = diff(t).ppf(self.quantile);
+        let sorted_dt: SortedVec<_> = diff(t).into();
+        let dt = sorted_dt.ppf(self.quantile);
         T::PI() / dt
     }
 }

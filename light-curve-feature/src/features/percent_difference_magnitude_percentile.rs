@@ -1,5 +1,4 @@
 use crate::evaluator::*;
-use crate::statistics::Statistics;
 
 /// Ratio of $p$th inter-percentile range to the median
 ///
@@ -60,9 +59,8 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let q = [self.quantile, 1.0 - self.quantile];
-        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        let nominator = ppf[1] - ppf[0];
+        let nominator =
+            ts.m.get_sorted().ppf(1.0 - self.quantile) - ts.m.get_sorted().ppf(self.quantile);
         let denominator = ts.m.get_median();
         if nominator.is_zero() & denominator.is_zero() {
             Err(EvaluatorError::ZeroDivision("median magnitude is zero"))

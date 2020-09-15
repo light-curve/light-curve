@@ -55,6 +55,8 @@ pub use periodogram::{
     PeriodogramPowerFft, QuantileNyquistFreq,
 };
 
+pub mod sorted_vec;
+
 pub mod statistics;
 
 pub mod time_series;

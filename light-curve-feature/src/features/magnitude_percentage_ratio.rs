@@ -1,5 +1,4 @@
 use crate::evaluator::*;
-use crate::statistics::Statistics;
 
 /// Magnitude percentage ratio
 ///
@@ -67,15 +66,11 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let q = [
-            self.quantile_numerator,
-            1.0 - self.quantile_numerator,
-            self.quantile_denominator,
-            1.0 - self.quantile_denominator,
-        ];
-        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        let numerator = ppf[1] - ppf[0];
-        let denumerator = ppf[3] - ppf[2];
+        let m_sorted = ts.m.get_sorted();
+        let numerator =
+            m_sorted.ppf(1.0 - self.quantile_numerator) - m_sorted.ppf(self.quantile_numerator);
+        let denumerator =
+            m_sorted.ppf(1.0 - self.quantile_denominator) - m_sorted.ppf(self.quantile_denominator);
         if numerator.is_zero() & denumerator.is_zero() {
             Err(EvaluatorError::FlatTimeSeries)
         } else {

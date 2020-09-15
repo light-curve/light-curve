@@ -1,5 +1,4 @@
 use crate::evaluator::*;
-use crate::statistics::Statistics;
 
 /// Inter-percentile range
 ///
@@ -57,9 +56,9 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let q = [self.quantile, 1.0 - self.quantile];
-        let ppf = ts.m.get_sorted().ppf_many_from_sorted(&q[..]);
-        let value = ppf[1] - ppf[0];
+        let ppf_low = ts.m.get_sorted().ppf(self.quantile);
+        let ppf_high = ts.m.get_sorted().ppf(1.0 - self.quantile);
+        let value = ppf_high - ppf_low;
         Ok(vec![value])
     }
 

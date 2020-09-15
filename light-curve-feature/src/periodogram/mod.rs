@@ -98,6 +98,7 @@ where
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
+    use crate::sorted_vec::SortedVec;
     use crate::statistics::Statistics;
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
@@ -241,10 +242,10 @@ mod tests {
         const MAX_FREQ_FACTOR: f32 = 1.0;
 
         let mut rng = StdRng::seed_from_u64(0);
-        let t = (0..N)
+        let t: SortedVec<_> = (0..N)
             .map(|_| rng.gen::<f64>() * (N - 1) as f64)
             .collect::<Vec<_>>()
-            .sorted();
+            .into();
         let m: Vec<_> = t
             .iter()
             .map(|&x| {

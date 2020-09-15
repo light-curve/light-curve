@@ -1,5 +1,5 @@
 use crate::evaluator::*;
-use crate::statistics::Statistics;
+use crate::sorted_vec::SortedVec;
 
 /// Median of the absolute value of the difference between magnitude and its median
 ///
@@ -39,7 +39,8 @@ where
         self.check_ts_length(ts)?;
         let m_median = ts.m.get_median();
         let deviation: Vec<_> = ts.m.sample.iter().map(|&y| T::abs(y - m_median)).collect();
-        Ok(vec![deviation[..].median()])
+        let sorted_deviation: SortedVec<_> = deviation.into();
+        Ok(vec![sorted_deviation.median()])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {

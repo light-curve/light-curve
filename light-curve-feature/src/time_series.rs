@@ -1,8 +1,8 @@
-use conv::prelude::*;
-
 use crate::float_trait::Float;
+use crate::sorted_vec::SortedVec;
 use crate::statistics::Statistics;
 
+use conv::prelude::*;
 use itertools::Either;
 use std::iter;
 
@@ -12,7 +12,7 @@ where
     T: Float,
 {
     pub sample: &'a [T],
-    sorted: Option<Vec<T>>,
+    sorted: Option<SortedVec<T>>,
     min: Option<T>,
     max: Option<T>,
     mean: Option<T>,
@@ -76,18 +76,18 @@ where
         }
     }
 
-    pub fn get_sorted(&mut self) -> &[T] {
+    pub fn get_sorted(&mut self) -> &SortedVec<T> {
         if self.sorted.is_none() {
-            self.sorted = Some(self.sample.sorted());
+            self.sorted = Some(self.sample.into());
         }
         self.sorted.as_ref().unwrap()
     }
 
-    data_sample_getter!(min, get_min, minimum, min_from_sorted);
-    data_sample_getter!(max, get_max, maximum, max_from_sorted);
+    data_sample_getter!(min, get_min, minimum, minimum);
+    data_sample_getter!(max, get_max, maximum, maximum);
     data_sample_getter!(mean, get_mean, mean);
     data_sample_getter!(median, get_median, |ds: &mut DataSample<'a, T>| {
-        ds.get_sorted().median_from_sorted()
+        ds.get_sorted().median()
     });
     data_sample_getter!(std, get_std, |ds: &mut DataSample<'a, T>| {
         let mean = ds.get_mean();

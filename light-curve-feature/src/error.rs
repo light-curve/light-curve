@@ -9,3 +9,9 @@ pub enum EvaluatorError {
     #[error("zero division: {0}")]
     ZeroDivision(&'static str),
 }
+
+#[derive(Debug, thiserror::Error, PartialEq)]
+pub enum SortedVecError {
+    #[error("SortedVec::new accepts only sorted vectors")]
+    Unsorted,
+}
