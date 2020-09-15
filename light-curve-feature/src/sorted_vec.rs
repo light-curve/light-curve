@@ -37,9 +37,9 @@ where
         assert_ne!(self.len(), 0);
         let i = (self.len() - 1) / 2;
         if self.len() % 2 == 0 {
-            T::half() * (*unsafe { self.get_unchecked(i) } + *unsafe { self.get_unchecked(i + 1) })
+            T::half() * (self[i] + self[i + 1])
         } else {
-            *unsafe { self.get_unchecked(i) }
+            self[i]
         }
     }
 
@@ -53,16 +53,13 @@ where
         let h = (self.len() as f32) * q - 0.5;
         let h_floor = h.floor();
         if h_floor < 0.0 {
-            *unsafe { self.get_unchecked(0) }
+            self[0]
         } else {
             let i = h_floor as usize;
             if i >= self.len() - 1 {
-                *unsafe { self.get_unchecked(self.len() - 1) }
+                *self.last().unwrap()
             } else {
-                *unsafe { self.get_unchecked(i) }
-                    + (h - h_floor).value_as::<T>().unwrap()
-                        * (*unsafe { self.get_unchecked(i + 1) }
-                            - *unsafe { self.get_unchecked(i) })
+                self[i] + (h - h_floor).value_as::<T>().unwrap() * (self[i + 1] - self[i])
             }
         }
     }

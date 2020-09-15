@@ -53,11 +53,7 @@ where
 
     fn peak_indices_reverse_sorted(&self) -> Vec<usize> {
         let mut v = self.peak_indices();
-        v[..].sort_unstable_by(|&b, &a| {
-            unsafe { self.get_unchecked(a) }
-                .partial_cmp(unsafe { self.get_unchecked(b) })
-                .unwrap()
-        });
+        v[..].sort_unstable_by(|&b, &a| self[a].partial_cmp(&self[b]).unwrap());
         v
     }
 }
