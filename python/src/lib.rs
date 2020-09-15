@@ -557,6 +557,8 @@ fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
 
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
     m.add_class::<Extractor>()?;
 
     m.add_class::<Amplitude>()?;
