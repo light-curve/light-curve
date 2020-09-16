@@ -11,7 +11,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-10.15, windows-2019]
+        os: [ubuntu-20.04, macos-10.15]
 
     defaults:
       run:
@@ -39,13 +39,13 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Install tox
-      run: pip install tox
+    - name: Install tox and maturin
+      run: pip install tox maturin
     - name: Run Python tests
       run: tox -p -q
     - name: Publish Linux packages
-      if: ${{ matrix.os == 'ubuntu.latest' }}
+      if: ${{ matrix.os == 'ubuntu-20.04' }}
       run: docker run --rm -ti -v $(pwd):/io konstin2/maturin publish -u __token__ -p ${{ secrets.PYPI_TOKEN }}
-    - name: Publish macOS / Windows packages
-      if: ${{ matrix.os != 'ubuntu.latest' }}
-      run: maturin publish --nosdist -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+    - name: Publish macOS packages
+      if: ${{ matrix.os != 'ubuntu-20.04' }}
+      run: maturin publish --no-sdist -u __token__ -p ${{ secrets.PYPI_TOKEN }}
