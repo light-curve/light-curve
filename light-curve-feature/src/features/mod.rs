@@ -58,6 +58,9 @@ pub use maximum_slope::MaximumSlope;
 mod mean;
 pub use mean::Mean;
 
+mod mean_variance;
+pub use mean_variance::MeanVariance;
+
 mod median;
 pub use median::Median;
 

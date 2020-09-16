@@ -1,49 +1,48 @@
 use crate::evaluator::*;
 
-/// Mean magnitude
+/// Standard deviation to mean ratio
 ///
 /// $$
-/// \langle m \rangle \equiv \frac1{N} \sum_i m_i.
+/// \frac{\sigma_m}{\langle m \rangle}
 /// $$
-/// This is non-weighted mean, see [WeightedMean](crate::WeightedMean) for weighted mean.
 ///
 /// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
+/// - Minimum number of observations: **2**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
-pub struct Mean {}
+#[derive(Clone, Debug, Default)]
+pub struct MeanVariance {}
 
 lazy_info!(
-    MEAN_INFO,
+    MEAN_VARIANCE_INFO,
     size: 1,
-    min_ts_length: 1,
+    min_ts_length: 2,
     t_required: false,
     m_required: true,
     w_required: false,
     sorting_required: false,
 );
 
-impl Mean {
+impl MeanVariance {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl<T> FeatureEvaluator<T> for Mean
+impl<T> FeatureEvaluator<T> for MeanVariance
 where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        Ok(vec![ts.m.get_mean()])
+        Ok(vec![ts.m.get_std() / ts.m.get_mean()])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
-        &MEAN_INFO
+        &MEAN_VARIANCE_INFO
     }
 
     fn get_names(&self) -> Vec<&str> {
-        vec!["mean"]
+        vec!["mean_variance"]
     }
 }
 
@@ -54,12 +53,12 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(mean_info, Mean::default());
+    eval_info_test!(mean_variance_info, MeanVariance::default());
 
     feature_test!(
         mean,
-        [Box::new(Mean::new())],
-        [14.0],
+        [Box::new(MeanVariance::new())],
+        [2.2832017440606585],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
     );
 }
