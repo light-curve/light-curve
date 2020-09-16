@@ -242,6 +242,8 @@ evaluator!(Eta, light_curve_feature::Eta);
 
 evaluator!(EtaE, light_curve_feature::EtaE);
 
+evaluator!(ExcessVariance, light_curve_feature::ExcessVariance);
+
 #[pyclass(extends = PyFeatureEvaluator)]
 #[text_signature = "(quantile=None)"]
 struct InterPercentileRange {}
@@ -303,6 +305,8 @@ impl MagnitudePercentageRatio {
 evaluator!(MaximumSlope, light_curve_feature::MaximumSlope);
 
 evaluator!(Mean, light_curve_feature::Mean);
+
+evaluator!(MeanVariance, light_curve_feature::MeanVariance);
 
 evaluator!(Median, light_curve_feature::Median);
 
@@ -568,6 +572,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Cusum>()?;
     m.add_class::<Eta>()?;
     m.add_class::<EtaE>()?;
+    m.add_class::<ExcessVariance>()?;
     m.add_class::<InterPercentileRange>()?;
     m.add_class::<Kurtosis>()?;
     m.add_class::<LinearFit>()?;
@@ -575,6 +580,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<MagnitudePercentageRatio>()?;
     m.add_class::<MaximumSlope>()?;
     m.add_class::<Mean>()?;
+    m.add_class::<MeanVariance>()?;
     m.add_class::<Median>()?;
     m.add_class::<MedianAbsoluteDeviation>()?;
     m.add_class::<MedianBufferRangePercentage>()?;

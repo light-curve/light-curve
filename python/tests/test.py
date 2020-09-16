@@ -119,6 +119,13 @@ class TestEtaE(_FeatureTest, _NaiveTest, _FeetsTest):
         return np.sum(np.square((m[1:] - m[:-1]) / (t[1:] - t[:-1]))) * (t[-1] - t[0])**2 / (np.var(m, ddof=0) * m.size * (m.size - 1)**2)
 
 
+class TestExcessVariance(_FeatureTest, _NaiveTest):
+    feature = lc.ExcessVariance()
+
+    def naive(self, t, m, sigma):
+        return (np.var(m, ddof=1) - np.mean(sigma**2)) / np.mean(m)**2
+
+
 class TestInterPercentileRange(_FeatureTest, _FeetsTest):
     quantile = 0.25
 
@@ -189,13 +196,23 @@ class TestMaximumSlope(_FeatureTest, _NaiveTest, _FeetsTest):
         return np.max(np.abs((m[1:] - m[:-1]) / (t[1:] - t[:-1])))
 
 
-class TestMean(_FeatureTest, _NaiveTest):
+class TestMean(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.Mean()
 
     feets_feature = 'Mean'
 
     def naive(self, t, m, sigma):
         return np.mean(m)
+
+
+class TestMeanVariance(_FeatureTest, _NaiveTest, _FeetsTest):
+    feature = lc.MeanVariance()
+
+    feets_feature = 'Meanvariance'
+    feets_skip_test = 'feets uses biased statistics'
+
+    def naive(self, t, m, sigma):
+        return np.std(m, ddof=1) / np.mean(m)
 
 
 class TestMedian(_FeatureTest, _NaiveTest):
