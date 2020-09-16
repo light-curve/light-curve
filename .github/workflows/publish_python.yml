@@ -48,9 +48,9 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Install maturin and tox
-      run: pip install maturin tox
+    - name: Install tox
+      run: pip install tox
     - name: Run Python tests
       run: tox -p -q
     - name: Publish
-      run: maturin publish ${{matrix.NOSDIST}} --no-strip -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+      run: docker run --rm -ti -v $(pwd):/io konstin2/maturin publish ${{matrix.NOSDIST}} --no-strip -u __token__ -p ${{ secrets.PYPI_TOKEN }}
