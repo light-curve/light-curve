@@ -49,7 +49,7 @@ jobs:
       with:
         toolchain: stable
     - name: Install maturin and tox
-      run: pip install maturin
+      run: pip install maturin tox
     - name: Run Python tests
       run: tox -p -q
     - name: Publish

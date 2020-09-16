@@ -89,5 +89,5 @@ jobs:
       with:
         command: clippy
         args: --all-targets --all-features -- -D warnings
-    - name: Run Python tests and benchmarks
+    - name: Run Python tests
       run: tox -p -q
