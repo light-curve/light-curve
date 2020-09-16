@@ -18,6 +18,7 @@ where
     mean: Option<T>,
     median: Option<T>,
     std: Option<T>,
+    std2: Option<T>,
 }
 
 macro_rules! data_sample_getter {
@@ -73,6 +74,7 @@ where
             mean: None,
             median: None,
             std: None,
+            std2: None,
         }
     }
 
@@ -90,11 +92,12 @@ where
         ds.get_sorted().median()
     });
     data_sample_getter!(std, get_std, |ds: &mut DataSample<'a, T>| {
+        ds.get_std2().sqrt()
+    });
+    data_sample_getter!(std2, get_std2, |ds: &mut DataSample<'a, T>| {
         let mean = ds.get_mean();
-        T::sqrt(
-            ds.sample.iter().map(|&x| (x - mean).powi(2)).sum::<T>()
-                / (ds.sample.len() - 1).value_as::<T>().unwrap(),
-        )
+        ds.sample.iter().map(|&x| (x - mean).powi(2)).sum::<T>()
+            / (ds.sample.len() - 1).value_as::<T>().unwrap()
     });
 
     pub fn signal_to_noise(&mut self, value: T) -> T {

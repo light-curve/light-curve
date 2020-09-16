@@ -86,6 +86,15 @@ pub fn get_nonzero_m_std<T: Float>(ts: &mut TimeSeries<T>) -> Result<T, Evaluato
     }
 }
 
+pub fn get_nonzero_m_std2<T: Float>(ts: &mut TimeSeries<T>) -> Result<T, EvaluatorError> {
+    let std2 = ts.m.get_std2();
+    if std2.is_zero() {
+        Err(EvaluatorError::FlatTimeSeries)
+    } else {
+        Ok(std2)
+    }
+}
+
 pub fn get_nonzero_reduced_chi2<T: Float>(ts: &mut TimeSeries<T>) -> Result<T, EvaluatorError> {
     let reduced_chi2 = ts.get_m_reduced_chi2();
     if reduced_chi2.is_zero() {

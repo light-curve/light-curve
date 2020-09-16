@@ -41,7 +41,7 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let m_std = get_nonzero_m_std(ts)?;
+        let m_std2 = get_nonzero_m_std2(ts)?;
         let sq_slope_sum = ts
             .tm_iter()
             .tuple_windows()
@@ -49,7 +49,7 @@ where
             .filter(|&x| x.is_finite())
             .sum::<T>();
         let value = (ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]).powi(2) * sq_slope_sum
-            / m_std.powi(2)
+            / m_std2
             / (ts.lenf() - T::one()).powi(3);
         Ok(vec![value])
     }

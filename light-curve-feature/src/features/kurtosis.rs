@@ -40,7 +40,7 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let m_std = get_nonzero_m_std(ts)?;
+        let m_std2 = get_nonzero_m_std2(ts)?;
         let m_mean = ts.m.get_mean();
         let n = ts.lenf();
         let n1 = n + T::one();
@@ -48,7 +48,7 @@ where
         let n_2 = n - T::two();
         let n_3 = n - T::three();
         let value =
-            ts.m.sample.iter().map(|&x| (x - m_mean).powi(4)).sum::<T>() / m_std.powi(4) * n * n1
+            ts.m.sample.iter().map(|&x| (x - m_mean).powi(4)).sum::<T>() / m_std2.powi(2) * n * n1
                 / (n_1 * n_2 * n_3)
                 - T::three() * n_1.powi(2) / (n_2 * n_3);
         Ok(vec![value])

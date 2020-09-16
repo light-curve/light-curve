@@ -37,6 +37,9 @@ pub use eta::Eta;
 mod eta_e;
 pub use eta_e::EtaE;
 
+mod excess_variance;
+pub use excess_variance::ExcessVariance;
+
 mod inter_percentile_range;
 pub use inter_percentile_range::InterPercentileRange;
 
