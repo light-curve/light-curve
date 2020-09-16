@@ -12,15 +12,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-10.15, windows-2019]
-        include:
-          # Publish source code among with Linux wheels
-          - os: ubuntu-latest
-            NOSDIST:
-          - os: macos-10.15
-            NOSDIST: --no-sdist
-          - os: windows-2019
-            NOSDIST: --no-sdist
-            
 
     defaults:
       run:
@@ -52,5 +43,9 @@ jobs:
       run: pip install tox
     - name: Run Python tests
       run: tox -p -q
-    - name: Publish
-      run: docker run --rm -ti -v $(pwd):/io konstin2/maturin publish ${{matrix.NOSDIST}} --no-strip -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+    - name: Publish Linux packages
+      if: ${{ matrix.os == ubuntu.latest }}
+      run: docker run --rm -ti -v $(pwd):/io konstin2/maturin publish -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+    - name: Publish macOS / Windows packages
+      if: ${{ matrix.os != ubuntu.latest }}
+      run: maturin publish --nosdist -u __token__ -p ${{ secrets.PYPI_TOKEN }}
