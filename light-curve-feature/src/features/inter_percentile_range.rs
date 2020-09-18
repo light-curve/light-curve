@@ -42,11 +42,16 @@ impl InterPercentileRange {
             name: format!("inter_percentile_range_{:.0}", 100.0 * quantile),
         }
     }
+
+    #[inline]
+    pub fn default_quantile() -> f32 {
+        0.25
+    }
 }
 
 impl Default for InterPercentileRange {
     fn default() -> Self {
-        Self::new(0.25)
+        Self::new(Self::default_quantile())
     }
 }
 

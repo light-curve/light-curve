@@ -101,6 +101,16 @@ where
             .unzip3();
         Ok(TMWVectors { t, m, w: Some(w) })
     }
+
+    #[inline]
+    pub fn default_window() -> T {
+        T::one()
+    }
+
+    #[inline]
+    pub fn default_offset() -> T {
+        T::zero()
+    }
 }
 
 impl<T> Default for Bins<T>
@@ -108,7 +118,7 @@ where
     T: Float,
 {
     fn default() -> Self {
-        Self::new(T::one(), T::zero())
+        Self::new(Self::default_window(), Self::default_offset())
     }
 }
 

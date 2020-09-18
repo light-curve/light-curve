@@ -45,11 +45,16 @@ impl PercentDifferenceMagnitudePercentile {
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
+
+    #[inline]
+    pub fn default_quantile() -> f32 {
+        0.05
+    }
 }
 
 impl Default for PercentDifferenceMagnitudePercentile {
     fn default() -> Self {
-        Self::new(0.05)
+        Self::new(Self::default_quantile())
     }
 }
 

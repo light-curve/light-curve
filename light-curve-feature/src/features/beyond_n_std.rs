@@ -52,6 +52,11 @@ where
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
+
+    #[inline]
+    pub fn default_nstd() -> T {
+        T::one()
+    }
 }
 
 lazy_info!(
@@ -69,7 +74,7 @@ where
     T: Float,
 {
     fn default() -> Self {
-        Self::new(T::one())
+        Self::new(Self::default_nstd())
     }
 }
 

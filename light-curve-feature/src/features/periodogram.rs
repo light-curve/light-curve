@@ -5,21 +5,16 @@ use crate::periodogram::{AverageNyquistFreq, NyquistFreq, PeriodogramPower, Peri
 use crate::statistics::Statistics;
 
 use std::iter;
-use std::marker::PhantomData;
 
 /// Peak evaluator for `Periodogram`
 #[derive(Clone, Debug)]
-struct PeriodogramPeaks<T: Float> {
+struct PeriodogramPeaks {
     info: EvaluatorInfo,
     peaks: usize,
     names: Vec<String>,
-    phantom: PhantomData<T>,
 }
 
-impl<T> PeriodogramPeaks<T>
-where
-    T: Float,
-{
+impl PeriodogramPeaks {
     fn new(peaks: usize) -> Self {
         assert!(peaks > 0, "Number of peaks should be at least one");
         Self {
@@ -35,21 +30,22 @@ where
             names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
                 .collect(),
-            phantom: PhantomData {},
         }
     }
-}
 
-impl<T> Default for PeriodogramPeaks<T>
-where
-    T: Float,
-{
-    fn default() -> Self {
-        Self::new(1)
+    #[inline]
+    fn default_peaks() -> usize {
+        1
     }
 }
 
-impl<T> FeatureEvaluator<T> for PeriodogramPeaks<T>
+impl Default for PeriodogramPeaks {
+    fn default() -> Self {
+        Self::new(Self::default_peaks())
+    }
+}
+
+impl<T> FeatureEvaluator<T> for PeriodogramPeaks
 where
     T: Float,
 {
@@ -111,12 +107,28 @@ impl<T> Periodogram<T>
 where
     T: Float,
 {
+    #[inline]
+    pub fn default_peaks() -> usize {
+        PeriodogramPeaks::default_peaks()
+    }
+
+    #[inline]
+    pub fn default_resolution() -> f32 {
+        10.0
+    }
+
+    #[inline]
+    pub fn default_max_freq_factor() -> f32 {
+        1.0
+    }
+
     /// New [Periodogram] that finds given number of peaks
     pub fn new(peaks: usize) -> Self {
-        let peaks = PeriodogramPeaks::<T>::new(peaks);
+        let peaks = PeriodogramPeaks::new(peaks);
         let peak_names = peaks.names.clone();
-        let peaks_size_hint = peaks.size_hint();
-        let peaks_min_ts_length = peaks.min_ts_length();
+        let peaks_evaluator = &peaks as &dyn FeatureEvaluator<T>;
+        let peaks_size_hint = peaks_evaluator.size_hint();
+        let peaks_min_ts_length = peaks_evaluator.min_ts_length();
         Self {
             info: EvaluatorInfo {
                 size: peaks_size_hint,
@@ -126,8 +138,8 @@ where
                 w_required: false,
                 sorting_required: true,
             },
-            resolution: 10.0,
-            max_freq_factor: 1.0,
+            resolution: Self::default_resolution(),
+            max_freq_factor: Self::default_max_freq_factor(),
             nyquist: Box::new(AverageNyquistFreq),
             feature_extractor: feat_extr!(peaks),
             feature_names: peak_names,
@@ -225,7 +237,7 @@ where
     T: Float,
 {
     fn default() -> Self {
-        Self::new(1)
+        Self::new(Self::default_peaks())
     }
 }
 

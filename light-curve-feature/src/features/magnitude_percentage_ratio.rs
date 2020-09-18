@@ -53,10 +53,23 @@ impl MagnitudePercentageRatio {
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
+
+    #[inline]
+    pub fn default_quantile_numerator() -> f32 {
+        0.4
+    }
+
+    #[inline]
+    pub fn default_quantile_denominator() -> f32 {
+        0.05
+    }
 }
 impl Default for MagnitudePercentageRatio {
     fn default() -> Self {
-        Self::new(0.4, 0.05)
+        Self::new(
+            Self::default_quantile_numerator(),
+            Self::default_quantile_denominator(),
+        )
     }
 }
 

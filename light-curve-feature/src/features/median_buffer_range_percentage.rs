@@ -52,6 +52,11 @@ where
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
+
+    #[inline]
+    pub fn default_quantile() -> T {
+        0.1_f32.value_as::<T>().unwrap()
+    }
 }
 
 impl<T> Default for MedianBufferRangePercentage<T>
@@ -59,7 +64,7 @@ where
     T: Float,
 {
     fn default() -> Self {
-        Self::new(0.1_f32.value_as::<T>().unwrap())
+        Self::new(Self::default_quantile())
     }
 }
 
