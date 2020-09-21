@@ -3,7 +3,7 @@ use crate::evaluator::*;
 /// Measure of the variability amplitude
 ///
 /// $$
-/// \frac{\sigma_m^2 - \langle \delta^2 \rangle}{\sigma_m^2},
+/// \frac{\sigma_m^2 - \langle \delta^2 \rangle}{\langle m \rangle^2},
 /// $$
 /// where $\langle \delta^2 \rangle$ is the mean of squared error, $\sigma_m$ is the magnitude
 /// standard deviation. Note that this definition differs from
