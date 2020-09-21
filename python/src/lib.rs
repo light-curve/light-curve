@@ -1,7 +1,6 @@
 use itertools::Itertools;
-use light_curve_feature::{
-    FeatureEvaluator, PeriodogramPowerDirect, PeriodogramPowerFft, TimeSeries,
-};
+use light_curve_feature as lcf;
+use light_curve_feature::FeatureEvaluator;
 use ndarray::Array1 as NDArray;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{NotImplementedError, ValueError};
@@ -57,7 +56,7 @@ fn is_sorted(a: &[F]) -> bool {
 
 #[pyclass]
 struct PyFeatureEvaluator {
-    feature_evaluator: Box<dyn light_curve_feature::FeatureEvaluator<F>>,
+    feature_evaluator: Box<dyn lcf::FeatureEvaluator<F>>,
 }
 
 #[pymethods]
@@ -100,7 +99,7 @@ impl PyFeatureEvaluator {
             }
         });
 
-        let mut ts = TimeSeries::new(&t, &m, w.as_deref());
+        let mut ts = lcf::TimeSeries::new(&t, &m, w.as_deref());
 
         let result = match fill_value {
             Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
@@ -113,10 +112,20 @@ impl PyFeatureEvaluator {
     }
 }
 
+/// Features extractor
+///
+/// Extract multiple features simultaneously, which should be more
+/// performant than calling them separately
+///
+/// Parameters
+/// ----------
+/// *features : iterable
+///     Feature objects
+///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[text_signature = "(*args)"]
 struct Extractor {
-    feature_extractor: light_curve_feature::FeatureExtractor<F>,
+    feature_extractor: lcf::FeatureExtractor<F>,
 }
 
 #[pymethods]
@@ -131,7 +140,7 @@ impl Extractor {
                     .map(|fe| fe.borrow().feature_evaluator.clone())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let eval = light_curve_feature::FeatureExtractor::new(evals);
+        let eval = lcf::FeatureExtractor::new(evals);
         Ok((
             Self {
                 feature_extractor: eval.clone(),
@@ -142,6 +151,7 @@ impl Extractor {
         ))
     }
 
+    /// Feature names
     #[getter]
     fn names(&self) -> Vec<&str> {
         self.feature_extractor.get_names()
@@ -169,50 +179,60 @@ macro_rules! evaluator {
     };
 }
 
-evaluator!(Amplitude, light_curve_feature::Amplitude);
+evaluator!(Amplitude, lcf::Amplitude);
 
-evaluator!(
-    AndersonDarlingNormal,
-    light_curve_feature::AndersonDarlingNormal
-);
+evaluator!(AndersonDarlingNormal, lcf::AndersonDarlingNormal);
 
+/// Fraction of observations beyond N*std from mean
+///
+/// Parameters
+/// ----------
+/// nstd : positive float
+///     N
+///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(nstd=None)"]
+#[text_signature = "(nstd, /)"]
 struct BeyondNStd {}
 
 #[pymethods]
 impl BeyondNStd {
     #[new]
-    #[args(nstd = "None")]
-    fn __new__(nstd: Option<F>) -> (Self, PyFeatureEvaluator) {
-        let eval = match nstd {
-            Some(nstd) => light_curve_feature::BeyondNStd::new(nstd),
-            None => light_curve_feature::BeyondNStd::default(),
-        };
+    fn __new__(nstd: F) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: Box::new(lcf::BeyondNStd::new(nstd)),
             },
         )
     }
 }
 
+/// Binned time-series
+///
+/// Parameters
+/// ----------
+/// features : iterable
+///     Features to extract from binned time-series
+/// window : positive float
+///     Width of binning interval in units of time
+/// offset : float
+///     Zero time moment
+///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(extractor, window=None, offset=None)"]
+#[text_signature = "(features, window, offset)"]
 struct Bins {}
 
 #[pymethods]
 impl Bins {
     #[new]
-    #[args(features, window = "None", offset = "None")]
+    #[args(features, window, offset)]
     fn __new__(
         py: Python,
         features: PyObject,
-        window: Option<F>,
-        offset: Option<F>,
+        window: F,
+        offset: F,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
-        let mut eval = light_curve_feature::Bins::default();
+        let mut eval = lcf::Bins::default();
         for x in features.extract::<&PyAny>(py)?.iter()? {
             let feature = x?
                 .downcast::<PyCell<PyFeatureEvaluator>>()?
@@ -221,12 +241,8 @@ impl Bins {
                 .clone();
             eval.add_feature(feature);
         }
-        if let Some(window) = window {
-            eval.set_window(window);
-        }
-        if let Some(offset) = offset {
-            eval.set_offset(offset);
-        }
+        eval.set_window(window);
+        eval.set_offset(offset);
         Ok((
             Self {},
             PyFeatureEvaluator {
@@ -236,147 +252,156 @@ impl Bins {
     }
 }
 
-evaluator!(Cusum, light_curve_feature::Cusum);
+evaluator!(Cusum, lcf::Cusum);
 
-evaluator!(Eta, light_curve_feature::Eta);
+evaluator!(Eta, lcf::Eta);
 
-evaluator!(EtaE, light_curve_feature::EtaE);
+evaluator!(EtaE, lcf::EtaE);
 
-evaluator!(ExcessVariance, light_curve_feature::ExcessVariance);
+evaluator!(ExcessVariance, lcf::ExcessVariance);
 
+/// Inner percentile range
+///
+/// Parameters
+/// ----------
+/// quantile : positive float
+///     Range is (100% * quantile, 100% * (1 - quantile))
+///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile=None)"]
+#[text_signature = "(quantile)"]
 struct InterPercentileRange {}
 
 #[pymethods]
 impl InterPercentileRange {
     #[new]
-    #[args(quantile = "None")]
-    fn __new__(quantile: Option<f32>) -> (Self, PyFeatureEvaluator) {
-        let eval = match quantile {
-            Some(quantile) => light_curve_feature::InterPercentileRange::new(quantile),
-            None => light_curve_feature::InterPercentileRange::default(),
-        };
+    #[args(quantile)]
+    fn __new__(quantile: f32) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: Box::new(lcf::InterPercentileRange::new(quantile)),
             },
         )
     }
 }
 
-evaluator!(Kurtosis, light_curve_feature::Kurtosis);
+evaluator!(Kurtosis, lcf::Kurtosis);
 
-evaluator!(LinearFit, light_curve_feature::LinearFit);
+evaluator!(LinearFit, lcf::LinearFit);
 
-evaluator!(LinearTrend, light_curve_feature::LinearTrend);
+evaluator!(LinearTrend, lcf::LinearTrend);
 
+/// Ratio of two inter-percentile ranges
+///
+/// Parameters
+/// ----------
+/// quantile_numerator: positive float
+///     Numerator is inter-percentile range (100% * q, 100% (1 - q))
+/// quantile_denominator: positive float
+///     Denominator is inter-percentile range (100% * q, 100% (1 - q))
+///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile_numerator=None, quantile_denominator=None)"]
+#[text_signature = "(quantile_numerator, quantile_denominator)"]
 struct MagnitudePercentageRatio {}
 
 #[pymethods]
 impl MagnitudePercentageRatio {
     #[new]
-    #[args(quantile_numerator = "None", quantile_denominator = "None")]
+    #[args(quantile_numerator, quantile_denominator)]
     fn __new__(
-        quantile_numerator: Option<f32>,
-        quantile_denominator: Option<f32>,
+        quantile_numerator: f32,
+        quantile_denominator: f32,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
-        let eval = match (quantile_numerator, quantile_denominator) {
-            (Some(n), Some(d)) => light_curve_feature::MagnitudePercentageRatio::new(n, d),
-            (None, None) => light_curve_feature::MagnitudePercentageRatio::default(),
-            _ => {
-                return Err(ValueError::py_err(
-                    "Both quantile_numerator and quantile_denominator must be floats or Nones",
-                ))
-            }
-        };
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: Box::new(lcf::MagnitudePercentageRatio::new(
+                    quantile_numerator,
+                    quantile_denominator,
+                )),
             },
         ))
     }
 }
 
-evaluator!(MaximumSlope, light_curve_feature::MaximumSlope);
+evaluator!(MaximumSlope, lcf::MaximumSlope);
 
-evaluator!(Mean, light_curve_feature::Mean);
+evaluator!(Mean, lcf::Mean);
 
-evaluator!(MeanVariance, light_curve_feature::MeanVariance);
+evaluator!(MeanVariance, lcf::MeanVariance);
 
-evaluator!(Median, light_curve_feature::Median);
+evaluator!(Median, lcf::Median);
 
-evaluator!(
-    MedianAbsoluteDeviation,
-    light_curve_feature::MedianAbsoluteDeviation,
-);
+evaluator!(MedianAbsoluteDeviation, lcf::MedianAbsoluteDeviation,);
 
+/// Median Buffer Range Percentage
+///
+/// Parameters
+/// ----------
+/// quantile : positive float
+///     Relative range size
+///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile=None)"]
+#[text_signature = "(quantile)"]
 struct MedianBufferRangePercentage {}
 
 #[pymethods]
 impl MedianBufferRangePercentage {
     #[new]
-    #[args(quantile = "None")]
-    fn __new__(quantile: Option<F>) -> (Self, PyFeatureEvaluator) {
-        let eval = match quantile {
-            Some(quantile) => light_curve_feature::MedianBufferRangePercentage::new(quantile),
-            None => light_curve_feature::MedianBufferRangePercentage::default(),
-        };
+    #[args(quantile)]
+    fn __new__(quantile: F) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: Box::new(lcf::MedianBufferRangePercentage::new(quantile)),
             },
         )
     }
 }
 
-evaluator!(PercentAmplitude, light_curve_feature::PercentAmplitude);
+evaluator!(PercentAmplitude, lcf::PercentAmplitude);
 
+/// Percent Difference Magnitude Percentile
+///
+/// Parameters
+/// ----------
+/// quantile : positive float
+///     Relative range size
+///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile=None)"]
+#[text_signature = "(quantile)"]
 struct PercentDifferenceMagnitudePercentile {}
 
 #[pymethods]
 impl PercentDifferenceMagnitudePercentile {
     #[new]
-    #[args(quantile = "None")]
-    fn __new__(quantile: Option<f32>) -> (Self, PyFeatureEvaluator) {
-        let eval = match quantile {
-            Some(quantile) => {
-                light_curve_feature::PercentDifferenceMagnitudePercentile::new(quantile)
-            }
-            None => light_curve_feature::PercentDifferenceMagnitudePercentile::default(),
-        };
+    #[args(quantile)]
+    fn __new__(quantile: f32) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: Box::new(lcf::PercentDifferenceMagnitudePercentile::new(
+                    quantile,
+                )),
             },
         )
     }
 }
 
-/// Find periodogram peaks
+/// Periodogram-based features
 ///
 /// Parameters
 /// ----------
-/// peaks: int or None, optional
+/// peaks : int or None, optional
 ///     Number of peaks to find
 ///
-/// resolution: float or None, optional
+/// resolution : float or None, optional
 ///     Resolution of frequency grid
 ///
-/// max_freq_factor: float or None, optional
+/// max_freq_factor : float or None, optional
 ///     Mulitplier for Nyquist frequency
 ///
-/// nyquist: str or float or None, optional
+/// nyquist : str or float or None, optional
 ///     Type of Nyquist frequency. Could be one of:
 ///      - 'average': "Average" Nyquist frequency
 ///      - 'median': Nyquist frequency is defined by median time interval
@@ -384,13 +409,16 @@ impl PercentDifferenceMagnitudePercentile {
 ///      - float: Nyquist frequency is defined by given quantile of time
 ///         intervals between observations
 ///
-/// fast: bool or None, optional
+/// fast : bool or None, optional
 ///     Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
+///
+/// features : iterable or None, optional
+///     Features to extract from periodogram considering it as a time-series
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"]
 struct Periodogram {
-    eval: light_curve_feature::Periodogram<F>,
+    eval: lcf::Periodogram<F>,
 }
 
 impl Periodogram {
@@ -402,10 +430,10 @@ impl Periodogram {
         nyquist: Option<PyObject>,
         fast: Option<bool>,
         features: Option<PyObject>,
-    ) -> PyResult<light_curve_feature::Periodogram<F>> {
+    ) -> PyResult<lcf::Periodogram<F>> {
         let mut eval = match peaks {
-            Some(peaks) => light_curve_feature::Periodogram::new(peaks),
-            None => light_curve_feature::Periodogram::default(),
+            Some(peaks) => lcf::Periodogram::new(peaks),
+            None => lcf::Periodogram::default(),
         };
         if let Some(resolution) = resolution {
             eval.set_freq_resolution(resolution);
@@ -414,17 +442,17 @@ impl Periodogram {
             eval.set_max_freq_factor(max_freq_factor);
         }
         if let Some(nyquist) = nyquist {
-            let nyquist_freq: Box<dyn light_curve_feature::NyquistFreq<F>> =
+            let nyquist_freq: Box<dyn lcf::NyquistFreq<F>> =
                 if let Ok(s) = nyquist.extract::<&str>(py) {
                     match s {
-                        "average" => Box::new(light_curve_feature::AverageNyquistFreq {}),
-                        "median" => Box::new(light_curve_feature::MedianNyquistFreq {}),
+                        "average" => Box::new(lcf::AverageNyquistFreq {}),
+                        "median" => Box::new(lcf::MedianNyquistFreq {}),
                         _ => return Err(ValueError::py_err(
                             "nyquist must be one of: None, 'average', 'median' or quantile value",
                         )),
                     }
                 } else if let Ok(quantile) = nyquist.extract::<f32>(py) {
-                    Box::new(light_curve_feature::QuantileNyquistFreq { quantile })
+                    Box::new(lcf::QuantileNyquistFreq { quantile })
                 } else {
                     return Err(ValueError::py_err(
                         "nyquist must be one of: None, 'average', 'median' or quantile value",
@@ -434,9 +462,9 @@ impl Periodogram {
         }
         if let Some(fast) = fast {
             if fast {
-                eval.set_periodogram_algorithm(move || Box::new(PeriodogramPowerFft));
+                eval.set_periodogram_algorithm(move || Box::new(lcf::PeriodogramPowerFft));
             } else {
-                eval.set_periodogram_algorithm(move || Box::new(PeriodogramPowerDirect));
+                eval.set_periodogram_algorithm(move || Box::new(lcf::PeriodogramPowerDirect));
             }
         }
         if let Some(features) = features {
@@ -500,11 +528,11 @@ impl Periodogram {
     }
 
     /// Angular frequencies and periodogram values
-    #[text_signature = "(t, m, err2=None)"]
+    #[text_signature = "(t, m)"]
     fn freq_power(&self, py: Python, t: &Arr, m: &Arr) -> PyResult<(Py<Arr>, Py<Arr>)> {
         let t = ArrWrapper::new(t, true)?;
         let m = ArrWrapper::new(m, true)?;
-        let mut ts = TimeSeries::new(&t, &m, None);
+        let mut ts = lcf::TimeSeries::new(&t, &m, None);
         let (freq, power) = self.eval.freq_power(&mut ts);
         Ok((
             freq.into_pyarray(py).to_owned(),
@@ -513,40 +541,32 @@ impl Periodogram {
     }
 }
 
-evaluator!(ReducedChi2, light_curve_feature::ReducedChi2);
+evaluator!(ReducedChi2, lcf::ReducedChi2);
 
-evaluator!(Skew, light_curve_feature::Skew);
+evaluator!(Skew, lcf::Skew);
 
-evaluator!(StandardDeviation, light_curve_feature::StandardDeviation);
+evaluator!(StandardDeviation, lcf::StandardDeviation);
 
-evaluator!(StetsonK, light_curve_feature::StetsonK);
+evaluator!(StetsonK, lcf::StetsonK);
 
-evaluator!(WeightedMean, light_curve_feature::WeightedMean);
+evaluator!(WeightedMean, lcf::WeightedMean);
 
-evaluator!(Duration, light_curve_feature::antifeatures::Duration);
+evaluator!(Duration, lcf::antifeatures::Duration);
 
-evaluator!(
-    MaximumTimeInterval,
-    light_curve_feature::antifeatures::MaximumTimeInterval
-);
+evaluator!(MaximumTimeInterval, lcf::antifeatures::MaximumTimeInterval);
 
-evaluator!(
-    MinimumTimeInterval,
-    light_curve_feature::antifeatures::MinimumTimeInterval
-);
+evaluator!(MinimumTimeInterval, lcf::antifeatures::MinimumTimeInterval);
 
-evaluator!(
-    ObservationCount,
-    light_curve_feature::antifeatures::ObservationCount
-);
+evaluator!(ObservationCount, lcf::antifeatures::ObservationCount);
 
-evaluator!(TimeMean, light_curve_feature::antifeatures::TimeMean);
+evaluator!(TimeMean, lcf::antifeatures::TimeMean);
 
 evaluator!(
     TimeStandardDeviation,
-    light_curve_feature::antifeatures::TimeStandardDeviation
+    lcf::antifeatures::TimeStandardDeviation
 );
 
+/// Features highly dependent on time-series cadence
 #[pymodule]
 fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Duration>()?;
@@ -559,6 +579,42 @@ fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+/// High-performance time-series feature extractor
+///
+/// The module provides a collection of features to be extracted from time-series.
+/// This module if based on a Rust crate `light-curve-feature`, features
+/// documentation can be found on https://docs.rs/light-curve-feature
+///
+/// All features are represented by classes with callable instances, which have
+/// the same attributes and call signature:
+///
+/// Attributes
+/// ----------
+/// names : list of feature names
+///
+/// Methods
+/// -------
+/// __call__(t, m, sigma=None, sorted=None, fill_value=None)
+///     Extract features and return them as numpy array.
+///
+///     Parameters
+///     ----------
+///     t : numpy.ndarray of np.float64 dtype
+///         Time moments
+///     m : numpy.ndarray of np.float64 dtype
+///         Power of observed signal (magnitude or flux)
+///     sigma : numpy.ndarray of np.float64 dtype or None, optional
+///         Observation error, if None it is assumed to be unity
+///     sorted : bool or None, optional
+///         Specifies if input array are sorted by time moments.
+///         True is for certainly sorted, False is for unsorted.
+///         If None is specified than sorting is checked and an exception is
+///         raised for unsorted `t`
+///     fill_value : float or None, optional
+///         Value to fill invalid feature values, for example if count of
+///         observations is not enough to find a proper value.
+///         None causes exception for invalid features
+///
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
