@@ -37,7 +37,7 @@ pub use error::EvaluatorError;
 mod extractor;
 pub use extractor::FeatureExtractor;
 
-mod features;
+pub mod features;
 pub use features::*;
 
 mod fit;
