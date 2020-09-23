@@ -5,7 +5,7 @@ use conv::ConvUtil;
 /// Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m))$ interval
 ///
 /// $$
-/// \mathrm{median~buffer~range}~q~\mathrm{percentage} \equiv \frac{\sum\_i I\_{|m - \mathrm{Median}(m)| < q \cdot \mathrm{amplitude}}(m_i)}{N},
+/// \mathrm{median~buffer~range}~q~\mathrm{percentage} \equiv \frac{\sum\_i I\_{|m - \mathrm{Median}(m)| < q \cdot \mathrm{amplitude}}(m\_i)}{N},
 ///
 /// $$
 /// where $I$ is the [indicator function](https://en.wikipedia.org/wiki/Indicator_function),
