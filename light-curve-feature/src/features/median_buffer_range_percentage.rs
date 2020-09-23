@@ -5,10 +5,11 @@ use conv::ConvUtil;
 /// Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m))$ interval
 ///
 /// $$
-/// \mathrm{median~buffer~range}~q~\mathrm{percentage} \equiv \frac{\sum\_i I\_{|m - \mathrm{Median}(m)| < q\\,(\max(m) - \min(m))}(m_i)}{N},
+/// \mathrm{median~buffer~range}~q~\mathrm{percentage} \equiv \frac{\sum\_i I\_{|m - \mathrm{Median}(m)| < q\\,\mathrm{amplitude}(m_i)}{N},
+///
 /// $$
 /// where $I$ is the [indicator function](https://en.wikipedia.org/wiki/Indicator_function),
-/// and $N$ is the number of observations.
+/// ,$N$ is the number of observations and $\mathrm{amplitude} \equiv (\max{m} - \min{m})/2$.
 ///
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **1**
@@ -75,7 +76,7 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let m_median = ts.m.get_median();
-        let amplitude = ts.m.get_max() - ts.m.get_min();
+        let amplitude = T::half() * (ts.m.get_max() - ts.m.get_min());
         let threshold = self.quantile * amplitude;
         Ok(vec![
             ts.m.sample
@@ -115,9 +116,9 @@ mod tests {
         [
             Box::new(MedianBufferRangePercentage::default()),
             Box::new(MedianBufferRangePercentage::new(0.1)), // should be the same
-            Box::new(MedianBufferRangePercentage::new(0.05)),
+            Box::new(MedianBufferRangePercentage::new(0.2)),
         ],
-        [0.7777777777777778, 0.7777777777777778, 0.5555555555555556],
+        [0.5555555555555556, 0.5555555555555556, 0.7777777777777778],
         [1.0_f32, 41.0, 49.0, 49.0, 50.0, 51.0, 52.0, 58.0, 100.0],
     );
 
