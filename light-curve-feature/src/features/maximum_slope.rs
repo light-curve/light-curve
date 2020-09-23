@@ -54,6 +54,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["maximum_slope"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["maximum slope of time-series"]
+    }
 }
 
 #[cfg(test)]

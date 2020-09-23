@@ -1,5 +1,14 @@
 use crate::evaluator::*;
 
+/// Mean time
+///
+/// $$
+/// \langle t \rangle \equiv \frac1{N} \sum_i {t_i}.
+/// $$
+///
+/// - Depends on: **time**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
 #[derive(Clone, Default, Debug)]
 pub struct TimeMean {}
 
@@ -34,6 +43,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_time_mean"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["mean of time moments"]
     }
 }
 

@@ -53,6 +53,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["amplitude"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["half of the interval between maximum and minimum magnitude"]
+    }
 }
 
 #[cfg(test)]

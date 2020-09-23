@@ -31,6 +31,7 @@ pub struct Bins<T: Float> {
     offset: T,
     info: EvaluatorInfo,
     feature_names: Vec<String>,
+    feature_descriptions: Vec<String>,
     feature_extractor: FeatureExtractor<T>,
 }
 
@@ -52,6 +53,7 @@ where
                 sorting_required: true,
             },
             feature_names: vec![],
+            feature_descriptions: vec![],
             feature_extractor: feat_extr!(),
         }
     }
@@ -78,6 +80,15 @@ where
                 .iter()
                 .map(|name| format!("bins_window{:.1}_offset{:.1}_{}", window, offset, name)),
         );
+        self.feature_descriptions
+            .extend(feature.get_descriptions().iter().map(|desc| {
+                format!(
+                    "{desc} for binned time-series with window {window} and offset {offset}",
+                    desc = desc,
+                    window = window,
+                    offset = offset,
+                )
+            }));
         self.feature_extractor.add_feature(feature);
         self
     }

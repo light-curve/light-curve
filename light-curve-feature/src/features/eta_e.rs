@@ -61,6 +61,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["eta_e"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["generalised Von Neummann eta for irregular time-series"]
+    }
 }
 
 #[cfg(test)]

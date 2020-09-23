@@ -44,6 +44,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["mean_variance"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["standard deviation of magnitude to its mean value ratio"]
+    }
 }
 
 #[cfg(test)]

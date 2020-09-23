@@ -57,6 +57,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["skew"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["skew of magnitude sample"]
+    }
 }
 
 #[cfg(test)]

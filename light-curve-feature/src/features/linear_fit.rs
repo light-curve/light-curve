@@ -11,6 +11,9 @@ use crate::fit::fit_straight_line;
 /// where $c$ is a constant,
 /// $\\{\varepsilon_i\\}$ are standard distributed random variables.
 ///
+/// Feature values are $\mathrm{slope}$, $\sigma_\mathrm{slope}$ and
+/// $\frac{\sum{((m_i - c - \mathrm{slope}\\,t_i) / \delta_i)^2}}{N - 2}$.
+///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **3**
 /// - Number of features: **3**
@@ -56,6 +59,14 @@ where
             "linear_fit_slope",
             "linear_fit_slope_sigma",
             "linear_fit_reduced_chi2",
+        ]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![
+            "slope of linear fit",
+            "error of slope of linear fit",
+            "linear fit quality (reduced chi2)",
         ]
     }
 }

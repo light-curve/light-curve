@@ -1,5 +1,14 @@
 use crate::evaluator::*;
 
+/// Standard deviation of time moments
+///
+/// $$
+/// \sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
+/// $$
+///
+/// - Depends on: **time**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
 #[derive(Clone, Default, Debug)]
 pub struct TimeStandardDeviation {}
 
@@ -34,6 +43,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_time_standard_deviation"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["standard deviation of time moments"]
     }
 }
 

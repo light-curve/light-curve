@@ -58,6 +58,13 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["linear_trend", "linear_trend_sigma"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![
+            "linear trend without respect to observation errors",
+            "error of slope of linear fit without respect to observation errors",
+        ]
+    }
 }
 
 #[cfg(test)]

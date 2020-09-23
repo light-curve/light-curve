@@ -52,6 +52,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["excess_variance"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["variability amplitude (excess of magnitude variability over typical error)"]
+    }
 }
 
 #[cfg(test)]

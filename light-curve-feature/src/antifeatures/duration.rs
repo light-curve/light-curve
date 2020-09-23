@@ -1,5 +1,14 @@
 use crate::evaluator::*;
 
+/// Time-series duration
+///
+/// $$
+/// t_{N-1} - t_0.
+/// $$
+///
+/// - Depends on: **time**
+/// - Minimum number of observations: **1**
+/// - Number of features: **1**
 #[derive(Clone, Default, Debug)]
 pub struct Duration {}
 
@@ -36,6 +45,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_duration"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["time-series duration"]
     }
 }
 

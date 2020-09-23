@@ -19,6 +19,7 @@ use crate::evaluator::*;
 pub struct InterPercentileRange {
     quantile: f32,
     name: String,
+    description: String,
 }
 
 lazy_info!(
@@ -40,6 +41,11 @@ impl InterPercentileRange {
         Self {
             quantile,
             name: format!("inter_percentile_range_{:.0}", 100.0 * quantile),
+            description: format!(
+                "range between {:.3e}% and {:.3e}% magnitude percentiles",
+                100.0 * quantile,
+                100.0 * (1.0 - quantile)
+            ),
         }
     }
 
@@ -73,6 +79,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
     }
 }
 

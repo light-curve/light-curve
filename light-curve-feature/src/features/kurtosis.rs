@@ -1,6 +1,6 @@
 use crate::evaluator::*;
 
-/// Kurtosis of magnitude $G_2$
+/// Excess kurtosis of magnitude
 ///
 /// $$
 /// G_2 \equiv \frac{N\\,(N + 1)}{(N - 1)(N - 2)(N - 3)} \frac{\sum_i(m_i - \langle m \rangle)^4}{\sigma_m^2}
@@ -60,6 +60,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["kurtosis"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["unbiased excess kurtosis of magnitudes"]
     }
 }
 

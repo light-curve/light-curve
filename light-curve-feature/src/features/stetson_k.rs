@@ -56,6 +56,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["stetson_K"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["normalized weighted deviation of magnitude from its weighted mean"]
+    }
 }
 
 #[cfg(test)]

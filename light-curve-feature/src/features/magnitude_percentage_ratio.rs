@@ -18,6 +18,7 @@ pub struct MagnitudePercentageRatio {
     quantile_numerator: f32,
     quantile_denominator: f32,
     name: String,
+    description: String,
 }
 
 lazy_info!(
@@ -46,6 +47,14 @@ impl MagnitudePercentageRatio {
                 "magnitude_percentage_ratio_{:.0}_{:.0}",
                 100.0 * quantile_numerator,
                 100.0 * quantile_denominator
+            ),
+            description: format!(
+                "ratio of {:.3e}% - {:.3e}% and {:.3e}% - {:.3e}% percentile ranges of magnitude \
+                sample",
+                100.0 * quantile_numerator,
+                100.0 * (1.0 - quantile_numerator),
+                100.0 * quantile_denominator,
+                100.0 * (1.0 - quantile_denominator),
             ),
         }
     }
@@ -97,6 +106,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
     }
 }
 

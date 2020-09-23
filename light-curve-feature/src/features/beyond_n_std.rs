@@ -35,6 +35,7 @@ use conv::ConvUtil;
 pub struct BeyondNStd<T> {
     nstd: T,
     name: String,
+    description: String,
 }
 
 impl<T> BeyondNStd<T>
@@ -46,6 +47,11 @@ where
         Self {
             nstd,
             name: format!("beyond_{:.0}_std", nstd),
+            description: format!(
+                "fraction of observations which magnitudes are beyond {:.3e} standard deviations \
+                from the mean magnitude",
+                nstd
+            ),
         }
     }
 
@@ -103,6 +109,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
     }
 }
 

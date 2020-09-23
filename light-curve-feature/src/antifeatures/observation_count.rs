@@ -1,5 +1,14 @@
 use crate::evaluator::*;
 
+/// Number of observations
+///
+/// $$
+/// N
+/// $$
+///
+/// - Depends on: nothing
+/// - Minimum number of observations: **0**
+/// - Number of features: **1**
 #[derive(Clone, Default, Debug)]
 pub struct ObservationCount {}
 
@@ -34,6 +43,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_observation_count"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["observation count"]
     }
 }
 

@@ -15,6 +15,7 @@ use crate::evaluator::*;
 pub struct PercentDifferenceMagnitudePercentile {
     quantile: f32,
     name: String,
+    description: String,
 }
 
 lazy_info!(
@@ -38,6 +39,11 @@ impl PercentDifferenceMagnitudePercentile {
             name: format!(
                 "percent_difference_magnitude_percentile_{:.0}",
                 100.0 * quantile
+            ),
+            description: format!(
+                "ratio of inter-percentile {:.3e}% - {:.3e}% range of magnitude to its mdeian",
+                100.0 * quantile,
+                100.0 * (1.0 - quantile),
             ),
         }
     }
@@ -80,6 +86,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
     }
 }
 

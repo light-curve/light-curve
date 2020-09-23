@@ -66,6 +66,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["cusum"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["range of cumulative sums of magnitudes"]
+    }
 }
 
 #[cfg(test)]

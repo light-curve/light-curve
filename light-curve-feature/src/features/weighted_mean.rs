@@ -45,6 +45,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["weighted_mean"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["magnitude averaged weighted by inverse square error"]
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,15 @@
 use crate::evaluator::*;
 use itertools::Itertools;
 
+/// Minimum time interval between consequent observations
+///
+/// $$
+/// \min{t_{i+1} - t_i}
+/// $$
+///
+/// - Depends on: **time**
+/// - Minimum number of observations: **2**
+/// - Number of features: **1**
 #[derive(Clone, Default, Debug)]
 pub struct MinimumTimeInterval {}
 
@@ -42,6 +51,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["ANTIFEATURE_minimum_time_interval"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["minimum time interval between consequent observations"]
     }
 }
 

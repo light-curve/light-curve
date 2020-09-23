@@ -19,9 +19,10 @@ pub struct EvaluatorInfo {
 /// The trait each feature should implement
 #[clonable]
 pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone + Debug {
-    /// Should return the vector of feature values
+    /// Should return the vector of feature values or `EvaluatorError`
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
 
+    /// Should return the vector of feature values and fill invalid components with given value
     fn eval_or_fill(&self, ts: &mut TimeSeries<T>, fill_value: T) -> Vec<T> {
         match self.eval(ts) {
             Ok(v) => v,
@@ -35,6 +36,10 @@ pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone + Debug {
     /// Should return the vector of feature names. The length and feature order should
     /// correspond to `eval()` output
     fn get_names(&self) -> Vec<&str>;
+
+    /// Shoud return the vector of feature descriptions. The length and feature order should
+    /// correspond to `eval()` output
+    fn get_descriptions(&self) -> Vec<&str>;
 
     /// Should return the size of vectors returned by `eval()` and `get_names()`
     fn size_hint(&self) -> usize {

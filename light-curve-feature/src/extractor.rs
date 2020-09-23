@@ -63,9 +63,16 @@ where
         &self.info
     }
 
-    /// Get a vector of feature names.
-    /// The length of the returned vector is guaranteed to be the same as returned by `eval()`
+    /// Get feature names
     fn get_names(&self) -> Vec<&str> {
         self.features.iter().flat_map(|x| x.get_names()).collect()
+    }
+
+    /// Get feature descriptions
+    fn get_descriptions(&self) -> Vec<&str> {
+        self.features
+            .iter()
+            .flat_map(|x| x.get_descriptions())
+            .collect()
     }
 }

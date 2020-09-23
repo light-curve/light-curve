@@ -50,6 +50,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["percent_amplitude"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["maximum absolute deviation of magnitude from its median"]
+    }
 }
 
 #[cfg(test)]

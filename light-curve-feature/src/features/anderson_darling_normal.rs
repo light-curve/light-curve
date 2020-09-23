@@ -3,7 +3,7 @@ use crate::lnerfc::ln_erfc;
 
 use conv::ConvUtil;
 
-/// Anderson–Darling normality test statistic
+/// Unbiased Anderson–Darling normality test statistic
 ///
 /// $$
 /// A^2 \equiv \left(1 + \frac4{N} - \frac{25}{N^2}\right) \left(-N - \frac1{N} \sum_{i=0}^{N-1} {(2i + 1)\ln\Phi_i + (2(N - i) - 1)\ln(1 - \Phi_i)}\right),
@@ -71,6 +71,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec!["anderson_darling_normal"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["unbiased Anderson-Darling normality test statistics"]
     }
 }
 

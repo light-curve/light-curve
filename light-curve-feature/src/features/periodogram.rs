@@ -6,12 +6,25 @@ use crate::statistics::Statistics;
 
 use std::iter;
 
+fn number_ending(i: usize) -> &'static str {
+    match (i % 10, i % 100) {
+        (1, 11) => "th",
+        (1, _) => "st",
+        (2, 12) => "th",
+        (2, _) => "nd",
+        (3, 13) => "th",
+        (3, _) => "rd",
+        (_, _) => "th",
+    }
+}
+
 /// Peak evaluator for `Periodogram`
 #[derive(Clone, Debug)]
 struct PeriodogramPeaks {
     info: EvaluatorInfo,
     peaks: usize,
     names: Vec<String>,
+    descriptions: Vec<String>,
 }
 
 impl PeriodogramPeaks {
@@ -29,6 +42,23 @@ impl PeriodogramPeaks {
             peaks,
             names: (0..peaks)
                 .flat_map(|i| vec![format!("period_{}", i), format!("period_s_to_n_{}", i)])
+                .collect(),
+            descriptions: (0..peaks)
+                .flat_map(|i| {
+                    vec![
+                        format!(
+                            "period of the {}{} highest peak of periodogram",
+                            i + 1,
+                            number_ending(i + 1),
+                        ),
+                        format!(
+                            "Spectral density to spectral density standard deviation ratio of \
+                            the {}{} highest peak of periodogram",
+                            i + 1,
+                            number_ending(i + 1)
+                        ),
+                    ]
+                })
                 .collect(),
         }
     }
@@ -72,6 +102,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         self.names.iter().map(|name| name.as_str()).collect()
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        self.descriptions.iter().map(|desc| desc.as_str()).collect()
+    }
 }
 
 // See http://doi.org/10.1088/0004-637X/733/1/10
@@ -100,6 +134,7 @@ pub struct Periodogram<T: Float> {
     nyquist: Box<dyn NyquistFreq<T>>,
     feature_extractor: FeatureExtractor<T>,
     feature_names: Vec<String>,
+    feature_descriptions: Vec<String>,
     periodogram_algorithm: fn() -> Box<dyn PeriodogramPower<T>>,
 }
 
@@ -126,6 +161,7 @@ where
     pub fn new(peaks: usize) -> Self {
         let peaks = PeriodogramPeaks::new(peaks);
         let peak_names = peaks.names.clone();
+        let peak_descriptions = peaks.descriptions.clone();
         let peaks_evaluator = &peaks as &dyn FeatureEvaluator<T>;
         let peaks_size_hint = peaks_evaluator.size_hint();
         let peaks_min_ts_length = peaks_evaluator.min_ts_length();
@@ -143,6 +179,7 @@ where
             nyquist: Box::new(AverageNyquistFreq),
             feature_extractor: feat_extr!(peaks),
             feature_names: peak_names,
+            feature_descriptions: peak_descriptions,
             periodogram_algorithm: || Box::new(PeriodogramPowerFft),
         }
     }
@@ -179,6 +216,12 @@ where
                 .get_names()
                 .iter()
                 .map(|name| "periodogram_".to_owned() + name),
+        );
+        self.feature_descriptions.extend(
+            feature
+                .get_descriptions()
+                .into_iter()
+                .map(|desc| format!("{} of periodogram", desc)),
         );
         self.feature_extractor.add_feature(feature);
         self

@@ -45,6 +45,7 @@ macro_rules! feat_extr{
 /// - method `transform_ts(ts: &mut TimeSeries<T>) -> TMWVectors<T>`
 /// - attribute `info: EvaluatorInfo`
 /// - attribute `feature_names: Vec<String>`
+/// - attribute `feature_descriptions: Vec<String>`
 #[macro_export]
 macro_rules! transformer_eval {
     () => {
@@ -71,6 +72,13 @@ macro_rules! transformer_eval {
             self.feature_names
                 .iter()
                 .map(|name| name.as_str())
+                .collect()
+        }
+
+        fn get_descriptions(&self) -> Vec<&str> {
+            self.feature_descriptions
+                .iter()
+                .map(|desc| desc.as_str())
                 .collect()
         }
     };

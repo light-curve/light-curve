@@ -2,7 +2,7 @@ use crate::periodogram::FloatSupportedByFft;
 use conv::prelude::*;
 use num_traits::{float::Float as NumFloat, float::FloatConst};
 use std::cmp::PartialOrd;
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, LowerExp};
 use std::iter::Sum;
 use std::ops::{AddAssign, DivAssign, MulAssign};
 
@@ -26,6 +26,7 @@ pub trait Float:
     + DivAssign
     + Display
     + Debug
+    + LowerExp
     + FloatSupportedByFft
     + 'static
 {

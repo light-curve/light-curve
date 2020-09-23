@@ -58,6 +58,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["eta"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["Von Neummann eta-coefficient for magnitude sample"]
+    }
 }
 
 #[cfg(test)]

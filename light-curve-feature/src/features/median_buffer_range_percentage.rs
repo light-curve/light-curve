@@ -23,6 +23,7 @@ where
 {
     quantile: T,
     name: String,
+    description: String,
 }
 
 lazy_info!(
@@ -46,6 +47,11 @@ where
             name: format!(
                 "median_buffer_range_percentage_{:.0}",
                 T::hundred() * quantile
+            ),
+            description: format!(
+                "fraction of observations which magnitudes differ from median by no more than \
+                {:.3e} of amplitude",
+                quantile,
             ),
         }
     }
@@ -96,6 +102,10 @@ where
 
     fn get_names(&self) -> Vec<&str> {
         vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
     }
 }
 

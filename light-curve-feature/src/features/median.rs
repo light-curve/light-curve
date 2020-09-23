@@ -44,6 +44,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["median"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["median magnitude"]
+    }
 }
 
 #[cfg(test)]

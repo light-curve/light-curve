@@ -27,9 +27,12 @@ macro_rules! feature_test {
             all_close(&desired[..], &actual[..], $tol);
 
             let names = fe.get_names();
+            let descs = fe.get_descriptions();
             assert_eq!(fe.size_hint(), actual.len(), "size_hint() returns wrong size");
             assert_eq!(actual.len(), names.len(),
                 "Length of values and names should be the same");
+            assert_eq!(actual.len(), descs.len(),
+                "Length of values and descriptions should be the same");
         }
     };
 }
@@ -52,6 +55,7 @@ macro_rules! eval_info_test {
             let eval: Box<dyn FeatureEvaluator<f64>> = Box::new($eval);
             let size_hint = eval.size_hint();
             assert_eq!(eval.get_names().len(), size_hint);
+            assert_eq!(eval.get_descriptions().len(), size_hint);
             let check_size =
                 |v: &Vec<f64>| assert_eq!(size_hint, v.len(), "size_hint() returns wrong value");
 

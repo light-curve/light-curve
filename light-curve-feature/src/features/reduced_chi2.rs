@@ -48,6 +48,10 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec!["chi2"]
     }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["reduced chi2 as a goodness of constant fit with respect to observation errors"]
+    }
 }
 
 #[cfg(test)]
