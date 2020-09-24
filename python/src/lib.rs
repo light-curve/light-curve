@@ -1,6 +1,5 @@
 use itertools::Itertools;
 use light_curve_feature as lcf;
-use light_curve_feature::FeatureEvaluator;
 use ndarray::Array1 as NDArray;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{NotImplementedError, ValueError};
@@ -110,6 +109,18 @@ impl PyFeatureEvaluator {
         };
         Ok(result.into_pyarray(py).to_owned())
     }
+
+    /// Feature names
+    #[getter]
+    fn names(&self) -> Vec<&str> {
+        self.feature_evaluator.get_names()
+    }
+
+    /// Feature descriptions
+    #[getter]
+    fn descriptions(&self) -> Vec<&str> {
+        self.feature_evaluator.get_descriptions()
+    }
 }
 
 /// Features extractor
@@ -124,9 +135,7 @@ impl PyFeatureEvaluator {
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[text_signature = "(*args)"]
-struct Extractor {
-    feature_extractor: lcf::FeatureExtractor<F>,
-}
+struct Extractor {}
 
 #[pymethods]
 impl Extractor {
@@ -140,21 +149,12 @@ impl Extractor {
                     .map(|fe| fe.borrow().feature_evaluator.clone())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let eval = lcf::FeatureExtractor::new(evals);
         Ok((
-            Self {
-                feature_extractor: eval.clone(),
-            },
+            Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: Box::new(lcf::FeatureExtractor::new(evals)),
             },
         ))
-    }
-
-    /// Feature names
-    #[getter]
-    fn names(&self) -> Vec<&str> {
-        self.feature_extractor.get_names()
     }
 }
 
@@ -567,6 +567,8 @@ evaluator!(
 );
 
 /// Features highly dependent on time-series cadence
+///
+/// See feature interface documentation in the top-level module
 #[pymodule]
 fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Duration>()?;

@@ -16,6 +16,11 @@ def generate_data():
 
 
 class _FeatureTest:
+    def test_feature_length(self):
+        t, m, sigma = generate_data()
+        result = self.feature(t, m, sigma, sorted=None)
+        assert len(result) == len(self.feature.names) == len(self.feature.descriptions)
+
     def test_benchmark_feature(self, benchmark):
         t, m, sigma = generate_data()
 
@@ -229,7 +234,9 @@ class TestMedianAbsoluteDeviation(_FeatureTest, _FeetsTest):
 
 
 class TestMedianBufferRangePercentage(_FeatureTest, _FeetsTest):
-    quantile = 0.1
+    # feets says it uses 0.1 of amplitude (a half range between max and min),
+    # but factually it uses 0.1 of full range between max and min
+    quantile = 0.2
 
     feature = lc.MedianBufferRangePercentage(quantile)
 
