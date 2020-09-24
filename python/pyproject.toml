@@ -1,3 +1,31 @@
 [build-system]
 requires = ["maturin"]
 build-backend = "maturin"
+
+[tool.black]
+line-length = 120
+target-version = ['py35', 'py36', 'py37', 'py38']
+include = '\.py$'
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra --import-mode=append --benchmark-min-time=0.1 --benchmark-max-time=5.0 --benchmark-disable"
+testpaths = [
+    "tests/test.py",
+]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py35,py36,py37,py38
+isolated_build = True
+
+[testenv]
+deps =
+    pytest
+    pytest-benchmark
+    numpy
+    scipy
+    feets
+commands = pytest
+"""
