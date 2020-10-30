@@ -71,8 +71,8 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Install maturin, black and tox
-      run: pip install maturin black tox
+    - name: Install maturin, tox and black
+      run: pip install maturin tox black
     - name: Build package with static FFTW
       run: maturin build
     - name: Build package with dynamic FFTW
@@ -93,3 +93,38 @@ jobs:
       run: black .
     - name: Run Python tests
       run: tox -p -q
+    - name: Check Python formatting
+      run: black --check --diff .
+
+  pure-python:
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.6
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Install tox and black
+      run: pip install tox black
+    - name: Run tox
+      run: tox -p -q
+    - name: Check Python formatting
+      run: black --check --diff .
