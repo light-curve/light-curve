@@ -91,3 +91,34 @@ jobs:
         args: --all-targets --all-features -- -D warnings
     - name: Run Python tests
       run: tox -p -q
+
+  pure-python:
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: python
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.5
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.5
+    - name: Set up Python 3.6
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Install tox
+      run: pip install tox
+    - name: Run tox
+      run: tox -p -q
