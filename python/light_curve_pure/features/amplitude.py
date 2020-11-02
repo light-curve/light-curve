@@ -8,4 +8,4 @@ class Amplitude(BaseFeature):
         return 0.5 * np.ptp(m)
 
 
-__all__ = ('Amplitude',)
+__all__ = ("Amplitude",)
