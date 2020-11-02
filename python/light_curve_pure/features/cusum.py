@@ -3,7 +3,7 @@ import numpy as np
 from ._base import BaseFeature
 
 
-class Cusum:
+class Cusum(BaseFeature):
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         m_mean = np.mean(m)
         m_std = np.std(m, ddof=1)
