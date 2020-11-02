@@ -9,7 +9,7 @@ from scipy import stats
 
 def generate_data():
     n = 1000
-    t = np.sort(np.random.uniform(0., 1000., n))
+    t = np.sort(np.random.uniform(0.0, 1000.0, n))
     m = np.random.uniform(15.0, 21.0, n)
     sigma = np.random.uniform(0.01, 0.2, n)
     return t, m, sigma
@@ -47,7 +47,7 @@ class _FeetsTest:
     feets_skip_test = False
 
     def setup_method(self):
-        self.feets_extractor = feets.FeatureSpace(only=[self.feets_feature], data=['time', 'magnitude', 'error'])
+        self.feets_extractor = feets.FeatureSpace(only=[self.feets_feature], data=["time", "magnitude", "error"])
 
     def feets(self, t, m, sigma):
         _, result = self.feets_extractor.extract(t, m, sigma)
@@ -55,10 +55,7 @@ class _FeetsTest:
 
     def test_close_to_feets(self):
         if self.feets_skip_test:
-            pytest.skip(
-                'feets is expected to be different from light_curve, reason: '
-                + self.feets_skip_test
-            )
+            pytest.skip("feets is expected to be different from light_curve, reason: " + self.feets_skip_test)
         t, m, sigma = generate_data()
         assert_allclose(self.feature(t, m, sigma)[:1], self.feets(t, m, sigma)[:1])
 
@@ -73,17 +70,17 @@ class TestAmplitude(_FeatureTest, _NaiveTest):
     feature = lc.Amplitude()
 
     def naive(self, t, m, sigma):
-        return 0.5 *(np.max(m) - np.min(m))
+        return 0.5 * (np.max(m) - np.min(m))
 
 
 class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.AndersonDarlingNormal()
 
-    feets_feature = 'AndersonDarling'
-    feets_skip_test = 'feets uses biased statistics'
+    feets_feature = "AndersonDarling"
+    feets_skip_test = "feets uses biased statistics"
 
     def naive(self, t, m, sigma):
-        return stats.anderson(m).statistic * (1.0 + 4.0/m.size - 25.0/m.size**2)
+        return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
 class TestBeyond1Std(_FeatureTest, _NaiveTest, _FeetsTest):
@@ -91,8 +88,8 @@ class TestBeyond1Std(_FeatureTest, _NaiveTest, _FeetsTest):
 
     feature = lc.BeyondNStd(nstd)
 
-    feets_feature = 'Beyond1Std'
-    feets_skip_test = 'feets uses biased statistics'
+    feets_feature = "Beyond1Std"
+    feets_skip_test = "feets uses biased statistics"
 
     def naive(self, t, m, sigma):
         mean = np.mean(m)
@@ -103,8 +100,8 @@ class TestBeyond1Std(_FeatureTest, _NaiveTest, _FeetsTest):
 class TestCusum(_FeatureTest, _FeetsTest):
     feature = lc.Cusum()
 
-    feets_feature = 'Rcs'
-    feets_skip_test = 'feets uses biased statistics'
+    feets_feature = "Rcs"
+    feets_skip_test = "feets uses biased statistics"
 
 
 class TestEta(_FeatureTest, _NaiveTest):
@@ -117,18 +114,22 @@ class TestEta(_FeatureTest, _NaiveTest):
 class TestEtaE(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.EtaE()
 
-    feets_feature = 'Eta_e'
-    feets_skip_test = 'feets fixed EtaE from the original paper in different way'
+    feets_feature = "Eta_e"
+    feets_skip_test = "feets fixed EtaE from the original paper in different way"
 
     def naive(self, t, m, sigma):
-        return np.sum(np.square((m[1:] - m[:-1]) / (t[1:] - t[:-1]))) * (t[-1] - t[0])**2 / (np.var(m, ddof=0) * m.size * (m.size - 1)**2)
+        return (
+            np.sum(np.square((m[1:] - m[:-1]) / (t[1:] - t[:-1])))
+            * (t[-1] - t[0]) ** 2
+            / (np.var(m, ddof=0) * m.size * (m.size - 1) ** 2)
+        )
 
 
 class TestExcessVariance(_FeatureTest, _NaiveTest):
     feature = lc.ExcessVariance()
 
     def naive(self, t, m, sigma):
-        return (np.var(m, ddof=1) - np.mean(sigma**2)) / np.mean(m)**2
+        return (np.var(m, ddof=1) - np.mean(sigma ** 2)) / np.mean(m) ** 2
 
 
 class TestInterPercentileRange(_FeatureTest, _FeetsTest):
@@ -136,15 +137,15 @@ class TestInterPercentileRange(_FeatureTest, _FeetsTest):
 
     feature = lc.InterPercentileRange(quantile)
 
-    feets_feature = 'Q31'
-    feets_skip_test = 'feets uses different quantile type'
+    feets_feature = "Q31"
+    feets_skip_test = "feets uses different quantile type"
 
 
 class TestKurtosis(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.Kurtosis()
 
-    feets_feature = 'SmallKurtosis'
-    feets_skip_test = 'feets uses equation for unbiased kurtosis, but put biased standard deviation there'
+    feets_feature = "SmallKurtosis"
+    feets_skip_test = "feets uses equation for unbiased kurtosis, but put biased standard deviation there"
 
     def naive(self, t, m, sigma):
         return stats.kurtosis(m, fisher=True, bias=False)
@@ -153,7 +154,7 @@ class TestKurtosis(_FeatureTest, _NaiveTest, _FeetsTest):
 class TestLinearTrend(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.LinearTrend()
 
-    feets_feature = 'LinearTrend'
+    feets_feature = "LinearTrend"
 
     def naive(self, t, m, sigma):
         (slope, _), ((slope_sigma2, _), _) = np.polyfit(t, m, deg=1, cov=True)
@@ -164,7 +165,7 @@ class _TestMagnitudePercentageRatio(_FeatureTest, _FeetsTest):
     quantile_numerator = -1
     quantile_denumerator = -1
 
-    feets_skip_test = 'feets uses different quantile type'
+    feets_skip_test = "feets uses different quantile type"
 
     def setup_method(self):
         super().setup_method()
@@ -175,27 +176,27 @@ class TestMagnitudePercentageRatio40(_TestMagnitudePercentageRatio):
     quantile_numerator = 0.4
     quantile_denumerator = 0.05
 
-    feets_feature = 'FluxPercentileRatioMid20'
+    feets_feature = "FluxPercentileRatioMid20"
 
 
 class TestMagnitudePercentageRatio25(_TestMagnitudePercentageRatio):
     quantile_numerator = 0.25
     quantile_denumerator = 0.05
 
-    feets_feature = 'FluxPercentileRatioMid50'
+    feets_feature = "FluxPercentileRatioMid50"
 
 
 class TestMagnitudePercentageRatio10(_TestMagnitudePercentageRatio):
     quantile_numerator = 0.10
     quantile_denumerator = 0.05
 
-    feets_feature = 'FluxPercentileRatioMid80'
+    feets_feature = "FluxPercentileRatioMid80"
 
 
 class TestMaximumSlope(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.MaximumSlope()
 
-    feets_feature = 'MaxSlope'
+    feets_feature = "MaxSlope"
 
     def naive(self, t, m, sigma):
         return np.max(np.abs((m[1:] - m[:-1]) / (t[1:] - t[:-1])))
@@ -204,7 +205,7 @@ class TestMaximumSlope(_FeatureTest, _NaiveTest, _FeetsTest):
 class TestMean(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.Mean()
 
-    feets_feature = 'Mean'
+    feets_feature = "Mean"
 
     def naive(self, t, m, sigma):
         return np.mean(m)
@@ -213,8 +214,8 @@ class TestMean(_FeatureTest, _NaiveTest, _FeetsTest):
 class TestMeanVariance(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.MeanVariance()
 
-    feets_feature = 'Meanvariance'
-    feets_skip_test = 'feets uses biased statistics'
+    feets_feature = "Meanvariance"
+    feets_skip_test = "feets uses biased statistics"
 
     def naive(self, t, m, sigma):
         return np.std(m, ddof=1) / np.mean(m)
@@ -230,7 +231,7 @@ class TestMedian(_FeatureTest, _NaiveTest):
 class TestMedianAbsoluteDeviation(_FeatureTest, _FeetsTest):
     feature = lc.MedianAbsoluteDeviation()
 
-    feets_feature = 'MedianAbsDev'
+    feets_feature = "MedianAbsDev"
 
 
 class TestMedianBufferRangePercentage(_FeatureTest, _FeetsTest):
@@ -240,14 +241,14 @@ class TestMedianBufferRangePercentage(_FeatureTest, _FeetsTest):
 
     feature = lc.MedianBufferRangePercentage(quantile)
 
-    feets_feature = 'MedianBRP'
+    feets_feature = "MedianBRP"
 
 
 class TestPercentAmplitude(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.PercentAmplitude()
 
-    feets_feature = 'PercentAmplitude'
-    feets_skip_test = 'feets divides value by median'
+    feets_feature = "PercentAmplitude"
+    feets_skip_test = "feets divides value by median"
 
     def naive(self, t, m, sigma):
         median = np.median(m)
@@ -259,8 +260,8 @@ class TestPercentDifferenceMagnitudePercentile(_FeatureTest, _FeetsTest):
 
     feature = lc.PercentDifferenceMagnitudePercentile(quantile)
 
-    feets_feature = 'PercentDifferenceFluxPercentile'
-    feets_skip_test = 'feets uses different quantile type'
+    feets_feature = "PercentDifferenceFluxPercentile"
+    feets_skip_test = "feets uses different quantile type"
 
 
 class TestReducedChi2(_FeatureTest, _NaiveTest):
@@ -274,8 +275,8 @@ class TestReducedChi2(_FeatureTest, _NaiveTest):
 class TestSkew(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.Skew()
 
-    feets_feature = 'Skew'
-    feets_skip_test = 'feets uses biased statistics'
+    feets_feature = "Skew"
+    feets_skip_test = "feets uses biased statistics"
 
     def naive(self, t, m, sigma):
         return stats.skew(m, bias=False)
@@ -284,8 +285,8 @@ class TestSkew(_FeatureTest, _NaiveTest, _FeetsTest):
 class TestStandardDeviation(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.StandardDeviation()
 
-    feets_feature = 'Std'
-    feets_skip_test = 'feets uses biased statistics'
+    feets_feature = "Std"
+    feets_skip_test = "feets uses biased statistics"
 
     def naive(self, t, m, sigma):
         return np.std(m, ddof=1)
@@ -294,10 +295,10 @@ class TestStandardDeviation(_FeatureTest, _NaiveTest, _FeetsTest):
 class TestStetsonK(_FeatureTest, _NaiveTest, _FeetsTest):
     feature = lc.StetsonK()
 
-    feets_feature = 'StetsonK'
+    feets_feature = "StetsonK"
 
     def naive(self, t, m, sigma):
-        x = (m - np.average(m, weights=1.0 / sigma**2)) / sigma
+        x = (m - np.average(m, weights=1.0 / sigma ** 2)) / sigma
         return np.sum(np.abs(x)) / np.sqrt(np.sum(np.square(x)) * m.size)
 
 
@@ -305,7 +306,7 @@ class TestWeightedMean(_FeatureTest, _NaiveTest):
     feature = lc.WeightedMean()
 
     def naive(self, t, m, sigma):
-        return np.average(m, weights=1.0 / sigma**2)
+        return np.average(m, weights=1.0 / sigma ** 2)
 
 
 class TestAllNaive(_FeatureTest, _NaiveTest):
@@ -313,7 +314,7 @@ class TestAllNaive(_FeatureTest, _NaiveTest):
         features = []
         self.naive_features = []
         for cls in _NaiveTest.__subclasses__():
-            if cls.naive is None or not hasattr(cls, 'feature'):
+            if cls.naive is None or not hasattr(cls, "feature"):
                 continue
             features.append(cls.feature)
             self.naive_features.append(cls().naive)
@@ -324,15 +325,15 @@ class TestAllNaive(_FeatureTest, _NaiveTest):
 
 
 class TestAllFeets(_FeatureTest, _FeetsTest):
-    feets_skip_test = 'skip for TestAllFeets'
+    feets_skip_test = "skip for TestAllFeets"
 
     def setup_method(self):
         features = []
         feets_features = []
         for cls in _FeetsTest.__subclasses__():
-            if cls.feets_feature is None or not hasattr(cls, 'feature'):
+            if cls.feets_feature is None or not hasattr(cls, "feature"):
                 continue
             features.append(cls.feature)
             feets_features.append(cls.feets_feature)
         self.feature = lc.Extractor(*features)
-        self.feets_extractor = feets.FeatureSpace(only=feets_features, data=['time', 'magnitude', 'error'])
+        self.feets_extractor = feets.FeatureSpace(only=feets_features, data=["time", "magnitude", "error"])
