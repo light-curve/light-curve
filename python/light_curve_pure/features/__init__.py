@@ -8,3 +8,4 @@ from .meanvar import *
 from .kurtosis import *
 from .maxslope import *
 from .skew import *
+from .weightmean import *
