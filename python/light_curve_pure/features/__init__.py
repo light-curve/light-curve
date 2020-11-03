@@ -9,3 +9,4 @@ from .kurtosis import *
 from .maxslope import *
 from .skew import *
 from .weightmean import *
+from .eta import *
