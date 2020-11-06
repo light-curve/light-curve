@@ -3,8 +3,8 @@ use crate::evaluator::*;
 /// Excess kurtosis of magnitude
 ///
 /// $$
-/// G_2 \equiv \frac{N\\,(N + 1)}{(N - 1)(N - 2)(N - 3)} \frac{\sum_i(m_i - \langle m \rangle)^4}{\sigma_m^2}
-/// \- 3\frac{(N + 1)^2}{(N - 2)(N - 3)},
+/// G_2 \equiv \frac{N\\,(N + 1)}{(N - 1)(N - 2)(N - 3)} \frac{\sum_i(m_i - \langle m \rangle)^4}{\sigma_m^4}
+/// \- 3\frac{(N - 1)^2}{(N - 2)(N - 3)},
 /// $$
 /// where $N$ is the number of observations,
 /// $\langle m \rangle$ is the mean magnitude,
