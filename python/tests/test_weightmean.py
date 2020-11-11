@@ -9,5 +9,5 @@ def test_weightmean():
     b = [0.3, 0.4, 0.5, 1, 1]
     feature = WeightedMean()
     actual = feature(a, a, b)
-    desired = 5.964
+    desired = 2.52437574316
     assert_allclose(actual, desired)
