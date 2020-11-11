@@ -7,7 +7,7 @@ class ExcessVariance(BaseFeature):
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         m_mean = np.mean(m)
         d_mean = np.mean(np.power(sigma, 2))
-        m_std = np.sqrt(np.var(m, ddof=1))
+        m_std = np.std(m, ddof=1)
         return (m_std ** 2 - d_mean) / m_mean ** 2
 
 
