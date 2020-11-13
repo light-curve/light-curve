@@ -10,3 +10,5 @@ from .maxslope import *
 from .skew import *
 from .weightmean import *
 from .eta import *
+from .adnormal import *
+from .redchi2 import *
