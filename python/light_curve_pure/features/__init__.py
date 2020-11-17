@@ -12,3 +12,8 @@ from .weightmean import *
 from .eta import *
 from .adnormal import *
 from .redchi2 import *
+from .beyondnstd import *
+from .intpercrange import *
+from .magnpratio import *
+from .medbufrperc import *
+from .pdiffmperc import *
