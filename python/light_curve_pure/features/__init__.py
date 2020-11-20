@@ -17,3 +17,5 @@ from .intpercrange import *
 from .magnpratio import *
 from .medbufrperc import *
 from .pdiffmperc import *
+from .medabsdev import *
+from .percampl import *
