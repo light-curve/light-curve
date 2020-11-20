@@ -13,10 +13,7 @@ repos:
     hooks:
     -   id: black
         name: black
-        language: system
-        entry: black
-        args: [--config=python/pyproject.toml]
-        types: [python]
+        args: [--config=python/pyproject.toml, ./python, ./light-curve-python]
 -   repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
