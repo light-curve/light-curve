@@ -2,7 +2,7 @@ use itertools::Itertools;
 use light_curve_feature as lcf;
 use ndarray::Array1 as NDArray;
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::{NotImplementedError, ValueError};
+use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
@@ -23,7 +23,7 @@ impl<'a> ArrWrapper<'a> {
             Ok(Self::Readonly(a.readonly()))
         } else if required {
             if a.strides().iter().any(|&i| i < 0) {
-                return Err(ValueError::py_err(
+                return Err(PyValueError::new_err(
                     "input array has a negative stride, which is currently unsupported due to \
                     https://github.com/PyO3/rust-numpy/issues/151, \
                     please copy the array before passing",
@@ -75,13 +75,13 @@ impl PyFeatureEvaluator {
         match sorted {
             Some(true) => {}
             Some(false) => {
-                return Err(NotImplementedError::py_err(
+                return Err(PyNotImplementedError::new_err(
                     "sorting is not implemented, please provide time-sorted arrays",
                 ))
             }
             None => {
                 if self.feature_evaluator.is_sorting_required() & !is_sorted(&t) {
-                    return Err(ValueError::py_err("t must be in ascending order"));
+                    return Err(PyValueError::new_err("t must be in ascending order"));
                 }
             }
         }
@@ -105,7 +105,7 @@ impl PyFeatureEvaluator {
             None => self
                 .feature_evaluator
                 .eval(&mut ts)
-                .map_err(|e| ValueError::py_err(e.to_string()))?,
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
         };
         Ok(result.into_pyarray(py).to_owned())
     }
@@ -447,14 +447,14 @@ impl Periodogram {
                     match s {
                         "average" => Box::new(lcf::AverageNyquistFreq {}),
                         "median" => Box::new(lcf::MedianNyquistFreq {}),
-                        _ => return Err(ValueError::py_err(
+                        _ => return Err(PyValueError::new_err(
                             "nyquist must be one of: None, 'average', 'median' or quantile value",
                         )),
                     }
                 } else if let Ok(quantile) = nyquist.extract::<f32>(py) {
                     Box::new(lcf::QuantileNyquistFreq { quantile })
                 } else {
-                    return Err(ValueError::py_err(
+                    return Err(PyValueError::new_err(
                         "nyquist must be one of: None, 'average', 'median' or quantile value",
                     ));
                 };

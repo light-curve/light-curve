@@ -20,14 +20,14 @@ mkl-dynamic = ["light-curve-feature/fftw-mkl"]
 [dependencies]
 itertools = "~0.9.0"
 ndarray = "~0.13.1"
-numpy = "~0.11"
+numpy = "~0.12"
 
 [dependencies.light-curve-feature]
 version = "0.2.0"
 default_features = false
 
 [dependencies.pyo3]
-version = "~0.11"
+version = "~0.12"
 features = ["extension-module"]
 
 [package.metadata.maturin]
