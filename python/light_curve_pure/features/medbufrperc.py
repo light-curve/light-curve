@@ -10,9 +10,7 @@ class MedianBufferRangePercentage(BaseFeature):
 
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         median = np.median(m)
-        pm = np.array([+1, -1])
-        upb, db = median + pm * self.q * (np.max(m) - np.min(m)) / 2
-        return np.sum((db < m) & (m < upb)) / len(m)
+        return np.count_nonzero(np.abs(median - m) < self.q * (np.max(m) - np.min(m)) / 2) / len(m)
 
 
 __all__ = ("MedianBufferRangePercentage",)
