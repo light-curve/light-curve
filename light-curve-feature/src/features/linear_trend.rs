@@ -10,7 +10,7 @@ use crate::fit::fit_straight_line;
 /// $$
 /// where $c$ and $\Sigma$ are constants,
 /// $\\{\varepsilon_i\\}$ are standard distributed random variables.
-/// $\mathrm{slope}$ and $\Sigma$ are returned, if $N = 2$ than no least squares fit is done, a
+/// $\mathrm{slope}$ and $\sigma_\mathrm{slope}$ are returned, if $N = 2$ than no least squares fit is done, a
 /// slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $0$ are returned.
 ///
 /// - Depends on: **time**, **magnitude**
