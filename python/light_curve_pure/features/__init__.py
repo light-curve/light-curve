@@ -20,3 +20,6 @@ from .pdiffmperc import *
 from .medabsdev import *
 from .percampl import *
 from .etae import *
+from .lintrend import *
+from .linfit import *
+from .stetsonk import *
