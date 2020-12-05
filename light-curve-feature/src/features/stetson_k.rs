@@ -3,10 +3,10 @@ use crate::evaluator::*;
 /// Stetson $K$ coefficient described light curve shape
 ///
 /// $$
-/// \mathrm{Stetson}~K \equiv \frac{\sum_i\left|\frac{m_i - \langle m \rangle}{\delta_i}\right|}{\sqrt{N\\,\chi^2}},
+/// \mathrm{Stetson}~K \equiv \frac{\sum_i\left|\frac{m_i - \bar{m}}{\delta_i}\right|}{\sqrt{N\\,\chi^2}},
 /// $$
 /// where N is the number of observations,
-/// $\langle m \rangle$ is the mean magnitude
+/// $\bar{m}$ is the weighted mean magnitude
 /// and $\chi^2 = \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2$.
 ///
 /// - Depends on: **magnitude**, **magnitude error**
