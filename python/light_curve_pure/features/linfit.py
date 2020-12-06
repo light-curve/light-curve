@@ -1,24 +1,24 @@
 import numpy as np
 
 from ._base import BaseFeature
+from ..lstsq import least_squares
 
 
 class LinearFit(BaseFeature):
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         n = len(t)
-        w = np.diag(1 / sigma)
-        A = np.vstack([t, np.ones(len(t))])
 
-        A_weighted = np.dot(A, w).T
-        m_weighted = np.dot(m, w)
+        slope, chi2 = least_squares(t, m, sigma)
 
-        solution, residuals, rank, s = np.linalg.lstsq(A_weighted, m_weighted, rcond=None)
-        slope, intercept = solution
-        residuals = np.float(residuals)
-        chisq = residuals / (n - 2)
-        sxx = np.var(t, ddof=n - 1)
+        red_chi2 = chi2 / (n - 2)
 
-        return slope, np.sqrt(chisq / sxx), chisq
+        weighted_t2 = np.average(t ** 2, weights=np.power(sigma, -2))
+        weighted_t = np.average(t, weights=np.power(sigma, -2)) ** 2
+
+        sigma_sum = np.sum(1 / sigma ** 2)
+        delta = sigma_sum ** 2 * (weighted_t2 - weighted_t)
+
+        return slope, np.sqrt(sigma_sum / delta), red_chi2
 
 
 __all__ = ("LinearFit",)

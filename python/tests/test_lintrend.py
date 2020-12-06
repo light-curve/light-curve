@@ -6,7 +6,9 @@ from light_curve_pure import LinearTrend
 
 
 def test_lintrend_1():
-    f = lambda x, slope, c: x * slope + c
+    def f(x, slope, c):
+        return x * slope + c
+
     m = np.array([2.0, 4.0, 7.0, 10.0, 15.0, 28.0])
     t = np.array([1.0, 3.0, 6.0, 10.0, 14.0, 17.0])
     n = len(t)
@@ -14,12 +16,11 @@ def test_lintrend_1():
     feature = LinearTrend()
     actual = feature(t, m, None)
 
-    slope, c = curve_fit(f, t, m)[0]
+    (slope, c), popt = curve_fit(f, t, m, absolute_sigma=False)
     chisq = np.sum((m - (t * slope + c)) ** 2) / (n - 2)
-    sxx = np.var(t) * n
 
-    desired = (slope, np.sqrt(chisq / sxx), chisq)
-    assert_allclose(actual, desired)
+    desired = (slope, np.sqrt(popt[0][0]), chisq)
+    assert_allclose(actual, desired, rtol=1e-6)
 
 
 def test_lintrend_2():
