@@ -1,6 +1,7 @@
 import numpy as np
 
 from ._base import BaseFeature
+from ..lstsq import least_squares
 
 
 class LinearTrend(BaseFeature):
@@ -10,13 +11,11 @@ class LinearTrend(BaseFeature):
         if n == 2:
             return (m[1] - m[0]) / (t[1] - t[0]), 0, 0
 
-        A = np.vstack([t, np.ones(len(t))]).T
-        solution, residuals, rank, s = np.linalg.lstsq(A, m, rcond=None)
-        slope, intercept = solution
-        residuals = np.float(residuals)
-        chisq = residuals / (n - 2)
+        slope, chi2 = least_squares(t, m, sigma)
+
+        red_chi2 = chi2 / (n - 2)
         sxx = np.var(t, ddof=n - 1)
-        return slope, np.sqrt(chisq / sxx), chisq
+        return slope, np.sqrt(red_chi2 / sxx), red_chi2
 
 
 __all__ = ("LinearTrend",)
