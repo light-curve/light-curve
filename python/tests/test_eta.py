@@ -5,7 +5,7 @@ from light_curve_pure import Eta
 
 
 def test_eta():
-    a = [1, 2, 3, 3, 3, 4, 4]
+    a = np.array([1, 2, 3, 3, 3, 4, 4])
     feature = Eta()
     actual = feature(a, a, None)
     desired = 0.43750000000000006
