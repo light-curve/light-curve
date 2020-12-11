@@ -15,7 +15,7 @@ class LinearTrend(BaseFeature):
 
         red_chi2 = chi2 / (n - 2)
         sxx = np.var(t, ddof=n - 1)
-        return slope, np.sqrt(red_chi2 / sxx), red_chi2
+        return np.array([slope, np.sqrt(red_chi2 / sxx), red_chi2])
 
 
 __all__ = ("LinearTrend",)

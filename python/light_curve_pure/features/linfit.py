@@ -17,7 +17,7 @@ class LinearFit(BaseFeature):
 
         sigma_sum = np.sum(1 / sigma ** 2)
 
-        return slope, np.sqrt(1 / ((weighted_t2 - weighted_t) * sigma_sum)), red_chi2
+        return np.array([slope, np.sqrt(1 / ((weighted_t2 - weighted_t) * sigma_sum)), red_chi2])
 
 
 __all__ = ("LinearFit",)
