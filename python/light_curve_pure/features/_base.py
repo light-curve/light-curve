@@ -15,22 +15,11 @@ class BaseFeature(ABC):
 class BaseMetaFeature(BaseFeature):
     features: Collection[BaseFeature]
 
-    @abstarctmethod
+    @abstractmethod
     def transform(self, t, m, sigma):
         pass
 
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         t, m, sigma = self.transform(t, m, sigma)
-        # Make it more numpy, remember about Features returning several values
-        result = []
-        for feature in features:
-            result.append(feature(t, m, sigma))
+        result = np.concatenate([np.atleast_1d(feature(t, m, sigma)) for feature in self.features])
         return result
-
-
-# Move to separate sub-module
-class Extractor(BaseMetaFeature):
-    features = (Mean(), Amplitude())
-
-    def transform(self, t, m, sigma):
-        return t, m, sigma
