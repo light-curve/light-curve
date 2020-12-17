@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-common"
-version = "0.1.0"
+version = "0.1.1-beta.0"
 description = "Common tools for light-curve-* packages"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
