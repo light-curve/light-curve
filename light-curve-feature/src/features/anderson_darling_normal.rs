@@ -8,7 +8,7 @@ use conv::ConvUtil;
 /// $$
 /// A^2 \equiv \left(1 + \frac4{N} - \frac{25}{N^2}\right) \left(-N - \frac1{N} \sum_{i=0}^{N-1} {(2i + 1)\ln\Phi_i + (2(N - i) - 1)\ln(1 - \Phi_i)}\right),
 /// $$
-/// where $\Phi_i \equiv \Phi((m_i - \langle m \rangle) / \sigma_m)$ is the commutative distribution
+/// where $\Phi_i \equiv \Phi((m_i - \langle m \rangle) / \sigma_m)$ is the cumulative distribution
 /// function of the standard normal distribution,
 /// $N$ is the number of observations,
 /// $\langle m \rangle$ is the mean magnitude
