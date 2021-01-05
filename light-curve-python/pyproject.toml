@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [tool.black]
 line-length = 120
-target-version = ['py35', 'py36', 'py37', 'py38']
+target-version = ['py36', 'py37', 'py38', 'py39']
 include = '\.py$'
 
 [tool.pytest.ini_options]
@@ -17,7 +17,7 @@ testpaths = [
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py35,py36,py37,py38
+envlist = py36,py37,py38,py39
 isolated_build = True
 
 [testenv]
