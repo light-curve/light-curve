@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-interpol"
-version = "0.1.0"
+version = "0.1.1"
 description = "Interpolations tools for time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]

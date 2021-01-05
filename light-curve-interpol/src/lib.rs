@@ -1,6 +1,7 @@
 use conv::prelude::*;
 use num_traits::{float::Float, identities};
 
+#[derive(Clone)]
 pub struct Interpolator<T, U>
 where
     T: Float,
