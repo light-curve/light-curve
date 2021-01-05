@@ -47,7 +47,7 @@ where
     pub fn ppf(&self, q: f32) -> T {
         assert_ne!(self.len(), 0);
         assert!(
-            (q >= 0.0) && (q <= 1.0),
+            (0.0..=1.0).contains(&q),
             "quantile should be between zero and unity"
         );
         let h = (self.len() as f32) * q - 0.5;
