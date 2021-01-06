@@ -18,7 +18,7 @@ fftw-dynamic = ["light-curve-feature/fftw-system"]
 mkl-dynamic = ["light-curve-feature/fftw-mkl"]
 
 [dependencies]
-itertools = "~0.9"
+itertools = "~0.10"
 ndarray = "^0.14"
 numpy = "^0.13"
 

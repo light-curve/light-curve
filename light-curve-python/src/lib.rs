@@ -63,6 +63,22 @@ impl PyFeatureEvaluator {
         sorted: Option<bool>,
         fill_value: Option<F>,
     ) -> PyResult<Py<Arr>> {
+        if t.len() != m.len() {
+            return Err(PyValueError::new_err("t and m must have the same size"));
+        }
+        if let Some(sigma) = sigma {
+            if t.len() != sigma.len() {
+                return Err(PyValueError::new_err("t and sigma must have the same size"));
+            }
+        }
+        if t.len() < self.feature_evaluator.min_ts_length() {
+            return Err(PyValueError::new_err(format!(
+                "input arrays must have size not smaller than {}, but having {}",
+                self.feature_evaluator.min_ts_length(),
+                t.len()
+            )));
+        }
+
         let is_t_required = match (
             self.feature_evaluator.is_t_required(),
             self.feature_evaluator.is_sorting_required(),
