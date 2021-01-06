@@ -45,7 +45,7 @@ fn is_sorted(a: &[F]) -> bool {
     a.iter().tuple_windows().all(|(&a, &b)| a < b)
 }
 
-#[pyclass(subclass, name="_FeatureEvaluator")]
+#[pyclass(subclass, name = "_FeatureEvaluator")]
 struct PyFeatureEvaluator {
     feature_evaluator: Box<dyn lcf::FeatureEvaluator<F>>,
 }
@@ -63,7 +63,11 @@ impl PyFeatureEvaluator {
         sorted: Option<bool>,
         fill_value: Option<F>,
     ) -> PyResult<Py<Arr>> {
-        let is_t_required = match (self.feature_evaluator.is_t_required(), self.feature_evaluator.is_sorting_required(), sorted) {
+        let is_t_required = match (
+            self.feature_evaluator.is_t_required(),
+            self.feature_evaluator.is_sorting_required(),
+            sorted,
+        ) {
             // feature requires t
             (true, _, _) => true,
             // t is required because sorting is required and data can be unsorted
