@@ -22,9 +22,7 @@ impl<'a> ArrWrapper<'a> {
         match (a.is_contiguous(), required) {
             (true, _) => Ok(Self::Readonly(a.readonly())),
             (false, true) => Ok(Self::Owned(a.to_owned_array())),
-            (false, false) => Ok(Self::Owned(unsafe {
-                ndarray::Array1::<F>::uninitialized(a.len())
-            })),
+            (false, false) => Ok(Self::Owned(ndarray::Array1::<F>::zeros(a.len()))),
         }
     }
 }
