@@ -11,7 +11,7 @@ include = '\.py$'
 minversion = "6.0"
 addopts = "-ra --import-mode=append --benchmark-min-time=0.1 --benchmark-max-time=5.0 --benchmark-disable"
 testpaths = [
-    "tests/test.py",
+    "tests/",
 ]
 
 [tool.tox]

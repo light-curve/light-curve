@@ -45,7 +45,7 @@ fn is_sorted(a: &[F]) -> bool {
     a.iter().tuple_windows().all(|(&a, &b)| a < b)
 }
 
-#[pyclass(subclass)]
+#[pyclass(subclass, name="_FeatureEvaluator")]
 struct PyFeatureEvaluator {
     feature_evaluator: Box<dyn lcf::FeatureEvaluator<F>>,
 }
@@ -63,7 +63,17 @@ impl PyFeatureEvaluator {
         sorted: Option<bool>,
         fill_value: Option<F>,
     ) -> PyResult<Py<Arr>> {
-        let t = ArrWrapper::new(t, self.feature_evaluator.is_t_required())?;
+        let is_t_required = match (self.feature_evaluator.is_t_required(), self.feature_evaluator.is_sorting_required(), sorted) {
+            // feature requires t
+            (true, _, _) => true,
+            // t is required because sorting is required and data can be unsorted
+            (false, true, Some(false)) | (false, true, None) => true,
+            // sorting is required but user guarantees that data is already sorted
+            (false, true, Some(true)) => false,
+            // neither t or sorting is required
+            (false, false, _) => false,
+        };
+        let t = ArrWrapper::new(t, is_t_required)?;
         match sorted {
             Some(true) => {}
             Some(false) => {
@@ -612,6 +622,8 @@ fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
+    m.add_class::<PyFeatureEvaluator>()?;
 
     m.add_class::<Extractor>()?;
 

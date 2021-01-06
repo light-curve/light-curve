@@ -1,10 +1,10 @@
-import light_curve as lc
-
 import feets
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from scipy import stats
+
+import light_curve as lc
 
 
 def generate_data():
