@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-python"
-version = "0.2.1-beta.0"
+version = "0.2.1-beta.1"
 edition = "2018"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 description = "Feature extractor from noisy time series"
@@ -32,4 +32,4 @@ features = ["extension-module"]
 
 [package.metadata.maturin]
 requires-dist = ["numpy"]
-classifier = ["Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.6", "Programming Language :: Python :: 3.7", "Programming Language :: Python :: 3.8", "Programming Language :: Rust", "Topic :: Scientific/Engineering :: Astronomy"]
+classifier = ["Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.6", "Programming Language :: Python :: 3.7", "Programming Language :: Python :: 3.8", "Programming Language :: Python :: 3.9", "Programming Language :: Rust", "Topic :: Scientific/Engineering :: Astronomy"]
