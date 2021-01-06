@@ -19,21 +19,12 @@ enum ArrWrapper<'a> {
 
 impl<'a> ArrWrapper<'a> {
     fn new(a: &'a Arr, required: bool) -> PyResult<Self> {
-        if a.is_contiguous() {
-            Ok(Self::Readonly(a.readonly()))
-        } else if required {
-            if a.strides().iter().any(|&i| i < 0) {
-                return Err(PyValueError::new_err(
-                    "input array has a negative stride, which is currently unsupported due to \
-                    https://github.com/PyO3/rust-numpy/issues/151, \
-                    please copy the array before passing",
-                ));
-            }
-            Ok(Self::Owned(a.to_owned_array()))
-        } else {
-            Ok(Self::Owned(unsafe {
+        match (a.is_contiguous(), required) {
+            (true, _) => Ok(Self::Readonly(a.readonly())),
+            (false, true) => Ok(Self::Owned(a.to_owned_array())),
+            (false, false) => Ok(Self::Owned(unsafe {
                 ndarray::Array1::<F>::uninitialized(a.len())
-            }))
+            })),
         }
     }
 }
