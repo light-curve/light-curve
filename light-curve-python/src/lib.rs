@@ -53,7 +53,7 @@ fn is_sorted(a: &[F]) -> bool {
     a.iter().tuple_windows().all(|(&a, &b)| a < b)
 }
 
-#[pyclass]
+#[pyclass(subclass)]
 struct PyFeatureEvaluator {
     feature_evaluator: Box<dyn lcf::FeatureEvaluator<F>>,
 }
