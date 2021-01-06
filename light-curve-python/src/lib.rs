@@ -18,6 +18,9 @@ enum ArrWrapper<'a> {
 }
 
 impl<'a> ArrWrapper<'a> {
+    /// Construct ndarray::Array1 wrapper of numpy array
+    ///
+    /// Right now it always returns Ok
     fn new(a: &'a Arr, required: bool) -> PyResult<Self> {
         match (a.is_contiguous(), required) {
             (true, _) => Ok(Self::Readonly(a.readonly())),
