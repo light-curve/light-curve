@@ -8,7 +8,7 @@ import light_curve as lc
 
 def _feature_classes(module, exclude_parametric=True):
     for name, obj in inspect.getmembers(module):
-        if name.startswith('_'):
+        if name.startswith("_"):
             continue
         if inspect.ismodule(obj):
             yield from _feature_classes(obj)
@@ -28,7 +28,7 @@ def _feature_classes(module, exclude_parametric=True):
 feature_classes = tuple(_feature_classes(lc))
 
 
-@pytest.mark.parametrize('cls', feature_classes)
+@pytest.mark.parametrize("cls", feature_classes)
 def test_negative_strides(cls):
     t = np.linspace(1, 0, 20)[::-2]
     m = np.exp(t)[:]

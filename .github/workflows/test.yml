@@ -71,23 +71,25 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Install maturin and tox
-      run: pip install maturin tox
+    - name: Install maturin, black and tox
+      run: pip install maturin black tox
     - name: Build package with static FFTW
       run: maturin build
     - name: Build package with dynamic FFTW
       run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic"
     - name: Build package with dynamic MKL
       run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic"
-    - name: Check formatting
+    - name: Check Rust formatting
       uses: actions-rs/cargo@v1
       with:
         command: fmt
         args: -- --check
-    - name: Run code analysis
+    - name: Run Rust code analysis
       uses: actions-rs/cargo@v1
       with:
         command: clippy
         args: --all-targets --all-features -- -D warnings
+    - name: Check Python formatting
+      run: black .
     - name: Run Python tests
       run: tox -p -q
