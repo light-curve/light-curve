@@ -10,7 +10,7 @@ pub fn bench_fit_straight_line(c: &mut Criterion) {
     let y: Vec<_> = x.iter().map(|&x| x + thread_rng().gen::<f64>()).collect();
     let w: Vec<_> = x
         .iter()
-        .map(|_| thread_rng().gen_range(10.0..100.0))
+        .map(|_| thread_rng().gen_range(10.0, 100.0))
         .collect();
     let ts = TimeSeries::new(&x, &y, Some(&w));
 
