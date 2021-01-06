@@ -5,29 +5,32 @@ use criterion::{black_box, Criterion};
 use fftw::array::{AlignedAllocable, AlignedVec};
 use fftw::plan::{Plan, Plan32, Plan64, PlanSpec, R2CPlan};
 use fftw::types::Flag;
+use num_complex::Complex as FftwComplex;
 use num_traits::{Float, FloatConst, NumAssign};
 use rand::prelude::*;
-use rustfft::algorithm::Radix4;
-use rustfft::num_complex::Complex;
-use rustfft::num_traits::Zero;
-use rustfft::{FFTnum, FFT};
-use std::{any, collections::HashMap};
+use rustfft::num_complex::Complex as RustFftComplex;
+use rustfft::{Fft as RustFftAlgo, FftNum, FftPlanner};
+use std::{any, collections::HashMap, sync::Arc};
 
 trait Fft<T>: Debug {
     fn run(&mut self, a: &[T]) -> (T, T);
 }
 
 struct RustFft<T> {
-    radix: HashMap<usize, Radix4<T>>,
+    algo: HashMap<usize, Arc<dyn RustFftAlgo<T>>>,
 }
 
 impl<T> RustFft<T>
 where
-    T: FFTnum,
+    T: FftNum,
 {
     fn new(n: &[usize]) -> Self {
+        let mut planner = FftPlanner::new();
         Self {
-            radix: n.iter().map(|&i| (i, Radix4::new(i, false))).collect(),
+            algo: n
+                .iter()
+                .map(|&i| (i, planner.plan_fft_forward(i)))
+                .collect(),
         }
     }
 }
@@ -40,23 +43,22 @@ impl<T> Debug for RustFft<T> {
 
 impl<T> Fft<T> for RustFft<T>
 where
-    T: FFTnum,
+    T: FftNum,
 {
     fn run(&mut self, a: &[T]) -> (T, T) {
         let mut t: Vec<_> = a
             .iter()
-            .map(|&x| Complex {
+            .map(|&x| RustFftComplex {
                 re: x,
                 im: T::zero(),
             })
             .collect();
-        let mut f = vec![Complex::zero(); a.len()];
-        self.radix.get(&a.len()).unwrap().process(&mut t, &mut f);
+        self.algo.get(&a.len()).unwrap().process(&mut t);
         // let norm = T::one() / T::sqrt(f.len());
         // for y in f.mut_iter() {
         //     *y *= norm;
         // }
-        f.iter()
+        t.iter()
             .take(a.len())
             .fold((T::zero(), T::zero()), |acc, c| {
                 (acc.0 + c.re, acc.1 + c.im)
@@ -114,14 +116,14 @@ struct Fftw<T>
 where
     T: FloatSupportedByFftwPlan,
 {
-    r2cplan: HashMap<usize, Plan<T, Complex<T>, T::Plan>>,
+    r2cplan: HashMap<usize, Plan<T, FftwComplex<T>, T::Plan>>,
 }
 
 impl<T> Fftw<T>
 where
     T: FloatSupportedByFftwPlan + AlignedAllocable,
-    Complex<T>: AlignedAllocable,
-    Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
+    FftwComplex<T>: AlignedAllocable,
+    Plan<T, FftwComplex<T>, T::Plan>: R2CPlan<Real = T, Complex = FftwComplex<T>>,
 {
     fn new(n: &[usize]) -> Self {
         let mut flags = Flag::PATIENT;
@@ -147,8 +149,8 @@ where
 impl<T> Fft<T> for Fftw<T>
 where
     T: FloatSupportedByFftwPlan + AlignedAllocable,
-    Complex<T>: AlignedAllocable,
-    Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
+    FftwComplex<T>: AlignedAllocable,
+    Plan<T, FftwComplex<T>, T::Plan>: R2CPlan<Real = T, Complex = FftwComplex<T>>,
 {
     fn run(&mut self, a: &[T]) -> (T, T) {
         let mut t = AlignedVec::new(a.len());
@@ -176,7 +178,7 @@ struct Ones {}
 
 impl<T> Series<T> for Ones
 where
-    T: FFTnum,
+    T: FftNum,
 {
     fn series(&self, n: usize) -> Vec<T> {
         vec![T::one(); n]
@@ -188,7 +190,7 @@ struct Randoms {}
 
 impl<T> Series<T> for Randoms
 where
-    T: FFTnum,
+    T: FftNum,
     rand::distributions::Standard: Distribution<T>,
 {
     fn series(&self, n: usize) -> Vec<T> {
@@ -200,14 +202,14 @@ where
 pub fn bench_fft<T>(c: &mut Criterion)
 where
     T: fmt::Display
-        + FFTnum
+        + FftNum
         + Float
         + FloatConst
         + NumAssign
         + FloatSupportedByFftwPlan
         + AlignedAllocable,
-    Complex<T>: AlignedAllocable,
-    Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
+    FftwComplex<T>: AlignedAllocable,
+    Plan<T, FftwComplex<T>, T::Plan>: R2CPlan<Real = T, Complex = FftwComplex<T>>,
     Vec<T>: fmt::Debug,
     rand::distributions::Standard: Distribution<T>,
 {

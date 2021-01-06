@@ -17,24 +17,24 @@ fftw-source = ["fftw/source"]
 fftw-mkl = ["fftw/intel-mkl"]
 
 [dependencies]
-conv = "0.3"
-dyn-clonable = "~0.9.0"
-fftw = { version = "~0.6.1", default-features = false }
-itertools = "~0.9.0"
-lazy_static = "~1.4.0"
-libm = "^0.2.1"
+conv = "^0.3.3"
+dyn-clonable = "^0.9.0"
+fftw = { version = "^0.6.2", default-features = false }
+itertools = "^0.10.0"
+lazy_static = "^1.4.0"
+libm = "~0.2.1"
 light-curve-common = "0.1.0"
-num-complex = "0.2"
-num-traits = "0.2"
+num-complex = "^0.2"
+num-traits = "^0.2"
 thiserror = "^1.0"
 unzip3 = "^1.0"
 
 [dev-dependencies]
-rand = "~0.7"
-rand_distr = "~0.2"
-criterion = "~0.3"
-rustfft = "~3.0"
-chfft = "~0.3.4"
+rand = "^0.7"
+rand_distr = "^0.2"
+criterion = "^0.3"
+rustfft = "^5.0"
+chfft = "^0.3.4"
 
 [[bench]]
 name = "benchmark"
