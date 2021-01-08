@@ -1,4 +1,6 @@
 #[cfg(feature = "gsl")]
+mod curve_fit;
+
 mod nls;
 
 mod straight_line;

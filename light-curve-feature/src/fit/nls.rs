@@ -1,9 +1,8 @@
 use crate::float_trait::Float;
 use conv::prelude::*;
 use hyperdual::Hyperdual;
-use rgsl::{
-    MatrixF64, MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf, Value, VectorF64,
-};
+pub use rgsl::{MatrixF64, Value, VectorF64};
+use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::result::Result;
@@ -25,33 +24,38 @@ impl NLSProblem {
         }
     }
 
-    pub fn solve(&mut self, x0: &VectorF64) -> Result<VectorF64, Value> {
+    pub fn solve(&mut self, x0: VectorF64) -> NLSFitResult {
         let mut solver = MultiFitFdfSolver::new(
             &MultiFitFdfSolverType::lmsder(),
             self.fit_function.n,
             self.fit_function.p,
         )
         .unwrap();
-        match solver.set(&mut self.fit_function, x0) {
+        match solver.set(&mut self.fit_function, &x0) {
             Value::Success => {}
-            status @ _ => return Err(status),
+            status @ _ => return NLSFitResult { status, solver },
         }
 
         for _ in 0..self.max_iter {
             match solver.iterate() {
                 Value::Success | Value::ToleranceX | Value::ToleranceF | Value::ToleranceG => {}
-                status @ _ => return Err(status),
+                status @ _ => return NLSFitResult { status, solver },
             }
 
             match rgsl::multifit::test_delta(&solver.dx(), &solver.x(), self.atol, self.rtol) {
-                Value::Success => return Ok(solver.x().clone().unwrap()),
                 Value::Continue => {}
-                status @ _ => return Err(status),
+                status @ _ => return NLSFitResult { status, solver },
             }
         }
-        Err(Value::MaxIteration)
+        NLSFitResult {
+            status: Value::MaxIteration,
+            solver,
+        }
     }
 
+    /// Construct a problem from function (f), its jacobian (df) and fdf
+    ///
+    /// Looks like fdf is never called
     pub fn from_f_df_fdf<F, DF, FDF>(t_size: usize, x_size: usize, f: F, df: DF, fdf: FDF) -> Self
     where
         F: 'static + Fn(VectorF64, VectorF64) -> Value,
@@ -83,9 +87,10 @@ impl NLSProblem {
         Self::from_f_df_fdf(t_size, x_size, f, df, fdf)
     }
 
+    #[allow(dead_code)]
     /// Create fitter from residual function of dual numbers
     ///
-    /// WIP: implemented for three parameters only, stacked by
+    /// WIP: implemented for parameter vector of length three only, stacked by
     /// https://github.com/rust-lang/rust/issues/78220
     ///
     /// Current implementation is something like twice slower than `Self::from_f_df_fdf`
@@ -139,7 +144,7 @@ impl NLSProblem {
     }
 }
 
-// Cannot make it dimension-generic now
+// Cannot make it dimension-generic for now
 // https://github.com/rust-lang/rust/issues/78220
 fn slice_to_hyperdual_vec<T>(s: &[T]) -> Vec<Hyperdual<f64, hyperdual::U4>>
 where
@@ -155,6 +160,25 @@ where
             hd
         })
         .collect()
+}
+
+pub struct NLSFitResult {
+    pub status: Value,
+    solver: MultiFitFdfSolver,
+}
+
+impl NLSFitResult {
+    pub fn x(&self) -> VectorF64 {
+        self.solver.x()
+    }
+
+    pub fn f(&self) -> VectorF64 {
+        self.solver.f()
+    }
+
+    pub fn loss(&self) -> f64 {
+        self.f().as_slice().unwrap().iter().map(|x| x.powi(2)).sum()
+    }
 }
 
 #[cfg(test)]
@@ -204,10 +228,12 @@ mod tests {
             },
         );
 
-        let x = fitter.solve(&VectorF64::new(P).unwrap()).unwrap();
+        let result = fitter.solve(VectorF64::new(P).unwrap());
+        assert_eq!(result.status, Value::Success);
+        let param = result.x();
 
         StraightLineFitterResult {
-            slope: x.get(1).approx_as::<T>().unwrap(),
+            slope: param.get(1).approx_as::<T>().unwrap(),
             slope_sigma2: T::nan(),
             reduced_chi2: T::nan(),
         }
@@ -285,7 +311,9 @@ mod tests {
             )
         };
 
-        let param = solver.solve(&param_init).unwrap();
+        let result = solver.solve(param_init);
+        assert_eq!(result.status, Value::Success);
+        let param = result.x();
 
         all_close(param.as_slice().unwrap(), &[-247.0, 39.0], 1e-9);
     }
@@ -327,7 +355,9 @@ mod tests {
         fitter.atol = 1e-8;
         fitter.rtol = 0.0;
 
-        let param = fitter.solve(&param_init).unwrap();
+        let result = fitter.solve(param_init);
+        assert_eq!(result.status, Value::Success);
+        let param = result.x();
 
         all_close(param.as_slice().unwrap(), &[0.0, 1.0, 1.0], 1e-8);
     }
@@ -405,7 +435,9 @@ mod tests {
         let mut fitter = NLSProblem::from_f_df_fdf(N, P, function, jac, fdf);
         fitter.rtol = RTOL;
 
-        let param = fitter.solve(&param_init).unwrap();
+        let result = fitter.solve(param_init);
+        assert_eq!(result.status, Value::Success);
+        let param = result.x();
 
         all_close(
             param.as_slice().unwrap(),
@@ -465,7 +497,9 @@ mod tests {
         );
         fitter.rtol = RTOL;
 
-        let param = fitter.solve(&param_init).unwrap();
+        let result = fitter.solve(param_init);
+        assert_eq!(result.status, Value::Success);
+        let param = result.x();
 
         all_close(
             param.as_slice().unwrap(),

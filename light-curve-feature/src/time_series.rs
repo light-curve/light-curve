@@ -110,6 +110,47 @@ where
 }
 
 #[derive(Clone)]
+pub struct TimeSeriesOwned<T>
+where
+    T: Float,
+{
+    pub t: Vec<T>,
+    pub m: Vec<T>,
+    pub w: Vec<T>,
+}
+
+impl<T> TimeSeriesOwned<T>
+where
+    T: Float,
+{
+    pub fn lenu(&self) -> usize {
+        self.t.len()
+    }
+
+    /// (t, m) pair iter
+    pub fn tm_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
+        self.t.iter().copied().zip(self.m.iter().copied())
+    }
+
+    /// (t, w) pair iter
+    pub fn tw_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
+        self.t.iter().copied().zip(self.w.iter().copied())
+    }
+
+    /// (m, w) pair iterator
+    pub fn mw_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
+        self.m.iter().copied().zip(self.w.iter().copied())
+    }
+
+    pub fn tmw_iter(&self) -> impl Iterator<Item = (T, T, T)> + '_ {
+        self.t
+            .iter()
+            .zip(self.m.iter().zip(self.w.iter()))
+            .map(|(&t, (&m, &w))| (t, m, w))
+    }
+}
+
+#[derive(Clone)]
 pub struct TimeSeries<'a, T>
 where
     T: Float,
@@ -179,6 +220,11 @@ where
             .zip(self.m.sample.iter().copied())
     }
 
+    /// (t, w) pair iter
+    pub fn tw_iter(&self) -> impl Iterator<Item = (T, T)> + 'a {
+        self.t.sample.iter().copied().zip(self.w_iter())
+    }
+
     /// (m, w) pair iterator
     pub fn mw_iter(&self) -> impl Iterator<Item = (T, T)> + 'a {
         self.m.sample.iter().copied().zip(self.w_iter())
@@ -190,6 +236,32 @@ where
             .iter()
             .zip(self.m.sample.iter().zip(self.w_iter()))
             .map(|(&t, (&m, w))| (t, m, w))
+    }
+
+    pub fn to_owned(&self) -> TimeSeriesOwned<T> {
+        TimeSeriesOwned {
+            t: self.t.sample.to_vec(),
+            m: self.t.sample.to_vec(),
+            w: self.w_iter().collect(),
+        }
+    }
+
+    pub fn to_owned_f64(&self) -> TimeSeriesOwned<f64> {
+        TimeSeriesOwned {
+            t: self
+                .t
+                .sample
+                .iter()
+                .map(|&v| v.value_into().unwrap())
+                .collect(),
+            m: self
+                .m
+                .sample
+                .iter()
+                .map(|&v| v.value_into().unwrap())
+                .collect(),
+            w: self.w_iter().map(|v| v.value_into().unwrap()).collect(),
+        }
     }
 
     time_series_getter!(
