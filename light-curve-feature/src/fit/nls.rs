@@ -32,27 +32,23 @@ impl NLSProblem {
             self.fit_function.p,
         )
         .unwrap();
-        let status = solver.set(&mut self.fit_function, x0);
-        if status != Value::Success {
-            return Err(status);
+        match solver.set(&mut self.fit_function, x0) {
+            Value::Success => {}
+            status @ _ => return Err(status),
         }
 
         for _ in 0..self.max_iter {
-            let status = solver.iterate();
-            match status {
+            match solver.iterate() {
                 Value::Success | Value::ToleranceX | Value::ToleranceF | Value::ToleranceG => {}
-                _ => return Err(status),
+                status @ _ => return Err(status),
             }
 
-            let status =
-                rgsl::multifit::test_delta(&solver.dx(), &solver.x(), self.atol, self.rtol);
-            match status {
+            match rgsl::multifit::test_delta(&solver.dx(), &solver.x(), self.atol, self.rtol) {
                 Value::Success => return Ok(solver.x().clone().unwrap()),
                 Value::Continue => {}
-                _ => return Err(status),
+                status @ _ => return Err(status),
             }
         }
-        println!("Out of iter loop");
         Err(Value::MaxIteration)
     }
 
@@ -87,31 +83,32 @@ impl NLSProblem {
         Self::from_f_df_fdf(t_size, x_size, f, df, fdf)
     }
 
-    pub fn from_dual_f<F>(t_size: usize, f: F) -> Self
+    /// Create fitter from residual function of dual numbers
+    ///
+    /// WIP: implemented for three parameters only, stacked by
+    /// https://github.com/rust-lang/rust/issues/78220
+    ///
+    /// Current implementation is something like twice slower than `Self::from_f_df_fdf`
+    pub fn from_dual_f<RF, DF>(t_size: usize, real_f: RF, dual_f: DF) -> Self
     where
-        F: 'static
+        RF: 'static + Clone + Fn(&[f64], &mut [f64]),
+        DF: 'static
             + Clone
             + Fn(&[Hyperdual<f64, hyperdual::U4>], &mut [Hyperdual<f64, hyperdual::U4>]),
     {
         let x_size = 4 - 1;
 
-        let result = Rc::new(RefCell::new(vec![Hyperdual::from_real(0.0); t_size]));
+        let result_dual = Rc::new(RefCell::new(vec![Hyperdual::from_real(0.0); t_size]));
 
         let function = {
-            let f = f.clone();
-            let result = result.clone();
             move |param: VectorF64, mut residual: VectorF64| {
-                let param = slice_to_hyperdual_vec(param.as_slice().unwrap());
-                f(&param, &mut result.borrow_mut());
-                for i in 0..residual.len() {
-                    residual.set(i, result.borrow()[i][0]);
-                }
+                real_f(param.as_slice().unwrap(), residual.as_slice_mut().unwrap());
                 Value::Success
             }
         };
         let jacobian = {
-            let f = f.clone();
-            let result = result.clone();
+            let f = dual_f.clone();
+            let result = result_dual.clone();
             move |param: VectorF64, mut jacobian: MatrixF64| {
                 let param = slice_to_hyperdual_vec(param.as_slice().unwrap());
                 f(&param, &mut result.borrow_mut());
@@ -123,16 +120,19 @@ impl NLSProblem {
                 Value::Success
             }
         };
-        let fdf = move |param: VectorF64, mut residual: VectorF64, mut jacobian: MatrixF64| {
-            let param = slice_to_hyperdual_vec(param.as_slice().unwrap());
-            f(&param, &mut result.borrow_mut());
-            for i in 0..jacobian.size1() {
-                residual.set(i, result.borrow()[i][0]);
-                for j in 0..jacobian.size2() {
-                    jacobian.set(i, j, result.borrow()[i][j + 1]);
+        let fdf = {
+            let f = dual_f;
+            move |param: VectorF64, mut residual: VectorF64, mut jacobian: MatrixF64| {
+                let param = slice_to_hyperdual_vec(param.as_slice().unwrap());
+                f(&param, &mut result_dual.borrow_mut());
+                for i in 0..jacobian.size1() {
+                    residual.set(i, result_dual.borrow()[i][0]);
+                    for j in 0..jacobian.size2() {
+                        jacobian.set(i, j, result_dual.borrow()[i][j + 1]);
+                    }
                 }
+                Value::Success
             }
-            Value::Success
         };
 
         Self::from_f_df_fdf(t_size, x_size, function, jacobian, fdf)
@@ -165,6 +165,9 @@ mod tests {
     use crate::fit::straight_line::StraightLineFitterResult;
     use itertools;
     use light_curve_common::{all_close, linspace};
+    use rand::prelude::*;
+    use rand_distr::StandardNormal;
+    use std::ops::Mul;
 
     fn to_vec_f64<T: Float>(x: &[T]) -> Vec<f64> {
         x.iter().map(|&a| a.value_as::<f64>().unwrap()).collect()
@@ -290,7 +293,6 @@ mod tests {
     #[test]
     fn parabola_dual() {
         const N: usize = 40;
-        const P: usize = 3;
 
         let param_init = [0.5f64, 0.5f64, 0.5f64];
         let param_init = VectorF64::from_slice(&param_init).unwrap();
@@ -302,17 +304,174 @@ mod tests {
                 .collect(),
             err2: Some(vec![0.01; N]),
         });
+        let data_real = data.clone();
+        let data_dual = data.clone();
 
-        let mut solver = NLSProblem::from_dual_f(N, move |param, result| {
-            for i in 0..result.len() {
-                let y = param[0] + param[1] * data.t[i] + param[2] * data.t[i].powi(2);
-                result[i] = (y - data.y[i]) / data.err2.as_ref().unwrap()[i];
+        let mut fitter = NLSProblem::from_dual_f(
+            N,
+            move |param, result| {
+                for i in 0..result.len() {
+                    let y =
+                        param[0] + param[1] * data_real.t[i] + param[2] * data_real.t[i].powi(2);
+                    result[i] = (y - data_real.y[i]) / data_real.err2.as_ref().unwrap()[i];
+                }
+            },
+            move |param, result| {
+                for i in 0..result.len() {
+                    let y =
+                        param[0] + param[1] * data_dual.t[i] + param[2] * data_dual.t[i].powi(2);
+                    result[i] = (y - data_dual.y[i]) / data_dual.err2.as_ref().unwrap()[i];
+                }
+            },
+        );
+        fitter.atol = 1e-8;
+        fitter.rtol = 0.0;
+
+        let param = fitter.solve(&param_init).unwrap();
+
+        all_close(param.as_slice().unwrap(), &[0.0, 1.0, 1.0], 1e-8);
+    }
+
+    #[inline]
+    fn nonlinear_func<T, U>(param: &[T], t: &U) -> T
+    where
+        T: hyperdual::Float + Mul<U, Output = T>,
+        U: hyperdual::Float,
+    {
+        param[1] * T::exp(-param[0] * *t) * t.powi(2) + param[2]
+    }
+
+    #[test]
+    fn nonlinear_fdf() {
+        const N: usize = 300;
+        const P: usize = 3;
+        const NOISE: f64 = 0.5;
+        const RTOL: f64 = 1e-6;
+
+        // curve_fit(lambda x, a, b, c: b * np.exp(-a * x) * x**2 + c, xdata=t, ydata=y, p0=[1, 1, 1], xtol=1e-6)
+        let desired = [0.7450598836400693, 1.981911479079224, 0.5094446163866907];
+
+        let param_true = [0.75, 2.0, 0.5];
+        let param_init = [1.0, 1.0, 1.0];
+        let param_init = VectorF64::from_slice(&param_init).unwrap();
+
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let t = linspace(0.0, 10.0, N);
+        let y = t
+            .iter()
+            .map(|x| {
+                let eps: f64 = rng.sample(StandardNormal);
+                nonlinear_func(&param_true, x) + NOISE * eps
+            })
+            .collect();
+        let data = Rc::new(Data { t, y, err2: None });
+
+        let function = {
+            let data = data.clone();
+            move |x: VectorF64, mut residual: VectorF64| {
+                for i in 0..residual.len() {
+                    residual.set(
+                        i,
+                        nonlinear_func(x.as_slice().unwrap(), &data.t[i]) - data.y[i],
+                    );
+                }
+                Value::Success
             }
-        });
-        solver.max_iter = 100;
+        };
+        let jac = {
+            let data = data.clone();
+            move |x: VectorF64, mut jacobian: MatrixF64| {
+                for i in 0..jacobian.size1() {
+                    let exp_t2 = f64::exp(-x.get(0) * data.t[i]) * data.t[i].powi(2);
+                    jacobian.set(i, 0, -x.get(1) * data.t[i] * exp_t2);
+                    jacobian.set(i, 1, exp_t2);
+                    jacobian.set(i, 2, 1.0);
+                }
+                Value::Success
+            }
+        };
+        let fdf = move |x: VectorF64, mut residual: VectorF64, mut jacobian: MatrixF64| {
+            for i in 0..jacobian.size1() {
+                let exp_t2 = f64::exp(-x.get(0) * data.t[i]) * data.t[i].powi(2);
+                residual.set(i, x.get(1) * exp_t2 + x.get(2) - data.y[i]);
+                jacobian.set(i, 0, -x.get(1) * data.t[i] * exp_t2);
+                jacobian.set(i, 1, exp_t2);
+                jacobian.set(i, 2, 1.0);
+            }
+            Value::Success
+        };
 
-        let param = solver.solve(&param_init).unwrap();
+        let mut fitter = NLSProblem::from_f_df_fdf(N, P, function, jac, fdf);
+        fitter.rtol = RTOL;
 
-        all_close(param.as_slice().unwrap(), &[0.0, 1.0, 1.0], 1e-4);
+        let param = fitter.solve(&param_init).unwrap();
+
+        all_close(
+            param.as_slice().unwrap(),
+            &param_true,
+            NOISE / (N as f64).sqrt(),
+        );
+        all_close(param.as_slice().unwrap(), &desired, RTOL);
+    }
+
+    #[test]
+    fn nonlinear_dual() {
+        const N: usize = 300;
+        const NOISE: f64 = 0.5;
+        const RTOL: f64 = 1e-6;
+
+        // curve_fit(lambda x, a, b, c: b * np.exp(-a * x) * x**2 + c, xdata=t, ydata=y, p0=[1, 1, 1], xtol=1e-6)
+        let desired = [0.7450598836400693, 1.981911479079224, 0.5094446163866907];
+
+        let param_true = [0.75, 2.0, 0.5];
+        let param_init = [1.0, 1.0, 1.0];
+        let param_init = VectorF64::from_slice(&param_init).unwrap();
+
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let t = linspace(0.0, 10.0, N);
+        let y = t
+            .iter()
+            .map(|x| {
+                let eps: f64 = rng.sample(StandardNormal);
+                nonlinear_func(&param_true, x) + NOISE * eps
+            })
+            .collect();
+        let data = Rc::new(Data { t, y, err2: None });
+        let data_real = data.clone();
+        let data_dual = data.clone();
+
+        let mut fitter = NLSProblem::from_dual_f(
+            N,
+            move |x: &[f64], result: &mut [f64]| {
+                for (t, (&y, r)) in data_real
+                    .t
+                    .iter()
+                    .zip(data_real.y.iter().zip(result.iter_mut()))
+                {
+                    *r = nonlinear_func(x, t) - y;
+                }
+            },
+            move |x: &[Hyperdual<f64, _>], result: &mut [Hyperdual<f64, _>]| {
+                for (t, (&y, r)) in data_dual
+                    .t
+                    .iter()
+                    .zip(data_dual.y.iter().zip(result.iter_mut()))
+                {
+                    *r = nonlinear_func(x, t) - y;
+                }
+            },
+        );
+        fitter.rtol = RTOL;
+
+        let param = fitter.solve(&param_init).unwrap();
+
+        all_close(
+            param.as_slice().unwrap(),
+            &param_true,
+            NOISE / (N as f64).sqrt(),
+        );
+        all_close(param.as_slice().unwrap(), &desired, RTOL);
     }
 }
