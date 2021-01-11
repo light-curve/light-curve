@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-feature"
-version = "0.2.1-beta.0"
+version = "0.2.1-beta.1"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
@@ -50,4 +50,4 @@ rustdoc-args = [
     "katex-header.html",
 ]
 no-default-features = true
-features = ["fftw-system"]
+features = ["fftw-system", "gsl"]
