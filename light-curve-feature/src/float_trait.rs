@@ -18,6 +18,7 @@ pub trait Float:
     + ApproxFrom<usize>
     + ApproxFrom<f64>
     + ApproxInto<usize, RoundToNearest>
+    + ApproxInto<f64>
     + Clone
     + Copy
     + Send

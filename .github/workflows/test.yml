@@ -9,10 +9,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install FFTW
+    - name: Install FFTW and GSL
       run: |
         sudo apt-get update
-        sudo apt-get install libfftw3-dev
+        sudo apt-get install libfftw3-dev libgsl-dev
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable

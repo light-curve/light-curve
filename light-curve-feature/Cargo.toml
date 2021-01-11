@@ -11,7 +11,7 @@ edition = "2018"
 bench = false
 
 [features]
-default = ["fftw-source", "gsl"]
+default = ["fftw-source"]
 fftw-system = ["fftw/system"]
 fftw-source = ["fftw/source"]
 fftw-mkl = ["fftw/intel-mkl"]

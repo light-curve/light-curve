@@ -5,7 +5,6 @@ pub use rgsl::{MatrixF64, Value, VectorF64};
 use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::result::Result;
 
 pub struct NLSProblem {
     pub max_iter: usize,
@@ -33,18 +32,18 @@ impl NLSProblem {
         .unwrap();
         match solver.set(&mut self.fit_function, &x0) {
             Value::Success => {}
-            status @ _ => return NLSFitResult { status, solver },
+            status => return NLSFitResult { status, solver },
         }
 
         for _ in 0..self.max_iter {
             match solver.iterate() {
                 Value::Success | Value::ToleranceX | Value::ToleranceF | Value::ToleranceG => {}
-                status @ _ => return NLSFitResult { status, solver },
+                status => return NLSFitResult { status, solver },
             }
 
             match rgsl::multifit::test_delta(&solver.dx(), &solver.x(), self.atol, self.rtol) {
                 Value::Continue => {}
-                status @ _ => return NLSFitResult { status, solver },
+                status => return NLSFitResult { status, solver },
             }
         }
         NLSFitResult {
@@ -187,7 +186,6 @@ impl NLSFitResult {
 mod tests {
     use super::*;
     use crate::fit::straight_line::StraightLineFitterResult;
-    use itertools;
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
     use rand_distr::StandardNormal;
@@ -200,7 +198,7 @@ mod tests {
     fn fit_straight_line<T: Float>(
         x: &[T],
         y: &[T],
-        err2: Option<&[T]>,
+        _w: Option<&[T]>,
     ) -> StraightLineFitterResult<T> {
         let t1 = Rc::new(to_vec_f64(x));
         let t2 = t1.clone();
@@ -249,14 +247,14 @@ mod tests {
     struct Data {
         t: Vec<f64>,
         y: Vec<f64>,
-        err2: Option<Vec<f64>>,
+        err: Option<Vec<f64>>,
     }
 
     fn func(param: &rgsl::VectorF64, residual: &mut rgsl::VectorF64, data: &Data) -> rgsl::Value {
         let a = param.get(0);
         let b = param.get(1);
 
-        let err2_iter = match &data.err2 {
+        let err2_iter = match &data.err {
             Some(e2) => itertools::Either::Left(e2.iter()),
             None => itertools::Either::Right(std::iter::once(&1.0).cycle()),
         };
@@ -272,7 +270,7 @@ mod tests {
     }
 
     fn jac(_param: &rgsl::VectorF64, jacobian: &mut rgsl::MatrixF64, data: &Data) -> rgsl::Value {
-        let err2_iter = match &data.err2 {
+        let err2_iter = match &data.err {
             Some(e2) => itertools::Either::Left(e2.iter()),
             None => itertools::Either::Right(std::iter::repeat(&1.0)),
         };
@@ -296,13 +294,13 @@ mod tests {
         let data = Rc::new(Data {
             t: (0..n).map(|i| i as f64).collect(),
             y: (0..n).map(|i| (i * i) as f64).collect(),
-            err2: None,
+            err: None,
             // err2: Some((0..n).map(|i| ((i + 1) as f64) * 0.01).collect()),
         });
 
         let mut solver = {
             let data_f = data.clone();
-            let data_df = data.clone();
+            let data_df = data;
             NLSProblem::from_f_df(
                 n,
                 p,
@@ -330,25 +328,25 @@ mod tests {
             y: (0..N)
                 .map(|i| (i as f64 / (N - 1) as f64).powi(2) + (i as f64 / (N - 1) as f64))
                 .collect(),
-            err2: Some(vec![0.01; N]),
+            err: Some(vec![0.01; N]),
         });
         let data_real = data.clone();
-        let data_dual = data.clone();
+        let data_dual = data;
 
         let mut fitter = NLSProblem::from_dual_f(
             N,
             move |param, result| {
-                for i in 0..result.len() {
+                for (i, r) in result.iter_mut().enumerate() {
                     let y =
                         param[0] + param[1] * data_real.t[i] + param[2] * data_real.t[i].powi(2);
-                    result[i] = (y - data_real.y[i]) / data_real.err2.as_ref().unwrap()[i];
+                    *r = (y - data_real.y[i]) / data_real.err.as_ref().unwrap()[i];
                 }
             },
             move |param, result| {
-                for i in 0..result.len() {
+                for (i, r) in result.iter_mut().enumerate() {
                     let y =
                         param[0] + param[1] * data_dual.t[i] + param[2] * data_dual.t[i].powi(2);
-                    result[i] = (y - data_dual.y[i]) / data_dual.err2.as_ref().unwrap()[i];
+                    *r = (y - data_dual.y[i]) / data_dual.err.as_ref().unwrap()[i];
                 }
             },
         );
@@ -395,7 +393,7 @@ mod tests {
                 nonlinear_func(&param_true, x) + NOISE * eps
             })
             .collect();
-        let data = Rc::new(Data { t, y, err2: None });
+        let data = Rc::new(Data { t, y, err: None });
 
         let function = {
             let data = data.clone();
@@ -470,9 +468,9 @@ mod tests {
                 nonlinear_func(&param_true, x) + NOISE * eps
             })
             .collect();
-        let data = Rc::new(Data { t, y, err2: None });
+        let data = Rc::new(Data { t, y, err: None });
         let data_real = data.clone();
-        let data_dual = data.clone();
+        let data_dual = data;
 
         let mut fitter = NLSProblem::from_dual_f(
             N,

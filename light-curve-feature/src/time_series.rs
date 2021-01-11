@@ -3,10 +3,10 @@ use crate::sorted_vec::SortedVec;
 use crate::statistics::Statistics;
 
 use conv::prelude::*;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use std::iter;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DataSample<'a, T>
 where
     T: Float,
@@ -109,48 +109,7 @@ where
     }
 }
 
-#[derive(Clone)]
-pub struct TimeSeriesOwned<T>
-where
-    T: Float,
-{
-    pub t: Vec<T>,
-    pub m: Vec<T>,
-    pub w: Vec<T>,
-}
-
-impl<T> TimeSeriesOwned<T>
-where
-    T: Float,
-{
-    pub fn lenu(&self) -> usize {
-        self.t.len()
-    }
-
-    /// (t, m) pair iter
-    pub fn tm_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
-        self.t.iter().copied().zip(self.m.iter().copied())
-    }
-
-    /// (t, w) pair iter
-    pub fn tw_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
-        self.t.iter().copied().zip(self.w.iter().copied())
-    }
-
-    /// (m, w) pair iterator
-    pub fn mw_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
-        self.m.iter().copied().zip(self.w.iter().copied())
-    }
-
-    pub fn tmw_iter(&self) -> impl Iterator<Item = (T, T, T)> + '_ {
-        self.t
-            .iter()
-            .zip(self.m.iter().zip(self.w.iter()))
-            .map(|(&t, (&m, &w))| (t, m, w))
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TimeSeries<'a, T>
 where
     T: Float,
@@ -160,6 +119,8 @@ where
     pub w: Option<DataSample<'a, T>>,
     m_weighted_mean: Option<T>,
     m_reduced_chi2: Option<T>,
+    t_max_m: Option<T>,
+    t_min_m: Option<T>,
 }
 
 macro_rules! time_series_getter {
@@ -191,6 +152,8 @@ where
             }),
             m_weighted_mean: None,
             m_reduced_chi2: None,
+            t_max_m: None,
+            t_min_m: None,
         }
     }
 
@@ -238,32 +201,6 @@ where
             .map(|(&t, (&m, w))| (t, m, w))
     }
 
-    pub fn to_owned(&self) -> TimeSeriesOwned<T> {
-        TimeSeriesOwned {
-            t: self.t.sample.to_vec(),
-            m: self.t.sample.to_vec(),
-            w: self.w_iter().collect(),
-        }
-    }
-
-    pub fn to_owned_f64(&self) -> TimeSeriesOwned<f64> {
-        TimeSeriesOwned {
-            t: self
-                .t
-                .sample
-                .iter()
-                .map(|&v| v.value_into().unwrap())
-                .collect(),
-            m: self
-                .m
-                .sample
-                .iter()
-                .map(|&v| v.value_into().unwrap())
-                .collect(),
-            w: self.w_iter().map(|v| v.value_into().unwrap()).collect(),
-        }
-    }
-
     time_series_getter!(
         m_weighted_mean,
         get_m_weighted_mean,
@@ -281,6 +218,32 @@ where
             .sum::<T>()
             / (ts.lenf() - T::one())
     });
+
+    fn set_t_min_max_m(&mut self) {
+        let (i_min, i_max) = self
+            .m
+            .sample
+            .iter()
+            .position_minmax()
+            .into_option()
+            .expect("time series must to be non-empty");
+        self.t_min_m = Some(self.t.sample[i_min]);
+        self.t_max_m = Some(self.t.sample[i_max]);
+    }
+
+    pub fn get_t_min_m(&mut self) -> T {
+        if self.t_min_m.is_none() {
+            self.set_t_min_max_m()
+        }
+        self.t_min_m.unwrap()
+    }
+
+    pub fn get_t_max_m(&mut self) -> T {
+        if self.t_max_m.is_none() {
+            self.set_t_min_max_m()
+        }
+        self.t_max_m.unwrap()
+    }
 }
 
 #[cfg(test)]
