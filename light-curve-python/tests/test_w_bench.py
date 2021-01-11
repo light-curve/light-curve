@@ -3,26 +3,37 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from scipy import stats
+from scipy.optimize import curve_fit
 
 import light_curve as lc
 
 
-def generate_data():
-    n = 1000
-    t = np.sort(np.random.uniform(0.0, 1000.0, n))
-    m = np.random.uniform(15.0, 21.0, n)
-    sigma = np.random.uniform(0.01, 0.2, n)
-    return t, m, sigma
-
-
 class _FeatureTest:
+    # Default values of `assert_allclose`
+    rtol = 1e-7
+    atol = 0
+
+    n_obs = 1000
+    t_min = 0.0
+    t_max = 1000.0
+    m_min = 15.0
+    m_max = 21.0
+    sigma_min = 0.01
+    sigma_max = 0.2
+
+    def generate_data(self):
+        t = np.sort(np.random.uniform(self.t_min, self.t_max, self.n_obs))
+        m = np.random.uniform(self.m_min, self.m_max, self.n_obs)
+        sigma = np.random.uniform(self.sigma_min, self.sigma_max, self.n_obs)
+        return t, m, sigma
+
     def test_feature_length(self):
-        t, m, sigma = generate_data()
+        t, m, sigma = self.generate_data()
         result = self.feature(t, m, sigma, sorted=None)
         assert len(result) == len(self.feature.names) == len(self.feature.descriptions)
 
     def test_benchmark_feature(self, benchmark):
-        t, m, sigma = generate_data()
+        t, m, sigma = self.generate_data()
 
         benchmark.group = str(type(self).__name__)
         benchmark(self.feature, t, m, sigma, sorted=True)
@@ -32,11 +43,11 @@ class _NaiveTest:
     naive = None
 
     def test_close_to_naive(self):
-        t, m, sigma = generate_data()
-        assert_allclose(self.feature(t, m, sigma), self.naive(t, m, sigma))
+        t, m, sigma = self.generate_data()
+        assert_allclose(self.feature(t, m, sigma), self.naive(t, m, sigma), rtol=self.rtol, atol=self.atol)
 
     def test_benchmark_naive(self, benchmark):
-        t, m, sigma = generate_data()
+        t, m, sigma = self.generate_data()
 
         benchmark.group = type(self).__name__
         benchmark(self.naive, t, m, sigma)
@@ -56,11 +67,11 @@ class _FeetsTest:
     def test_close_to_feets(self):
         if self.feets_skip_test:
             pytest.skip("feets is expected to be different from light_curve, reason: " + self.feets_skip_test)
-        t, m, sigma = generate_data()
-        assert_allclose(self.feature(t, m, sigma)[:1], self.feets(t, m, sigma)[:1])
+        t, m, sigma = self.generate_data()
+        assert_allclose(self.feature(t, m, sigma)[:1], self.feets(t, m, sigma)[:1], rtol=self.rtol, atol=self.atol)
 
     def test_benchmark_feets(self, benchmark):
-        t, m, sigma = generate_data()
+        t, m, sigma = self.generate_data()
 
         benchmark.group = type(self).__name__
         benchmark(self.feets, t, m, sigma)
@@ -81,6 +92,44 @@ class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
 
     def naive(self, t, m, sigma):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
+
+
+class TestBazinFit(_FeatureTest, _NaiveTest):
+    feature = lc.BazinFit()
+    rtol = 1e-4  # Precision used in the feature implementation
+
+    @staticmethod
+    def _model(t, a, b, t0, rise, fall):
+        dt = t - t0
+        return b + a * np.exp(-dt/fall) / (1.0 + np.exp(-dt/rise))
+
+    def _params(self):
+        a = 1000
+        b = 0
+        t0 = 0.5 * (self.t_min + self.t_max)
+        rise = 0.3 * (self.t_max - self.t_min)
+        fall = 0.4 * (self.t_max - self.t_min)
+        return a, b, t0, rise, fall
+
+    # Random data yields to random results because target function has a lot of local minima
+    # BTW, this test shouldn't use fixed random seed because the curve has good enough S/N to be fitted for any give
+    # noise sample
+    def generate_data(self):
+        rng = np.random.default_rng(0)
+        t = np.linspace(self.t_min, self.t_max, self.n_obs)
+        sigma = np.ones_like(t)
+        m = self._model(t, *self._params()) + sigma * rng.normal(size=self.n_obs)
+        return t, m, sigma
+
+    def naive(self, t, m, sigma):
+        params, _cov = curve_fit(
+            self._model,
+            xdata=t, ydata=m, sigma=sigma,
+            xtol=self.rtol,
+            p0=self._params(),
+        )
+        reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (t.size - params.size)
+        return *params, reduced_chi2
 
 
 class TestBeyond1Std(_FeatureTest, _NaiveTest, _FeetsTest):
