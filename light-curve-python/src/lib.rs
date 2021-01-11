@@ -448,6 +448,9 @@ impl BeyondNStd {
     }
 }
 
+#[cfg(feature = "nonlinear-fit")]
+evaluator!(BazinFit, lcf::BazinFit);
+
 /// Binned time-series
 ///
 /// Parameters
@@ -905,6 +908,9 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<StandardDeviation>()?;
     m.add_class::<StetsonK>()?;
     m.add_class::<WeightedMean>()?;
+
+    #[cfg(feature = "nonlinear-fit")]
+    m.add_class::<BazinFit>()?;
 
     m.add_wrapped(wrap_pymodule!(antifeatures))?;
 

@@ -16,6 +16,7 @@ default = ["fftw-static"]
 fftw-static = ["light-curve-feature/fftw-source"]
 fftw-dynamic = ["light-curve-feature/fftw-system"]
 mkl-dynamic = ["light-curve-feature/fftw-mkl"]
+nonlinear-fit = ["light-curve-feature/gsl"]
 
 [dependencies]
 conv = "^0.3.3"
@@ -25,7 +26,7 @@ ndarray = "^0.14"
 numpy = "^0.13"
 
 [dependencies.light-curve-feature]
-version = "0.2.0"
+version = "0.2.1-beta.1"
 default_features = false
 
 [dependencies.pyo3]
