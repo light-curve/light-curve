@@ -7,15 +7,25 @@ use std::ops::{Add, Mul, Sub};
 
 /// Bazin fit
 ///
+/// Requires *gsl* feature to be enabled
+///
+/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of Bazin function developed for
+/// core-collapsed supernovae:
 /// $$
-/// f(t) = A \frac{ \\mathrm{e}^{ -(t-t_0)/\\tau_\\mathrm{fall} } }{ 1 + \\mathrm{e}^{ (t - t_0) / \\tau_\\mathrm{rise} } } + B
+/// f(t) = A \frac{ \\mathrm{e}^{ -(t-t_0)/\\tau_\\mathrm{fall} } }{ 1 + \\mathrm{e}^{ -(t - t_0) / \\tau_\\mathrm{rise} } } + B.
 /// $$
 ///
-/// Note, that Bazin function is developed to use with flux values, not magnitudes
+/// Note, that Bazin function is developed to use with fluxes, not magnitudes. Also note a typo in
+/// the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent
+///
+/// Is not guaranteed that parameters correspond to global minima of the loss function, the feature
+/// extractor needs a lot of improvement.
 ///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **6**
 /// - Number of features: **6**
+///
+/// Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
 #[derive(Clone, Default, Debug)]
 pub struct BazinFit {}
 
