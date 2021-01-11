@@ -101,7 +101,7 @@ class TestBazinFit(_FeatureTest, _NaiveTest):
     @staticmethod
     def _model(t, a, b, t0, rise, fall):
         dt = t - t0
-        return b + a * np.exp(-dt/fall) / (1.0 + np.exp(-dt/rise))
+        return b + a * np.exp(-dt / fall) / (1.0 + np.exp(-dt / rise))
 
     def _params(self):
         a = 1000
@@ -124,7 +124,9 @@ class TestBazinFit(_FeatureTest, _NaiveTest):
     def naive(self, t, m, sigma):
         params, _cov = curve_fit(
             self._model,
-            xdata=t, ydata=m, sigma=sigma,
+            xdata=t,
+            ydata=m,
+            sigma=sigma,
             xtol=self.rtol,
             p0=self._params(),
         )
