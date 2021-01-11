@@ -128,6 +128,7 @@ class TestBazinFit(_FeatureTest, _NaiveTest):
             ydata=m,
             sigma=sigma,
             xtol=self.rtol,
+            # We give really good parameters estimation!
             p0=self._params(),
         )
         reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (t.size - params.size)
