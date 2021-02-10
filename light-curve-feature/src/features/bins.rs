@@ -7,8 +7,8 @@ use unzip3::Unzip3;
 /// Bins — sampled time series
 ///
 /// Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
-/// $j-th$ bin boundaries are
-/// $[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset}]$.
+/// $j-th$ bin interval is
+/// $[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset})$.
 /// Binned time series is defined by
 /// $$
 /// t_j^* = (j + \frac12) \cdot \mathrm{window} + \mathrm{offset},
