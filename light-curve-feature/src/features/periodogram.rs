@@ -180,7 +180,7 @@ where
             feature_extractor: feat_extr!(peaks),
             feature_names: peak_names,
             feature_descriptions: peak_descriptions,
-            periodogram_algorithm: || Box::new(PeriodogramPowerFft),
+            periodogram_algorithm: || Box::new(PeriodogramPowerFft::new()),
         }
     }
 
@@ -233,10 +233,6 @@ where
     ) -> &mut Self {
         self.periodogram_algorithm = periodogram_power;
         self
-    }
-
-    pub fn init_thread_local_fft_plan(n: &[usize]) {
-        periodogram::Periodogram::<T>::init_thread_local_fft_plans(n);
     }
 
     fn periodogram(&self, ts: &mut TimeSeries<T>) -> periodogram::Periodogram<T> {
@@ -446,7 +442,7 @@ mod tests {
             .set_nyquist(Box::new(QuantileNyquistFreq { quantile: 0.05 }))
             .set_freq_resolution(10.0)
             .set_max_freq_factor(1.0)
-            .set_periodogram_algorithm(|| Box::new(PeriodogramPowerFft));
+            .set_periodogram_algorithm(|| Box::new(PeriodogramPowerFft::new()));
         let fe = FeatureExtractor::new(vec![Box::new(periodogram)]);
         let period1 = 0.01;
         let period2 = 1.0;

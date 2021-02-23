@@ -4,7 +4,11 @@ use crate::periodogram::freq::FreqGrid;
 use crate::periodogram::power::*;
 use crate::time_series::TimeSeries;
 use conv::{ConvAsUtil, RoundToNearest};
-use num_complex::Complex;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+use thread_local::ThreadLocal;
 
 /// "Fast" (FFT-based) periodogram executor
 ///
@@ -19,9 +23,36 @@ use num_complex::Complex;
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
 #[derive(Debug)]
-pub struct PeriodogramPowerFft;
+pub struct PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    fft: Arc<ThreadLocal<RefCell<Fft<T>>>>,
+    arrays: Arc<ThreadLocal<RefCell<PeriodogramArraysMap<T>>>>,
+}
 
-impl<T> PeriodogramPower<T> for PeriodogramPowerFft
+impl<T> PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    pub fn new() -> Self {
+        Self {
+            fft: Arc::new(ThreadLocal::new()),
+            arrays: Arc::new(ThreadLocal::new()),
+        }
+    }
+}
+
+impl<T> Default for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> PeriodogramPower<T> for PeriodogramPowerFft<T>
 where
     T: Float,
 {
@@ -34,7 +65,25 @@ where
 
         let grid = TimeGrid::from_freq_grid(&freq);
 
-        let (sum_sin_cos_h, sum_sin_cos_2) = sum_sin_cos(&grid, ts);
+        let mut periodogram_arrays_map = self
+            .arrays
+            .get_or(|| RefCell::new(PeriodogramArraysMap::new()))
+            .borrow_mut();
+        let PeriodogramArrays {
+            x_sch,
+            y_sch: sum_sin_cos_h,
+            x_sc2,
+            y_sc2: sum_sin_cos_2,
+        } = periodogram_arrays_map.get(grid.size);
+
+        spread_arrays_for_fft(x_sch, x_sc2, &grid, ts);
+
+        {
+            let mut fft = self.fft.get_or(|| RefCell::new(Fft::new())).borrow_mut();
+
+            fft.fft(x_sch, sum_sin_cos_h).unwrap();
+            fft.fft(x_sc2, sum_sin_cos_2).unwrap();
+        }
 
         let ts_size = ts.lenf();
 
@@ -43,10 +92,10 @@ where
             .zip(sum_sin_cos_2.iter())
             .skip(1) // skip zero frequency
             .map(|(sch, sc2)| {
-                let sum_cos_h = sch.re;
-                let sum_sin_h = -sch.im;
-                let sum_cos_2 = sc2.re;
-                let sum_sin_2 = -sc2.im;
+                let sum_cos_h = sch.get_re();
+                let sum_sin_h = -sch.get_im();
+                let sum_cos_2 = sc2.get_re();
+                let sum_sin_2 = -sc2.get_im();
 
                 let cos_2wtau = if T::is_zero(&sum_cos_2) && T::is_zero(&sum_sin_2) {
                     // Set tau to zero
@@ -90,6 +139,65 @@ where
     }
 }
 
+struct PeriodogramArrays<T>
+where
+    T: Float,
+{
+    x_sch: AlignedVec<T>,
+    y_sch: AlignedVec<T::FftwComplex>,
+    x_sc2: AlignedVec<T>,
+    y_sc2: AlignedVec<T::FftwComplex>,
+}
+
+impl<T> PeriodogramArrays<T>
+where
+    T: Float,
+{
+    fn new(n: usize) -> Self {
+        let c_n = n / 2 + 1;
+        Self {
+            x_sch: AlignedVec::new(n),
+            y_sch: AlignedVec::new(c_n),
+            x_sc2: AlignedVec::new(n),
+            y_sc2: AlignedVec::new(c_n),
+        }
+    }
+}
+
+impl<T> fmt::Debug for PeriodogramArrays<T>
+where
+    T: Float,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PeriodogramArrays(n = {})", self.x_sch.len())
+    }
+}
+
+#[derive(Debug)]
+struct PeriodogramArraysMap<T>
+where
+    T: Float,
+{
+    arrays: HashMap<usize, PeriodogramArrays<T>>,
+}
+
+impl<T> PeriodogramArraysMap<T>
+where
+    T: Float,
+{
+    fn new() -> Self {
+        Self {
+            arrays: HashMap::new(),
+        }
+    }
+
+    fn get(&mut self, n: usize) -> &mut PeriodogramArrays<T> {
+        self.arrays
+            .entry(n)
+            .or_insert_with(|| PeriodogramArrays::new(n))
+    }
+}
+
 struct TimeGrid<T> {
     dt: T,
     size: usize,
@@ -113,7 +221,7 @@ impl<T: Float> TimeGrid<T> {
     }
 }
 
-fn spread<T: Float>(v: &mut AlignedVec<T>, x: T, y: T) {
+fn spread<T: Float>(v: &mut [T], x: T, y: T) {
     let x_lo = x.floor();
     let x_hi = x.ceil();
     let i_lo: usize = x_lo.approx_by::<RoundToNearest>().unwrap() % v.len();
@@ -128,42 +236,24 @@ fn spread<T: Float>(v: &mut AlignedVec<T>, x: T, y: T) {
     v[i_hi] += (x - x_lo) * y;
 }
 
-fn zeroed_aligned_vec<T: Float>(size: usize) -> AlignedVec<T> {
-    let mut av = AlignedVec::new(size);
-    for x in av.iter_mut() {
-        *x = T::zero();
-    }
-    av
-}
-
 fn spread_arrays_for_fft<T: Float>(
+    x_sch: &mut [T],
+    x_sc2: &mut [T],
     grid: &TimeGrid<T>,
     ts: &mut TimeSeries<T>,
-) -> (AlignedVec<T>, AlignedVec<T>) {
-    let mut mh = zeroed_aligned_vec(grid.size);
-    let mut m2 = zeroed_aligned_vec(grid.size);
+) {
+    x_sch.fill(T::zero());
+    x_sc2.fill(T::zero());
 
     let t0 = ts.t.sample[0];
     let m_mean = ts.m.get_mean();
 
     for (t, m) in ts.tm_iter() {
         let x = (t - t0) / grid.dt;
-        spread(&mut mh, x, m - m_mean);
+        spread(x_sch, x, m - m_mean);
         let double_x = T::two() * x;
-        spread(&mut m2, double_x, T::one());
+        spread(x_sc2, double_x, T::one());
     }
-
-    (mh, m2)
-}
-
-fn sum_sin_cos<T: Float>(
-    grid: &TimeGrid<T>,
-    ts: &mut TimeSeries<T>,
-) -> (AlignedVec<Complex<T>>, AlignedVec<Complex<T>>) {
-    let (m_for_sch, m_for_sc2) = spread_arrays_for_fft(grid, ts);
-    let sum_sin_cos_h = T::fft(m_for_sch);
-    let sum_sin_cos_2 = T::fft(m_for_sc2);
-    (sum_sin_cos_h, sum_sin_cos_2)
 }
 
 #[cfg(test)]
@@ -198,14 +288,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
-    fn zero_aligned_vec() {
-        const N: usize = 32;
-        let av = zeroed_aligned_vec::<f64>(N);
-        assert_eq!(&av[..], &[0.0; N]);
-    }
-
-    #[test]
     fn spread_arrays_for_fft_one_to_one() {
         const N: usize = 32;
 
@@ -219,7 +301,12 @@ mod tests {
         let freq_grid = FreqGrid::from_t(&t, 1.0, 1.0, &nyquist);
         let time_grid = TimeGrid::from_freq_grid(&freq_grid);
 
-        let (mh, m2) = spread_arrays_for_fft(&time_grid, &mut ts);
+        let (mh, m2) = {
+            let mut mh = vec![0.0; time_grid.size];
+            let mut m2 = vec![0.0; time_grid.size];
+            spread_arrays_for_fft(&mut mh, &mut m2, &time_grid, &mut ts);
+            (mh, m2)
+        };
 
         let desired_mh: Vec<_> = m.iter().map(|&x| x - ts.m.get_mean()).collect();
         all_close(&mh, &desired_mh, 1e-10);
@@ -243,7 +330,12 @@ mod tests {
         let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
         let freq_grid = FreqGrid::from_t(&t, RESOLUTION as f32, 1.0, &nyquist);
         let time_grid = TimeGrid::from_freq_grid(&freq_grid);
-        let (mh, m2) = spread_arrays_for_fft(&time_grid, &mut ts);
+        let (mh, m2) = {
+            let mut mh = vec![0.0; time_grid.size];
+            let mut m2 = vec![0.0; time_grid.size];
+            spread_arrays_for_fft(&mut mh, &mut m2, &time_grid, &mut ts);
+            (mh, m2)
+        };
 
         let desired_mh: Vec<_> = m.iter().map(|&x| x - ts.m.get_mean()).collect();
         all_close(&mh[..N], &desired_mh, 1e-10);

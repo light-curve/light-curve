@@ -9,12 +9,10 @@ pub fn bench_periodogram(c: &mut Criterion) {
     const N: [usize; 3] = [10, 100, 1000];
     let power_resolution: [(fn() -> BoxedPeriodogram, f32); 2] = [
         (|| Box::new(PeriodogramPowerDirect), 5.0),
-        (|| Box::new(PeriodogramPowerFft), 10.0),
+        (|| Box::new(PeriodogramPowerFft::new()), 10.0),
     ];
     const PERIOD: f32 = 0.22;
     let nyquist: Box<dyn NyquistFreq<f32>> = Box::new(AverageNyquistFreq);
-
-    Periodogram::<f32>::init_thread_local_fft_plans(&N);
 
     for &n in N.iter() {
         let x = linspace(0.0_f32, 1.0, n);
