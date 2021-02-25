@@ -22,7 +22,6 @@ use thread_local::ThreadLocal;
 /// especially for large grids.
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
-#[derive(Debug)]
 pub struct PeriodogramPowerFft<T>
 where
     T: Float,
@@ -40,6 +39,15 @@ where
             fft: Arc::new(ThreadLocal::new()),
             arrays: Arc::new(ThreadLocal::new()),
         }
+    }
+}
+
+impl<T> fmt::Debug for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", std::any::type_name::<Self>())
     }
 }
 
