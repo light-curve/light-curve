@@ -2,6 +2,7 @@
 members = [
     "light-curve",
     "light-curve-common",
+    "light-curve-dmdt",
     "light-curve-feature",
     "light-curve-interpol",
     "light-curve-python",

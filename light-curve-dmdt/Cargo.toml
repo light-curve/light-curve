@@ -1,0 +1,24 @@
+[package]
+name = "light-curve-dmdt"
+version = "0.1.0"
+description = "dm-dt maps generator"
+repository = "https://github.com/hombit/light-curve"
+authors = ["Konstantin Malanchev <hombit@gmail.com>"]
+license = "MIT"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "light_curve_dmdt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "dmdt"
+path = "src/bin/main.rs"
+
+[dependencies]
+conv = "^0.3.3"
+ndarray = "^0.14.0"
+png = "^0.16.8"
+thiserror = "^1.0.24"
