@@ -22,6 +22,7 @@ use thread_local::ThreadLocal;
 /// especially for large grids.
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
+#[derive(Clone)]
 pub struct PeriodogramPowerFft<T>
 where
     T: Float,
@@ -78,19 +79,19 @@ where
             .get_or(|| RefCell::new(PeriodogramArraysMap::new()))
             .borrow_mut();
         let PeriodogramArrays {
-            x_sch,
+            x_sch: m_for_sch,
             y_sch: sum_sin_cos_h,
-            x_sc2,
+            x_sc2: m_for_sc2,
             y_sc2: sum_sin_cos_2,
         } = periodogram_arrays_map.get(grid.size);
 
-        spread_arrays_for_fft(x_sch, x_sc2, &grid, ts);
+        spread_arrays_for_fft(m_for_sch, m_for_sc2, &grid, ts);
 
         {
             let mut fft = self.fft.get_or(|| RefCell::new(Fft::new())).borrow_mut();
 
-            fft.fft(x_sch, sum_sin_cos_h).unwrap();
-            fft.fft(x_sc2, sum_sin_cos_2).unwrap();
+            fft.fft(m_for_sch, sum_sin_cos_h).unwrap();
+            fft.fft(m_for_sc2, sum_sin_cos_2).unwrap();
         }
 
         let ts_size = ts.lenf();

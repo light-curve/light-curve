@@ -18,7 +18,7 @@ pub struct EvaluatorInfo {
 
 /// The trait each feature should implement
 #[clonable]
-pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone + Debug {
+pub trait FeatureEvaluator<T: Float>: Send + Clone + Debug {
     /// Should return the vector of feature values or `EvaluatorError`
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
 
