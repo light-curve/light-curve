@@ -8,8 +8,9 @@ use fftw::types::Flag;
 use num_complex::Complex as FftwComplex;
 use num_traits::{Float, FloatConst, NumAssign};
 use rand::prelude::*;
+use realfft::{RealFftPlanner, RealToComplex as RealFftRealToComplex};
 use rustfft::num_complex::Complex as RustFftComplex;
-use rustfft::{Fft as RustFftAlgo, FftNum, FftPlanner};
+use rustfft::FftNum;
 use std::{any, collections::HashMap, sync::Arc};
 
 trait Fft<T>: Debug {
@@ -17,7 +18,9 @@ trait Fft<T>: Debug {
 }
 
 struct RustFft<T> {
-    algo: HashMap<usize, Arc<dyn RustFftAlgo<T>>>,
+    algo: HashMap<usize, Arc<dyn RealFftRealToComplex<T>>>,
+    y: HashMap<usize, Vec<RustFftComplex<T>>>,
+    scratch: HashMap<usize, Vec<RustFftComplex<T>>>,
 }
 
 impl<T> RustFft<T>
@@ -25,12 +28,21 @@ where
     T: FftNum,
 {
     fn new(n: &[usize]) -> Self {
-        let mut planner = FftPlanner::new();
+        let mut planner = RealFftPlanner::new();
+        let algo: HashMap<_, _> = n
+            .iter()
+            .map(|&i| (i, planner.plan_fft_forward(i)))
+            .collect();
         Self {
-            algo: n
+            y: algo
                 .iter()
-                .map(|&i| (i, planner.plan_fft_forward(i)))
+                .map(|(k, v)| (*k, v.make_output_vec()))
                 .collect(),
+            scratch: algo
+                .iter()
+                .map(|(k, v)| (*k, v.make_scratch_vec()))
+                .collect(),
+            algo,
         }
     }
 }
@@ -46,23 +58,17 @@ where
     T: FftNum,
 {
     fn run(&mut self, a: &[T]) -> (T, T) {
-        let mut t: Vec<_> = a
-            .iter()
-            .map(|&x| RustFftComplex {
-                re: x,
-                im: T::zero(),
-            })
-            .collect();
-        self.algo.get(&a.len()).unwrap().process(&mut t);
-        // let norm = T::one() / T::sqrt(f.len());
-        // for y in f.mut_iter() {
-        //     *y *= norm;
-        // }
-        t.iter()
-            .take(a.len())
-            .fold((T::zero(), T::zero()), |acc, c| {
-                (acc.0 + c.re, acc.1 + c.im)
-            })
+        let n = a.len();
+        let mut x = a.to_vec();
+        let y = self.y.get_mut(&n).unwrap();
+        self.algo
+            .get(&n)
+            .unwrap()
+            .process_with_scratch(&mut x, y, self.scratch.get_mut(&n).unwrap())
+            .unwrap();
+        y.iter().fold((T::zero(), T::zero()), |acc, c| {
+            (acc.0 + c.re, acc.1 + c.im)
+        })
     }
 }
 
@@ -117,6 +123,8 @@ where
     T: FloatSupportedByFftwPlan,
 {
     r2cplan: HashMap<usize, Plan<T, FftwComplex<T>, T::Plan>>,
+    x: HashMap<usize, AlignedVec<T>>,
+    y: HashMap<usize, AlignedVec<FftwComplex<T>>>,
 }
 
 impl<T> Fftw<T>
@@ -133,6 +141,8 @@ where
                 .iter()
                 .map(|&i| (i, R2CPlan::aligned(&[i], flags).unwrap()))
                 .collect(),
+            x: n.iter().map(|&i| (i, AlignedVec::new(i))).collect(),
+            y: n.iter().map(|&i| (i, AlignedVec::new(i / 2 + 1))).collect(),
         }
     }
 }
@@ -153,17 +163,12 @@ where
     Plan<T, FftwComplex<T>, T::Plan>: R2CPlan<Real = T, Complex = FftwComplex<T>>,
 {
     fn run(&mut self, a: &[T]) -> (T, T) {
-        let mut t = AlignedVec::new(a.len());
-        for i in 0..a.len() {
-            t[i] = a[i];
-        }
-        let mut f = AlignedVec::new(a.len() / 2 + 1);
-        self.r2cplan
-            .get_mut(&a.len())
-            .unwrap()
-            .r2c(&mut t, &mut f)
-            .unwrap();
-        f.iter().fold((T::zero(), T::zero()), |acc, c| {
+        let n = a.len();
+        let x = self.x.get_mut(&n).unwrap();
+        x.copy_from_slice(a);
+        let y = self.y.get_mut(&n).unwrap();
+        self.r2cplan.get_mut(&n).unwrap().r2c(x, y).unwrap();
+        y.iter().fold((T::zero(), T::zero()), |acc, c| {
             (acc.0 + c.re, acc.1 + c.im)
         })
     }
