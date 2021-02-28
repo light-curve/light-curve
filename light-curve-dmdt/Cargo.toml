@@ -19,6 +19,9 @@ path = "src/bin/main.rs"
 
 [dependencies]
 conv = "^0.3.3"
+itertools = "^0.10.0"
+libm = "^0.2.1"
 ndarray = "^0.14.0"
+num-traits = "^0.2.14"
 png = "^0.16.8"
 thiserror = "^1.0.24"

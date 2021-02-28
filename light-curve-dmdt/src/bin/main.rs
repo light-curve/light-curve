@@ -19,6 +19,7 @@ enum MainError {
 fn main() -> Result<(), MainError> {
     let mut t: Vec<f32> = vec![];
     let mut m: Vec<f32> = vec![];
+    let mut w: Vec<f32> = vec![];
     for line in io::stdin().lock().lines() {
         let line = line?;
         if line.starts_with("#") {
@@ -30,16 +31,24 @@ fn main() -> Result<(), MainError> {
                 .ok_or(MainError::NotEnoughColumns("Empty string"))?,
         )?);
         m.push(f32::from_str(it.next().ok_or(
-            MainError::NotEnoughColumns("Only one value on string, at least two required"),
+            MainError::NotEnoughColumns("Only one value in line, at least two required"),
         )?)?);
+        w.push(f32::powi(
+            f32::from_str(it.next().ok_or(MainError::NotEnoughColumns(
+                "Only two values in a line, at least three required",
+            ))?)?,
+            -2,
+        ));
     }
     let dmdt = DmDt {
-        lgdt_grid: Grid::new(-2.0_f32, 3.0, 128),
+        lgdt_grid: Grid::new(-2.0_f32, 1.0, 128),
         dm_grid: Grid::new(-2.0_f32, 2.0, 128),
     };
-    let path = Path::new("dmdt.png");
-    let file = File::create(path)?;
-    let ref mut w = BufWriter::new(file);
-    to_png(w, &normalise(&dmdt.convert_lc(&t, &m)))?;
+
+    let writer = BufWriter::new(File::create(Path::new("dmdt.png"))?);
+    to_png(writer, &normalise(&dmdt.convert_lc_to_points(&t, &m)))?;
+
+    let writer = BufWriter::new(File::create(Path::new("dmdt-gauss.png"))?);
+    to_png(writer, &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &w)))?;
     Ok(())
 }

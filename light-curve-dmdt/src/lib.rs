@@ -1,12 +1,77 @@
 use conv::*;
-use ndarray::{Array2, NdFloat};
+use itertools::Itertools;
+use libm;
+use ndarray::{Array1, Array2, NdFloat, ScalarOperand};
+use num_traits;
 use png;
 use std::io::Write;
 
-trait Float: NdFloat + ValueFrom<usize> + ApproxInto<usize, RoundToZero> {}
+pub trait Normalisable:
+    ApproxInto<u8, DefaultApprox>
+    + num_traits::Num
+    + num_traits::NumOps
+    + PartialOrd
+    + ScalarOperand
+    + Copy
+{
+    fn max_u8() -> Self;
+}
 
-impl Float for f32 {}
-impl Float for f64 {}
+impl Normalisable for usize {
+    #[inline]
+    fn max_u8() -> Self {
+        255
+    }
+}
+
+impl Normalisable for f32 {
+    #[inline]
+    fn max_u8() -> Self {
+        255.0
+    }
+}
+
+impl Normalisable for f64 {
+    #[inline]
+    fn max_u8() -> Self {
+        255.0
+    }
+}
+
+pub trait Float:
+    NdFloat + num_traits::FloatConst + ValueFrom<usize> + ApproxInto<usize, RoundToZero>
+{
+    fn erf(self) -> Self;
+
+    fn half() -> Self;
+}
+
+impl Float for f32 {
+    fn erf(self) -> Self {
+        libm::erff(self)
+    }
+
+    fn half() -> Self {
+        0.5
+    }
+}
+impl Float for f64 {
+    fn erf(self) -> Self {
+        libm::erf(self)
+    }
+
+    fn half() -> Self {
+        0.5
+    }
+}
+
+fn normal_cdf<T>(x: T, mean: T, w: T) -> T
+where
+    T: Float,
+{
+    let inv_sigma = T::sqrt(w);
+    T::half() * (T::one() + T::erf((x - mean) * inv_sigma * T::FRAC_1_SQRT_2()))
+}
 
 pub struct Grid<T> {
     start: T, // coordinate of the left border of the leftmost cell
@@ -14,6 +79,7 @@ pub struct Grid<T> {
     n: usize,
     length: T, // distance from the left border of the leftmost cell to the right border of the rightmost cell
     cell_size: T,
+    borders: Array1<T>,
 }
 
 impl<T> Grid<T>
@@ -23,12 +89,14 @@ where
     pub fn new(start: T, end: T, n: usize) -> Self {
         let length = end - start;
         let cell_size = (end - start) / n.value_as::<T>().unwrap();
+        let borders = Array1::linspace(start, end, n + 1);
         Self {
             start,
             end,
             n,
             length,
             cell_size,
+            borders,
         }
     }
 
@@ -50,10 +118,11 @@ impl<T> DmDt<T>
 where
     T: Float,
 {
-    pub fn convert_lc(&self, t: &[T], m: &[T]) -> Array2<usize> {
+    pub fn convert_lc_to_points(&self, t: &[T], m: &[T]) -> Array2<usize> {
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
             for (&x2, &y2) in t[i1 + 1..].iter().zip(m[i1 + 1..].iter()) {
+                // TODO: Check if dt > max and break inner for
                 let lgdt = T::log10(x2 - x1);
                 let dm = y2 - y1;
                 if let Some(idx_lgdt) = self.lgdt_grid.idx(lgdt) {
@@ -65,15 +134,48 @@ where
         }
         a
     }
+
+    pub fn convert_lc_to_gausses(&self, t: &[T], m: &[T], w: &[T]) -> Array2<T> {
+        let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
+        for (i1, ((&x1, &y1), &dm_w1)) in t.iter().zip(m.iter()).zip(w.iter()).enumerate() {
+            for ((&x2, &y2), &dm_w2) in t[i1 + 1..]
+                .iter()
+                .zip(m[i1 + 1..].iter())
+                .zip(w[i1 + 1..].iter())
+            {
+                // TODO: Check if dt > max and break inner for
+                let lgdt = T::log10(x2 - x1);
+                let dm = y2 - y1;
+                let dm_w = dm_w1 + dm_w2;
+                if let Some(idx_lgdt) = self.lgdt_grid.idx(lgdt) {
+                    a.row_mut(idx_lgdt)
+                        .iter_mut()
+                        .zip(
+                            self.dm_grid
+                                .borders
+                                .iter()
+                                .map(|&dm_border| normal_cdf(dm_border, dm, dm_w))
+                                .tuple_windows()
+                                .map(|(a, b)| b - a),
+                        )
+                        .for_each(|(cell, value)| *cell += value);
+                }
+            }
+        }
+        a
+    }
 }
 
-pub fn normalise(a: &Array2<usize>) -> Array2<u8> {
-    let max = *a.iter().max().unwrap();
-    if max == 0 {
-        a.mapv(|x| x as u8)
+pub fn normalise<T>(a: &Array2<T>) -> Array2<u8>
+where
+    T: Normalisable,
+{
+    let max = *a.iter().max_by(|&x, &y| x.partial_cmp(y).unwrap()).unwrap();
+    if max.is_zero() {
+        Array2::zeros((a.nrows(), a.ncols()))
     } else {
-        let normalised = a * (u8::MAX as usize) / max;
-        normalised.mapv(|x| x as u8)
+        let normalised = a * T::max_u8() / max;
+        normalised.mapv(|x| x.approx_into().unwrap())
     }
 }
 
