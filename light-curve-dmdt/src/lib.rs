@@ -1,9 +1,6 @@
 use conv::*;
 use itertools::Itertools;
-use libm;
 use ndarray::{Array1, Array2, NdFloat, ScalarOperand};
-use num_traits;
-use png;
 use std::io::Write;
 
 pub trait Normalisable:
@@ -94,7 +91,7 @@ pub struct Grid<T> {
     start: T, // coordinate of the left border of the leftmost cell
     end: T,   // coordinate of the right border of the rightmost cell
     n: usize,
-    length: T, // distance from the left border of the leftmost cell to the right border of the rightmost cell
+    // length: T, // distance from the left border of the leftmost cell to the right border of the rightmost cell
     cell_size: T,
     borders: Array1<T>,
 }
@@ -104,15 +101,14 @@ where
     T: Float,
 {
     pub fn new(start: T, end: T, n: usize) -> Self {
-        let length = end - start;
-        assert!(length.is_sign_positive());
+        assert!(end > start);
         let cell_size = (end - start) / n.value_as::<T>().unwrap();
         let borders = Array1::linspace(start, end, n + 1);
         Self {
             start,
             end,
             n,
-            length,
+            // length,
             cell_size,
             borders,
         }
@@ -175,7 +171,7 @@ where
                 let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => break,
-                    CellIndex::Value(i) => i,
+                    CellIndex::Value(idx_lgbt) => idx_lgbt,
                 };
                 let dm = y2 - y1;
                 let dm_w = dm_w1 + dm_w2;

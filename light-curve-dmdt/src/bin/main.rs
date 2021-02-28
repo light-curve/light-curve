@@ -1,5 +1,4 @@
 use light_curve_dmdt::{normalise, to_png, DmDt, Grid};
-use png;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufWriter};
@@ -22,7 +21,7 @@ fn main() -> Result<(), MainError> {
     let mut w: Vec<f32> = vec![];
     for line in io::stdin().lock().lines() {
         let line = line?;
-        if line.starts_with("#") {
+        if line.starts_with('#') {
             continue;
         }
         let mut it = line.split_whitespace();
