@@ -209,7 +209,7 @@ pub fn to_png<W>(w: W, a: &Array2<u8>) -> Result<(), png::EncodingError>
 where
     W: Write,
 {
-    let mut encoder = png::Encoder::new(w, a.nrows() as u32, a.ncols() as u32);
+    let mut encoder = png::Encoder::new(w, a.ncols() as u32, a.nrows() as u32);
     encoder.set_color(png::ColorType::Grayscale);
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header()?;
