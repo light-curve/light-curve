@@ -18,6 +18,7 @@ name = "dmdt"
 path = "src/bin/main.rs"
 
 [dependencies]
+clap = "^2.33.3"
 conv = "^0.3.3"
 itertools = "^0.10.0"
 libm = "^0.2.1"
