@@ -88,6 +88,7 @@ where
 {
     pub fn new(start: T, end: T, n: usize) -> Self {
         let length = end - start;
+        assert!(length.is_sign_positive());
         let cell_size = (end - start) / n.value_as::<T>().unwrap();
         let borders = Array1::linspace(start, end, n + 1);
         Self {
@@ -100,13 +101,19 @@ where
         }
     }
 
-    fn idx(&self, x: T) -> Option<usize> {
-        if (self.start..self.end).contains(&x) {
-            Some(((x - self.start) / self.cell_size).approx_into().unwrap())
-        } else {
-            None
+    fn idx(&self, x: T) -> CellIndex {
+        match x {
+            _ if x < self.start => CellIndex::LowerMin,
+            _ if x >= self.end => CellIndex::GreaterMax,
+            _ => CellIndex::Value(((x - self.start) / self.cell_size).approx_into().unwrap()),
         }
     }
+}
+
+enum CellIndex {
+    LowerMin,
+    GreaterMax,
+    Value(usize),
 }
 
 pub struct DmDt<T> {
@@ -122,14 +129,18 @@ where
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
             for (&x2, &y2) in t[i1 + 1..].iter().zip(m[i1 + 1..].iter()) {
-                // TODO: Check if dt > max and break inner for
                 let lgdt = T::log10(x2 - x1);
+                let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
+                    CellIndex::LowerMin => continue,
+                    CellIndex::GreaterMax => break,
+                    CellIndex::Value(i) => i,
+                };
                 let dm = y2 - y1;
-                if let Some(idx_lgdt) = self.lgdt_grid.idx(lgdt) {
-                    if let Some(idx_dm) = self.dm_grid.idx(dm) {
-                        a[(idx_lgdt, idx_dm)] += 1;
-                    }
-                }
+                let idx_dm = match self.dm_grid.idx(dm) {
+                    CellIndex::Value(i) => i,
+                    CellIndex::LowerMin | CellIndex::GreaterMax => continue,
+                };
+                a[(idx_lgdt, idx_dm)] += 1;
             }
         }
         a
@@ -143,23 +154,25 @@ where
                 .zip(m[i1 + 1..].iter())
                 .zip(w[i1 + 1..].iter())
             {
-                // TODO: Check if dt > max and break inner for
                 let lgdt = T::log10(x2 - x1);
+                let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
+                    CellIndex::LowerMin => continue,
+                    CellIndex::GreaterMax => break,
+                    CellIndex::Value(i) => i,
+                };
                 let dm = y2 - y1;
                 let dm_w = dm_w1 + dm_w2;
-                if let Some(idx_lgdt) = self.lgdt_grid.idx(lgdt) {
-                    a.row_mut(idx_lgdt)
-                        .iter_mut()
-                        .zip(
-                            self.dm_grid
-                                .borders
-                                .iter()
-                                .map(|&dm_border| normal_cdf(dm_border, dm, dm_w))
-                                .tuple_windows()
-                                .map(|(a, b)| b - a),
-                        )
-                        .for_each(|(cell, value)| *cell += value);
-                }
+                a.row_mut(idx_lgdt)
+                    .iter_mut()
+                    .zip(
+                        self.dm_grid
+                            .borders
+                            .iter()
+                            .map(|&dm_border| normal_cdf(dm_border, dm, dm_w))
+                            .tuple_windows()
+                            .map(|(a, b)| b - a),
+                    )
+                    .for_each(|(cell, value)| *cell += value);
             }
         }
         a
