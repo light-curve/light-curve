@@ -14,10 +14,19 @@ pub trait Normalisable:
     + ScalarOperand
     + Copy
 {
+    fn clamp(self, min: Self, max: Self) -> Self;
     fn max_u8() -> Self;
 }
 
 impl Normalisable for usize {
+    fn clamp(self, min: Self, max: Self) -> Self {
+        match self {
+            _ if self < min => min,
+            x if self <= max => x,
+            _ => max,
+        }
+    }
+
     #[inline]
     fn max_u8() -> Self {
         255
@@ -25,6 +34,10 @@ impl Normalisable for usize {
 }
 
 impl Normalisable for f32 {
+    fn clamp(self, min: Self, max: Self) -> Self {
+        self.clamp(min, max)
+    }
+
     #[inline]
     fn max_u8() -> Self {
         255.0
@@ -32,6 +45,10 @@ impl Normalisable for f32 {
 }
 
 impl Normalisable for f64 {
+    fn clamp(self, min: Self, max: Self) -> Self {
+        self.clamp(min, max)
+    }
+
     #[inline]
     fn max_u8() -> Self {
         255.0
@@ -181,14 +198,14 @@ where
 
 pub fn normalise<T>(a: &Array2<T>) -> Array2<u8>
 where
-    T: Normalisable,
+    T: Normalisable + std::fmt::Debug,
 {
     let max = *a.iter().max_by(|&x, &y| x.partial_cmp(y).unwrap()).unwrap();
     if max.is_zero() {
         Array2::zeros((a.nrows(), a.ncols()))
     } else {
         let normalised = a * T::max_u8() / max;
-        normalised.mapv(|x| x.approx_into().unwrap())
+        normalised.mapv(|x| x.clamp(T::zero(), T::max_u8()).approx_into().unwrap())
     }
 }
 
