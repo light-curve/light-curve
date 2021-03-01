@@ -38,10 +38,9 @@ fn main() -> Result<(), MainError> {
     Ok(())
 }
 
-fn read_input(
-    input: &Option<PathBuf>,
-    errors: bool,
-) -> Result<(Vec<f32>, Vec<f32>, Option<Vec<f32>>), MainError> {
+type TMW = (Vec<f32>, Vec<f32>, Option<Vec<f32>>);
+
+fn read_input(input: &Option<PathBuf>, errors: bool) -> Result<TMW, MainError> {
     let mut t = vec![];
     let mut m = vec![];
     let mut w = if errors { Some(vec![]) } else { None };

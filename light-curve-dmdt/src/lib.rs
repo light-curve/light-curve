@@ -146,11 +146,11 @@ where
                 let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => break,
-                    CellIndex::Value(i) => i,
+                    CellIndex::Value(idx_lgdt) => idx_lgdt,
                 };
                 let dm = y2 - y1;
                 let idx_dm = match self.dm_grid.idx(dm) {
-                    CellIndex::Value(i) => i,
+                    CellIndex::Value(idx_dm) => idx_dm,
                     CellIndex::LowerMin | CellIndex::GreaterMax => continue,
                 };
                 a[(idx_lgdt, idx_dm)] += 1;
@@ -171,7 +171,7 @@ where
                 let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => break,
-                    CellIndex::Value(idx_lgbt) => idx_lgbt,
+                    CellIndex::Value(idx_lgdt) => idx_lgdt,
                 };
                 let dm = y2 - y1;
                 let dm_w = dm_w1 + dm_w2;
