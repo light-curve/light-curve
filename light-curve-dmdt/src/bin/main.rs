@@ -148,19 +148,19 @@ fn arg_matches() -> ArgMatches<'static> {
         )
         .arg(
             Arg::with_name("N lgdt")
-                .short("h")
-                .long("height")
-                .takes_value(true)
-                .default_value("128")
-                .help("number of lg(dt) cells, height of the output image"),
-        )
-        .arg(
-            Arg::with_name("N dm")
                 .short("w")
                 .long("width")
                 .takes_value(true)
                 .default_value("128")
-                .help("number of dm cells, width of the output image"),
+                .help("number of lg(dt) cells, width of the output image"),
+        )
+        .arg(
+            Arg::with_name("N dm")
+                .short("h")
+                .long("height")
+                .takes_value(true)
+                .default_value("128")
+                .help("number of dm cells, height of the output image"),
         )
         .get_matches()
 }
