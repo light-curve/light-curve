@@ -157,6 +157,7 @@ where
                             .iter()
                             .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_w))
                             .tuple_windows()
+                            .take_while(|(a, _b)| !a.is_one())
                             .map(|(a, b)| b - a),
                     )
                     .for_each(|(cell, value)| *cell += value);
