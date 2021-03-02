@@ -1,7 +1,13 @@
 use conv::*;
 use itertools::Itertools;
-use ndarray::{Array1, Array2, NdFloat, ScalarOperand};
+use ndarray::{Array1, Array2, ScalarOperand};
 use std::io::Write;
+
+mod erf;
+pub use erf::{ErfEps1Over1e3Float, ErrorFunction, LibMFloat};
+
+mod float_trait;
+pub use float_trait::Float;
 
 pub trait Normalisable:
     ApproxInto<u8, DefaultApprox>
@@ -50,41 +56,6 @@ impl Normalisable for f64 {
     fn max_u8() -> Self {
         255.0
     }
-}
-
-pub trait Float:
-    NdFloat + num_traits::FloatConst + ValueFrom<usize> + ApproxInto<usize, RoundToZero>
-{
-    fn erf(self) -> Self;
-
-    fn half() -> Self;
-}
-
-impl Float for f32 {
-    fn erf(self) -> Self {
-        libm::erff(self)
-    }
-
-    fn half() -> Self {
-        0.5
-    }
-}
-impl Float for f64 {
-    fn erf(self) -> Self {
-        libm::erf(self)
-    }
-
-    fn half() -> Self {
-        0.5
-    }
-}
-
-fn normal_cdf<T>(x: T, mean: T, w: T) -> T
-where
-    T: Float,
-{
-    let inv_sigma = T::sqrt(w);
-    T::half() * (T::one() + T::erf((x - mean) * inv_sigma * T::FRAC_1_SQRT_2()))
 }
 
 pub struct Grid<T> {
@@ -159,7 +130,10 @@ where
         a
     }
 
-    pub fn convert_lc_to_gausses(&self, t: &[T], m: &[T], w: &[T]) -> Array2<T> {
+    pub fn convert_lc_to_gausses(&self, t: &[T], m: &[T], w: &[T], erf: &ErrorFunction) -> Array2<T>
+    where
+        T: LibMFloat + ErfEps1Over1e3Float,
+    {
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
         for (i1, ((&x1, &y1), &dm_w1)) in t.iter().zip(m.iter()).zip(w.iter()).enumerate() {
             for ((&x2, &y2), &dm_w2) in t[i1 + 1..]
@@ -181,7 +155,7 @@ where
                         self.dm_grid
                             .borders
                             .iter()
-                            .map(|&dm_border| normal_cdf(dm_border, dm, dm_w))
+                            .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_w))
                             .tuple_windows()
                             .map(|(a, b)| b - a),
                     )
