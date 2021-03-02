@@ -68,6 +68,7 @@ pub trait ErfEps1Over1e3Float: ApproxInto<usize, RoundToZero> + num_traits::Floa
     }
 }
 
+#[allow(clippy::excessive_precision)]
 impl ErfEps1Over1e3Float for f32 {
     const X_FOR_ERF_EPS_1OVER1E3: [Self; 64] = [
         -2.39693895,
