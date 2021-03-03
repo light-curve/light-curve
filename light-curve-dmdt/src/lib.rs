@@ -67,6 +67,7 @@ pub struct Grid<T> {
     borders: Array1<T>,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl<T> Grid<T>
 where
     T: Float,
@@ -83,6 +84,10 @@ where
             cell_size,
             borders,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.n
     }
 
     fn idx(&self, x: T) -> CellIndex {
@@ -109,6 +114,11 @@ impl<T> DmDt<T>
 where
     T: Float,
 {
+    /// N lg_dt by N dm
+    pub fn shape(&self) -> (usize, usize) {
+        (self.lgdt_grid.n, self.dm_grid.n)
+    }
+
     pub fn convert_lc_to_points(&self, t: &[T], m: &[T]) -> Array2<usize> {
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
