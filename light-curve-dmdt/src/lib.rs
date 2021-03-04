@@ -140,16 +140,22 @@ where
         a
     }
 
-    pub fn convert_lc_to_gausses(&self, t: &[T], m: &[T], w: &[T], erf: &ErrorFunction) -> Array2<T>
+    pub fn convert_lc_to_gausses(
+        &self,
+        t: &[T],
+        m: &[T],
+        err2: &[T],
+        erf: &ErrorFunction,
+    ) -> Array2<T>
     where
         T: LibMFloat + ErfEps1Over1e3Float,
     {
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
-        for (i1, ((&x1, &y1), &dm_w1)) in t.iter().zip(m.iter()).zip(w.iter()).enumerate() {
-            for ((&x2, &y2), &dm_w2) in t[i1 + 1..]
+        for (i1, ((&x1, &y1), &d1)) in t.iter().zip(m.iter()).zip(err2.iter()).enumerate() {
+            for ((&x2, &y2), &d2) in t[i1 + 1..]
                 .iter()
                 .zip(m[i1 + 1..].iter())
-                .zip(w[i1 + 1..].iter())
+                .zip(err2[i1 + 1..].iter())
             {
                 let lgdt = T::log10(x2 - x1);
                 let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
@@ -158,15 +164,16 @@ where
                     CellIndex::Value(idx_lgdt) => idx_lgdt,
                 };
                 let dm = y2 - y1;
-                let dm_w = dm_w1 + dm_w2;
+                let dm_err = T::sqrt(d1 + d2);
                 a.row_mut(idx_lgdt)
                     .iter_mut()
                     .zip(
                         self.dm_grid
                             .borders
                             .iter()
-                            .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_w))
+                            .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_err))
                             .tuple_windows()
+                            // CDF is unity and all following (b-a) would be zero:
                             .take_while(|(a, _b)| !a.is_one())
                             .map(|(a, b)| b - a),
                     )

@@ -18,7 +18,7 @@ enum MainError {
 fn main() -> Result<(), MainError> {
     let config = Config::from_arg_matches(&arg_matches());
 
-    let (t, m, w) = read_input(&config.input, config.smearing)?;
+    let (t, m, err2) = read_input(&config.input, config.smearing)?;
 
     let dmdt = DmDt {
         lgdt_grid: Grid::new(config.min_lgdt, config.max_lgdt, config.n_dt),
@@ -30,23 +30,24 @@ fn main() -> Result<(), MainError> {
         Some(path) => Box::new(BufWriter::new(File::create(path)?)),
         None => Box::new(stdout.lock()),
     };
-    match w {
-        Some(w) => to_png(
+    if config.smearing {
+        to_png(
             writer,
-            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &w, &ErrorFunction::Exact)),
-        )?,
-        None => to_png(writer, &normalise(&dmdt.convert_lc_to_points(&t, &m)))?,
+            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &err2.unwrap(), &ErrorFunction::Exact)),
+        )?;
+    } else {
+        to_png(writer, &normalise(&dmdt.convert_lc_to_points(&t, &m)))?;
     }
 
     Ok(())
 }
 
-type TMW = (Vec<f32>, Vec<f32>, Option<Vec<f32>>);
+type TME2 = (Vec<f32>, Vec<f32>, Option<Vec<f32>>);
 
-fn read_input(input: &Option<PathBuf>, errors: bool) -> Result<TMW, MainError> {
+fn read_input(input: &Option<PathBuf>, errors: bool) -> Result<TME2, MainError> {
     let mut t = vec![];
     let mut m = vec![];
-    let mut w = if errors { Some(vec![]) } else { None };
+    let mut err2 = if errors { Some(vec![]) } else { None };
     let stdin = std::io::stdin();
     let buffer: Box<dyn BufRead> = match input {
         Some(path) => Box::new(BufReader::new(File::open(path)?)),
@@ -66,15 +67,15 @@ fn read_input(input: &Option<PathBuf>, errors: bool) -> Result<TMW, MainError> {
             MainError::NotEnoughColumns("Only one value in line, at least two required"),
         )?)?);
         if errors {
-            w.as_mut().unwrap().push(f32::powi(
+            err2.as_mut().unwrap().push(f32::powi(
                 f32::from_str(it.next().ok_or(MainError::NotEnoughColumns(
                     "Only two values in a line, at least three required",
                 ))?)?,
-                -2,
+                2,
             ));
         }
     }
-    Ok((t, m, w))
+    Ok((t, m, err2))
 }
 
 fn arg_matches() -> ArgMatches<'static> {

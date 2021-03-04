@@ -23,12 +23,11 @@ impl ErrorFunction {
         }
     }
 
-    pub fn normal_cdf<T>(&self, x: T, mean: T, w: T) -> T
+    pub fn normal_cdf<T>(&self, x: T, mean: T, err: T) -> T
     where
         T: Float + LibMFloat + ErfEps1Over1e3Float,
     {
-        let inv_sigma = T::sqrt(w);
-        T::half() * (T::one() + self.erf((x - mean) * inv_sigma * T::FRAC_1_SQRT_2()))
+        T::half() * (T::one() + self.erf((x - mean) / err * T::FRAC_1_SQRT_2()))
     }
 }
 
