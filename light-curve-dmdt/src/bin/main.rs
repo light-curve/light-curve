@@ -31,9 +31,13 @@ fn main() -> Result<(), MainError> {
         None => Box::new(stdout.lock()),
     };
     if config.smearing {
+        let error_func = match config.approx_smearing {
+            true => ErrorFunction::Eps1Over1e3,
+            false => ErrorFunction::Exact,
+        };
         to_png(
             writer,
-            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &err2.unwrap(), &ErrorFunction::Exact)),
+            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &err2.unwrap(), &error_func)),
         )?;
     } else {
         to_png(writer, &normalise(&dmdt.convert_lc_to_points(&t, &m)))?;
@@ -165,6 +169,12 @@ fn arg_matches() -> ArgMatches<'static> {
                 .default_value("128")
                 .help("number of dm cells, height of the output image"),
         )
+        .arg(
+            Arg::with_name("approx smearing")
+                .long("approx-smearing")
+                .takes_value(false)
+                .help("speed up smearing using approximate error function"),
+        )
         .get_matches()
 }
 
@@ -177,6 +187,7 @@ struct Config {
     n_dt: usize,
     n_dm: usize,
     smearing: bool,
+    approx_smearing: bool,
 }
 
 impl Config {
@@ -196,6 +207,7 @@ impl Config {
             n_dt: value_t!(matches, "N lgdt", usize).unwrap(),
             n_dm: value_t!(matches, "N dm", usize).unwrap(),
             smearing: matches.is_present("smear"),
+            approx_smearing: matches.is_present("approx smearing"),
         }
     }
 }
