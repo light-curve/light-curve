@@ -1,9 +1,14 @@
 use crate::float_trait::Float;
 use conv::*;
 
+pub enum ErrorFunction {
+    Exact,
+    Eps1Over1e3,
+}
+
 impl Default for ErrorFunction {
     fn default() -> Self {
-        Self::Direct
+        Self::Exact
     }
 }
 
@@ -13,7 +18,7 @@ impl ErrorFunction {
         T: Float + LibMFloat + ErfEps1Over1e3Float,
     {
         match self {
-            Self::Direct => x.libm_erf(),
+            Self::Exact => x.libm_erf(),
             Self::Eps1Over1e3 => x.erf_eps_1over1e3(),
         }
     }
@@ -41,11 +46,6 @@ impl LibMFloat for f64 {
     fn libm_erf(self) -> Self {
         libm::erf(self)
     }
-}
-
-pub enum ErrorFunction {
-    Direct,
-    Eps1Over1e3,
 }
 
 pub trait ErfEps1Over1e3Float: ApproxInto<usize, RoundToZero> + num_traits::Float {

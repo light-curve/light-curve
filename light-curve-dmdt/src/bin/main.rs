@@ -33,7 +33,7 @@ fn main() -> Result<(), MainError> {
     match w {
         Some(w) => to_png(
             writer,
-            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &w, &ErrorFunction::Direct)),
+            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &w, &ErrorFunction::Exact)),
         )?,
         None => to_png(writer, &normalise(&dmdt.convert_lc_to_points(&t, &m)))?,
     }
