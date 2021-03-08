@@ -1,7 +1,9 @@
+use conv::ConvUtil;
 use itertools::Itertools;
+use light_curve_dmdt as lcdmdt;
 use light_curve_feature as lcf;
 use ndarray::Array1 as NDArray;
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -9,31 +11,36 @@ use pyo3::wrap_pymodule;
 use std::ops::Deref;
 
 type F = f64;
-type Arr = PyArray1<F>;
-type RoArr<'a> = PyReadonlyArray1<'a, F>;
+type Arr<T> = PyArray1<T>;
 
-enum ArrWrapper<'a> {
-    Readonly(RoArr<'a>),
-    Owned(NDArray<F>),
+enum ArrWrapper<'a, T> {
+    Readonly(PyReadonlyArray1<'a, T>),
+    Owned(NDArray<T>),
 }
 
-impl<'a> ArrWrapper<'a> {
+impl<'a, T> ArrWrapper<'a, T>
+where
+    T: Element + ndarray::NdFloat,
+{
     /// Construct ndarray::Array1 wrapper of numpy array
     ///
     /// Right now it always returns Ok
-    fn new(a: &'a Arr, required: bool) -> PyResult<Self> {
+    fn new(a: &'a PyArray1<T>, required: bool) -> PyResult<Self> {
         match (a.is_contiguous(), required) {
             (true, _) => Ok(Self::Readonly(a.readonly())),
             (false, true) => Ok(Self::Owned(a.to_owned_array())),
-            (false, false) => Ok(Self::Owned(ndarray::Array1::<F>::zeros(a.len()))),
+            (false, false) => Ok(Self::Owned(ndarray::Array1::<T>::zeros(a.len()))),
         }
     }
 }
 
-impl<'a> Deref for ArrWrapper<'a> {
-    type Target = [F];
+impl<'a, T> Deref for ArrWrapper<'a, T>
+where
+    T: Element,
+{
+    type Target = [T];
 
-    fn deref(&self) -> &[F] {
+    fn deref(&self) -> &Self::Target {
         match self {
             Self::Readonly(a) => a.as_slice().unwrap(),
             Self::Owned(a) => a.as_slice().unwrap(),
@@ -41,8 +48,229 @@ impl<'a> Deref for ArrWrapper<'a> {
     }
 }
 
-fn is_sorted(a: &[F]) -> bool {
-    a.iter().tuple_windows().all(|(&a, &b)| a < b)
+fn is_sorted<T>(a: &[T]) -> bool
+where
+    T: PartialOrd,
+{
+    a.iter().tuple_windows().all(|(a, b)| &a < &b)
+}
+
+#[derive(FromPyObject)]
+enum GenericArray1<'a> {
+    #[pyo3(transparent, annotation = "np.ndarray[float32]")]
+    Float32(&'a Arr<f32>),
+    #[pyo3(transparent, annotation = "np.ndarray[float64]")]
+    Float64(&'a Arr<f64>),
+}
+
+#[pyclass]
+struct DmDt {
+    dmdt_f64: lcdmdt::DmDt<f64>,
+    dmdt_f32: lcdmdt::DmDt<f32>,
+}
+
+impl DmDt {
+    fn convert_t<T>(t: &Arr<T>, sorted: Option<bool>) -> PyResult<ArrWrapper<T>>
+    where
+        T: Element + ndarray::NdFloat,
+    {
+        let t = ArrWrapper::new(t, true)?;
+
+        match sorted {
+            Some(true) => {}
+            Some(false) => {
+                return Err(PyNotImplementedError::new_err(
+                    "sorting is not implemented, please provide time-sorted arrays",
+                ))
+            }
+            None => {
+                if !is_sorted(&t) {
+                    return Err(PyValueError::new_err("t must be in ascending order"));
+                }
+            }
+        }
+
+        Ok(t)
+    }
+
+    fn generic_f<T>(&self, py: Python, x: &Arr<T>) -> PyObject
+    where
+        T: Element + ndarray::NdFloat,
+    {
+        let mut x = x.to_owned_array();
+        x.mapv_inplace(|x| -x);
+        Arr::from_owned_array(py, x).into_py(py)
+    }
+
+    fn generic_points<T>(
+        py: Python,
+        dmdt: &lcdmdt::DmDt<T>,
+        t: &Arr<T>,
+        m: &Arr<T>,
+        sorted: Option<bool>,
+        normalize: Option<T>,
+    ) -> PyResult<PyObject>
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::Float,
+    {
+        let t = Self::convert_t(t, sorted)?;
+        let m = ArrWrapper::new(m, true)?;
+
+        let map = dmdt.convert_lc_to_points(&t, &m);
+        let result = match normalize {
+            Some(norm) => {
+                let max = (*map.iter().max().unwrap()).value_as::<T>().unwrap() / norm;
+                map.mapv(|x| x.value_as::<T>().unwrap() / max)
+            }
+            None => map.mapv(|x| x.value_as::<T>().unwrap()),
+        };
+        Ok(result.into_pyarray(py).to_owned().into_py(py))
+    }
+
+    fn generic_gausses<T>(
+        py: Python,
+        dmdt: &lcdmdt::DmDt<T>,
+        t: &Arr<T>,
+        m: &Arr<T>,
+        sigma: &Arr<T>,
+        sorted: Option<bool>,
+        normalize: Option<T>,
+        approx_erf: bool,
+    ) -> PyResult<PyObject>
+    where
+        T: Element
+            + ndarray::NdFloat
+            + lcdmdt::Float
+            + lcdmdt::LibMFloat
+            + lcdmdt::ErfEps1Over1e3Float,
+    {
+        let t = Self::convert_t(t, sorted)?;
+        let m = ArrWrapper::new(m, true)?;
+        let err2 = {
+            let mut err2 = sigma.to_owned_array();
+            err2.mapv_inplace(|x| x.powi(2));
+            ArrWrapper::Owned(err2)
+        };
+
+        let error_func = match approx_erf {
+            true => lcdmdt::ErrorFunction::Eps1Over1e3,
+            false => lcdmdt::ErrorFunction::Exact,
+        };
+
+        let mut result = dmdt.convert_lc_to_gausses(&t, &m, &err2, &error_func);
+        if let Some(norm) = normalize {
+            let max = *result
+                .iter()
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap()
+                / norm;
+            result.mapv_inplace(|x| x / max);
+        }
+        Ok(result.into_pyarray(py).to_owned().into_py(py))
+    }
+}
+
+#[pymethods]
+impl DmDt {
+    #[new]
+    #[args(min_lgdt, max_lgdt, max_abs_dm, lgdt_size, dm_size)]
+    fn __new__(
+        min_lgdt: f64,
+        max_lgdt: f64,
+        max_abs_dm: f64,
+        lgdt_size: usize,
+        dm_size: usize,
+    ) -> Self {
+        Self {
+            dmdt_f64: lcdmdt::DmDt {
+                lgdt_grid: lcdmdt::Grid::new(min_lgdt, max_lgdt, lgdt_size),
+                dm_grid: lcdmdt::Grid::new(-max_abs_dm, max_abs_dm, dm_size),
+            },
+            dmdt_f32: lcdmdt::DmDt {
+                lgdt_grid: lcdmdt::Grid::new(min_lgdt as f32, max_lgdt as f32, lgdt_size),
+                dm_grid: lcdmdt::Grid::new(-max_abs_dm as f32, max_abs_dm as f32, dm_size),
+            },
+        }
+    }
+
+    #[args(x)]
+    fn f(&self, py: Python, x: GenericArray1) -> PyObject {
+        match x {
+            GenericArray1::Float32(x) => self.generic_f(py, x),
+            GenericArray1::Float64(x) => self.generic_f(py, x),
+        }
+    }
+
+    #[args(t, m, sorted = "None", normalize = "1.0")]
+    fn points(
+        &self,
+        py: Python,
+        t: GenericArray1,
+        m: GenericArray1,
+        sorted: Option<bool>,
+        normalize: Option<f64>,
+    ) -> PyResult<PyObject> {
+        match (t, m) {
+            (GenericArray1::Float32(t), GenericArray1::Float32(m)) => Self::generic_points(
+                py,
+                &self.dmdt_f32,
+                t,
+                m,
+                sorted,
+                normalize.map(|x| x as f32),
+            ),
+            (GenericArray1::Float64(t), GenericArray1::Float64(m)) => {
+                Self::generic_points(py, &self.dmdt_f64, t, m, sorted, normalize)
+            }
+            _ => Err(PyValueError::new_err("t and m must have the same dtype")),
+        }
+    }
+
+    #[args(t, m, sigma, sorted = "None", normalize = "1.0", approx_erf = "false")]
+    fn gausses(
+        &self,
+        py: Python,
+        t: GenericArray1,
+        m: GenericArray1,
+        sigma: GenericArray1,
+        sorted: Option<bool>,
+        normalize: Option<f64>,
+        approx_erf: bool,
+    ) -> PyResult<PyObject> {
+        match (t, m, sigma) {
+            (
+                GenericArray1::Float32(t),
+                GenericArray1::Float32(m),
+                GenericArray1::Float32(sigma),
+            ) => Self::generic_gausses(
+                py,
+                &self.dmdt_f32,
+                t,
+                m,
+                sigma,
+                sorted,
+                normalize.map(|x| x as f32),
+                approx_erf,
+            ),
+            (
+                GenericArray1::Float64(t),
+                GenericArray1::Float64(m),
+                GenericArray1::Float64(sigma),
+            ) => Self::generic_gausses(
+                py,
+                &self.dmdt_f64,
+                t,
+                m,
+                sigma,
+                sorted,
+                normalize,
+                approx_erf,
+            ),
+            _ => Err(PyValueError::new_err(
+                "t, m and sigma must have the same dtype",
+            )),
+        }
+    }
 }
 
 #[pyclass(subclass, name = "_FeatureEvaluator")]
@@ -57,12 +285,12 @@ impl PyFeatureEvaluator {
     fn __call__(
         &self,
         py: Python,
-        t: &Arr,
-        m: &Arr,
-        sigma: Option<&Arr>,
+        t: &Arr<F>,
+        m: &Arr<F>,
+        sigma: Option<&Arr<F>>,
         sorted: Option<bool>,
         fill_value: Option<F>,
-    ) -> PyResult<Py<Arr>> {
+    ) -> PyResult<Py<Arr<F>>> {
         if t.len() != m.len() {
             return Err(PyValueError::new_err("t and m must have the same size"));
         }
@@ -551,7 +779,7 @@ impl Periodogram {
 
     /// Angular frequencies and periodogram values
     #[text_signature = "(t, m)"]
-    fn freq_power(&self, py: Python, t: &Arr, m: &Arr) -> PyResult<(Py<Arr>, Py<Arr>)> {
+    fn freq_power(&self, py: Python, t: &Arr<F>, m: &Arr<F>) -> PyResult<(Py<Arr<F>>, Py<Arr<F>>)> {
         let t = ArrWrapper::new(t, true)?;
         let m = ArrWrapper::new(m, true)?;
         let mut ts = lcf::TimeSeries::new(&t, &m, None);
@@ -642,6 +870,8 @@ fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
+    m.add_class::<DmDt>()?;
 
     m.add_class::<PyFeatureEvaluator>()?;
 
