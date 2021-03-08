@@ -94,15 +94,6 @@ impl DmDt {
         Ok(t)
     }
 
-    fn generic_f<T>(&self, py: Python, x: &Arr<T>) -> PyObject
-    where
-        T: Element + ndarray::NdFloat,
-    {
-        let mut x = x.to_owned_array();
-        x.mapv_inplace(|x| -x);
-        Arr::from_owned_array(py, x).into_py(py)
-    }
-
     fn generic_points<T>(
         py: Python,
         dmdt: &lcdmdt::DmDt<T>,
@@ -121,7 +112,10 @@ impl DmDt {
         let result = match normalize {
             Some(norm) => {
                 let max = (*map.iter().max().unwrap()).value_as::<T>().unwrap() / norm;
-                map.mapv(|x| x.value_as::<T>().unwrap() / max)
+                match max.is_zero() {
+                    true => ndarray::Array2::zeros((map.nrows(), map.ncols())),
+                    false => map.mapv(|x| x.value_as::<T>().unwrap() / max),
+                }
             }
             None => map.mapv(|x| x.value_as::<T>().unwrap()),
         };
@@ -166,7 +160,9 @@ impl DmDt {
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap()
                 / norm;
-            result.mapv_inplace(|x| x / max);
+            if !max.is_zero() {
+                result.mapv_inplace(|x| x / max);
+            }
         }
         Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
@@ -192,14 +188,6 @@ impl DmDt {
                 lgdt_grid: lcdmdt::Grid::new(min_lgdt as f32, max_lgdt as f32, lgdt_size),
                 dm_grid: lcdmdt::Grid::new(-max_abs_dm as f32, max_abs_dm as f32, dm_size),
             },
-        }
-    }
-
-    #[args(x)]
-    fn f(&self, py: Python, x: GenericArray1) -> PyObject {
-        match x {
-            GenericArray1::Float32(x) => self.generic_f(py, x),
-            GenericArray1::Float64(x) => self.generic_f(py, x),
         }
     }
 
