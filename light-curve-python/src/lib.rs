@@ -12,6 +12,7 @@ use std::ops::Deref;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
+type PyArrF = Py<Arr<F>>;
 
 enum ArrWrapper<'a, T> {
     Readonly(PyReadonlyArray1<'a, T>),
@@ -25,11 +26,11 @@ where
     /// Construct ndarray::Array1 wrapper of numpy array
     ///
     /// Right now it always returns Ok
-    fn new(a: &'a PyArray1<T>, required: bool) -> PyResult<Self> {
+    fn new(a: &'a PyArray1<T>, required: bool) -> Self {
         match (a.is_contiguous(), required) {
-            (true, _) => Ok(Self::Readonly(a.readonly())),
-            (false, true) => Ok(Self::Owned(a.to_owned_array())),
-            (false, false) => Ok(Self::Owned(ndarray::Array1::<T>::zeros(a.len()))),
+            (true, _) => Self::Readonly(a.readonly()),
+            (false, true) => Self::Owned(a.to_owned_array()),
+            (false, false) => Self::Owned(ndarray::Array1::<T>::zeros(a.len())),
         }
     }
 }
@@ -52,7 +53,7 @@ fn is_sorted<T>(a: &[T]) -> bool
 where
     T: PartialOrd,
 {
-    a.iter().tuple_windows().all(|(a, b)| &a < &b)
+    a.iter().tuple_windows().all(|(a, b)| a < b)
 }
 
 #[derive(FromPyObject)]
@@ -74,7 +75,7 @@ impl DmDt {
     where
         T: Element + ndarray::NdFloat,
     {
-        let t = ArrWrapper::new(t, true)?;
+        let t = ArrWrapper::new(t, true);
 
         match sorted {
             Some(true) => {}
@@ -114,7 +115,7 @@ impl DmDt {
         T: Element + ndarray::NdFloat + lcdmdt::Float,
     {
         let t = Self::convert_t(t, sorted)?;
-        let m = ArrWrapper::new(m, true)?;
+        let m = ArrWrapper::new(m, true);
 
         let map = dmdt.convert_lc_to_points(&t, &m);
         let result = match normalize {
@@ -127,6 +128,7 @@ impl DmDt {
         Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn generic_gausses<T>(
         py: Python,
         dmdt: &lcdmdt::DmDt<T>,
@@ -145,7 +147,7 @@ impl DmDt {
             + lcdmdt::ErfEps1Over1e3Float,
     {
         let t = Self::convert_t(t, sorted)?;
-        let m = ArrWrapper::new(m, true)?;
+        let m = ArrWrapper::new(m, true);
         let err2 = {
             let mut err2 = sigma.to_owned_array();
             err2.mapv_inplace(|x| x.powi(2));
@@ -226,6 +228,7 @@ impl DmDt {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[args(t, m, sigma, sorted = "None", normalize = "1.0", approx_erf = "false")]
     fn gausses(
         &self,
@@ -321,7 +324,7 @@ impl PyFeatureEvaluator {
             // neither t or sorting is required
             (false, false, _) => false,
         };
-        let t = ArrWrapper::new(t, is_t_required)?;
+        let t = ArrWrapper::new(t, is_t_required);
         match sorted {
             Some(true) => {}
             Some(false) => {
@@ -336,7 +339,7 @@ impl PyFeatureEvaluator {
             }
         }
 
-        let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required())?;
+        let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required());
 
         let w = sigma.and_then(|sigma| {
             if self.feature_evaluator.is_w_required() {
@@ -562,6 +565,16 @@ impl MagnitudePercentageRatio {
         quantile_numerator: f32,
         quantile_denominator: f32,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
+        if !(0.0..0.5).contains(&quantile_numerator) {
+            return Err(PyValueError::new_err(
+                "quantile_numerator must be between 0.0 and 0.5",
+            ));
+        }
+        if !(0.0..0.5).contains(&quantile_denominator) {
+            return Err(PyValueError::new_err(
+                "quantile_denumerator must be between 0.0 and 0.5",
+            ));
+        }
         Ok((
             Self {},
             PyFeatureEvaluator {
@@ -779,15 +792,15 @@ impl Periodogram {
 
     /// Angular frequencies and periodogram values
     #[text_signature = "(t, m)"]
-    fn freq_power(&self, py: Python, t: &Arr<F>, m: &Arr<F>) -> PyResult<(Py<Arr<F>>, Py<Arr<F>>)> {
-        let t = ArrWrapper::new(t, true)?;
-        let m = ArrWrapper::new(m, true)?;
+    fn freq_power(&self, py: Python, t: &Arr<F>, m: &Arr<F>) -> (PyArrF, PyArrF) {
+        let t = ArrWrapper::new(t, true);
+        let m = ArrWrapper::new(m, true);
         let mut ts = lcf::TimeSeries::new(&t, &m, None);
         let (freq, power) = self.eval.freq_power(&mut ts);
-        Ok((
+        (
             freq.into_pyarray(py).to_owned(),
             power.into_pyarray(py).to_owned(),
-        ))
+        )
     }
 }
 
