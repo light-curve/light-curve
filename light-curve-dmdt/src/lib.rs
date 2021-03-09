@@ -1,10 +1,10 @@
 use conv::*;
 use itertools::Itertools;
-use ndarray::{Array1, Array2, ScalarOperand};
+use ndarray::{s, Array1, Array2, ScalarOperand};
 use std::io::Write;
 
 mod erf;
-pub use erf::{ErfEps1Over1e3Float, ErrorFunction, LibMFloat};
+pub use erf::{ErfFloat, ErrorFunction};
 
 mod float_trait;
 pub use float_trait::Float;
@@ -94,7 +94,11 @@ where
         match x {
             _ if x < self.start => CellIndex::LowerMin,
             _ if x >= self.end => CellIndex::GreaterMax,
-            _ => CellIndex::Value(((x - self.start) / self.cell_size).approx_into().unwrap()),
+            _ => CellIndex::Value(
+                ((x - self.start) / self.cell_size)
+                    .approx_by::<RoundToZero>()
+                    .unwrap(),
+            ),
         }
     }
 }
@@ -148,7 +152,7 @@ where
         erf: &ErrorFunction,
     ) -> Array2<T>
     where
-        T: LibMFloat + ErfEps1Over1e3Float,
+        T: ErfFloat,
     {
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
         for (i1, ((&x1, &y1), &d1)) in t.iter().zip(m.iter()).zip(err2.iter()).enumerate() {
@@ -165,16 +169,31 @@ where
                 };
                 let dm = y2 - y1;
                 let dm_err = T::sqrt(d1 + d2);
-                a.row_mut(idx_lgdt)
+
+                let min_idx_dm = match self.dm_grid.idx(dm + erf.min_dx_nonzero_normal_cdf(dm_err))
+                {
+                    CellIndex::LowerMin => 0,
+                    CellIndex::GreaterMax => continue,
+                    CellIndex::Value(min_idx_dm) => min_idx_dm,
+                };
+                let max_idx_dm = match self
+                    .dm_grid
+                    .idx(dm + erf.max_dx_nonunity_normal_cdf(dm_err))
+                {
+                    CellIndex::LowerMin => continue,
+                    CellIndex::GreaterMax => self.dm_grid.n - 1,
+                    CellIndex::Value(max_idx_dm) => max_idx_dm,
+                };
+
+                a.slice_mut(s![idx_lgdt, min_idx_dm..max_idx_dm])
                     .iter_mut()
                     .zip(
                         self.dm_grid
                             .borders
+                            .slice(s![min_idx_dm..max_idx_dm + 1])
                             .iter()
                             .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_err))
                             .tuple_windows()
-                            // CDF is unity and all following (b-a) would be zero:
-                            .take_while(|(a, _b)| !a.is_one())
                             .map(|(a, b)| b - a),
                     )
                     .for_each(|(cell, value)| *cell += value);

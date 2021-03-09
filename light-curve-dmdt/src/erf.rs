@@ -1,6 +1,7 @@
 use crate::float_trait::Float;
 use conv::*;
 
+#[derive(std::fmt::Debug)]
 pub enum ErrorFunction {
     Exact,
     Eps1Over1e3,
@@ -15,7 +16,7 @@ impl Default for ErrorFunction {
 impl ErrorFunction {
     pub fn erf<T>(&self, x: T) -> T
     where
-        T: Float + LibMFloat + ErfEps1Over1e3Float,
+        T: ErfFloat,
     {
         match self {
             Self::Exact => x.libm_erf(),
@@ -23,31 +24,37 @@ impl ErrorFunction {
         }
     }
 
-    pub fn normal_cdf<T>(&self, x: T, mean: T, err: T) -> T
+    pub fn normal_cdf<T>(&self, x: T, mean: T, sigma: T) -> T
     where
-        T: Float + LibMFloat + ErfEps1Over1e3Float,
+        T: ErfFloat,
     {
-        T::half() * (T::one() + self.erf((x - mean) / err * T::FRAC_1_SQRT_2()))
+        T::half() * (T::one() + self.erf((x - mean) / sigma * T::FRAC_1_SQRT_2()))
+    }
+
+    pub fn max_dx_nonunity_normal_cdf<T>(&self, sigma: T) -> T
+    where
+        T: ErfFloat,
+    {
+        match self {
+            Self::Exact => T::SQRT_2_ERFINV_UNITY_MINUS_EPS * sigma,
+            Self::Eps1Over1e3 => T::SQRT_2_MAX_X_FOR_ERF_EPS_1OVER1E3 * sigma,
+        }
+    }
+
+    pub fn min_dx_nonzero_normal_cdf<T>(&self, sigma: T) -> T
+    where
+        T: ErfFloat,
+    {
+        -self.max_dx_nonunity_normal_cdf(sigma)
     }
 }
 
-pub trait LibMFloat {
+pub trait ErfFloat: Float + ApproxInto<usize, RoundToZero> + num_traits::Float {
+    const SQRT_2_ERFINV_UNITY_MINUS_EPS: Self;
+
     fn libm_erf(self) -> Self;
-}
 
-impl LibMFloat for f32 {
-    fn libm_erf(self) -> Self {
-        libm::erff(self)
-    }
-}
-
-impl LibMFloat for f64 {
-    fn libm_erf(self) -> Self {
-        libm::erf(self)
-    }
-}
-
-pub trait ErfEps1Over1e3Float: ApproxInto<usize, RoundToZero> + num_traits::Float {
+    const SQRT_2_MAX_X_FOR_ERF_EPS_1OVER1E3: Self;
     const X_FOR_ERF_EPS_1OVER1E3: [Self; 64];
     const INVERSED_DX_FOR_ERF_EPS_1OVER1E3: Self;
     const Y_FOR_ERF_EPS_1OVER1E3: [Self; 64];
@@ -68,7 +75,14 @@ pub trait ErfEps1Over1e3Float: ApproxInto<usize, RoundToZero> + num_traits::Floa
 }
 
 #[allow(clippy::excessive_precision)]
-impl ErfEps1Over1e3Float for f32 {
+impl ErfFloat for f32 {
+    const SQRT_2_ERFINV_UNITY_MINUS_EPS: Self = 5.294704084854598;
+
+    fn libm_erf(self) -> Self {
+        libm::erff(self)
+    }
+
+    const SQRT_2_MAX_X_FOR_ERF_EPS_1OVER1E3: Self = 3.389783571270326;
     const X_FOR_ERF_EPS_1OVER1E3: [Self; 64] = [
         -2.39693895,
         -2.32084565,
@@ -204,7 +218,14 @@ impl ErfEps1Over1e3Float for f32 {
     ];
 }
 
-impl ErfEps1Over1e3Float for f64 {
+impl ErfFloat for f64 {
+    const SQRT_2_ERFINV_UNITY_MINUS_EPS: Self = 8.20953615160139;
+
+    fn libm_erf(self) -> Self {
+        libm::erf(self)
+    }
+
+    const SQRT_2_MAX_X_FOR_ERF_EPS_1OVER1E3: Self = 3.389783571270326;
     const X_FOR_ERF_EPS_1OVER1E3: [Self; 64] = [
         -2.39693895,
         -2.32084565,

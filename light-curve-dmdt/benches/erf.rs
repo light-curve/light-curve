@@ -1,5 +1,5 @@
 use criterion::{black_box, Criterion};
-use light_curve_dmdt::{ErfEps1Over1e3Float, Float, LibMFloat};
+use light_curve_dmdt::{ErfFloat, Float};
 
 pub trait BenchFloat: Sized {
     const X_FOR_ERF: [Self; 13];
@@ -34,7 +34,7 @@ impl MathruFloat for f64 {}
 
 pub fn bench_erf<T>(c: &mut Criterion)
 where
-    T: BenchFloat + ErfEps1Over1e3Float + LibMFloat + MathruFloat + special::Error + Float,
+    T: BenchFloat + ErfFloat + MathruFloat + special::Error + Float,
 {
     c.bench_function(
         format!("erf_eps_1over1e3 for {}", std::any::type_name::<T>()).as_str(),
