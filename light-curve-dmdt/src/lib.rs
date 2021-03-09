@@ -123,7 +123,7 @@ where
         (self.lgdt_grid.n, self.dm_grid.n)
     }
 
-    pub fn convert_lc_to_points(&self, t: &[T], m: &[T]) -> Array2<usize> {
+    pub fn points(&self, t: &[T], m: &[T]) -> Array2<usize> {
         let mut a = Array2::zeros((self.lgdt_grid.n, self.dm_grid.n));
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
             for (&x2, &y2) in t[i1 + 1..].iter().zip(m[i1 + 1..].iter()) {
@@ -144,13 +144,7 @@ where
         a
     }
 
-    pub fn convert_lc_to_gausses(
-        &self,
-        t: &[T],
-        m: &[T],
-        err2: &[T],
-        erf: &ErrorFunction,
-    ) -> Array2<T>
+    pub fn gausses(&self, t: &[T], m: &[T], err2: &[T], erf: &ErrorFunction) -> Array2<T>
     where
         T: ErfFloat,
     {

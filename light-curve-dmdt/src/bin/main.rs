@@ -37,10 +37,10 @@ fn main() -> Result<(), MainError> {
         };
         to_png(
             writer,
-            &normalise(&dmdt.convert_lc_to_gausses(&t, &m, &err2.unwrap(), &error_func)),
+            &normalise(&dmdt.gausses(&t, &m, &err2.unwrap(), &error_func)),
         )?;
     } else {
-        to_png(writer, &normalise(&dmdt.convert_lc_to_points(&t, &m)))?;
+        to_png(writer, &normalise(&dmdt.points(&t, &m)))?;
     }
 
     Ok(())

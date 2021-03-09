@@ -33,7 +33,7 @@ where
             .as_str(),
             |b| {
                 b.iter(|| {
-                    black_box(dmdt.convert_lc_to_gausses(
+                    black_box(dmdt.gausses(
                         t.as_slice_memory_order().unwrap(),
                         m.as_slice_memory_order().unwrap(),
                         err2.as_slice_memory_order().unwrap(),
