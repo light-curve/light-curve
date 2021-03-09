@@ -196,7 +196,7 @@ where
         a
     }
 
-    pub fn lgdt_points(&self, t: &[T]) -> Array1<T> {
+    pub fn lgdt_points(&self, t: &[T]) -> Array1<usize> {
         let mut a = Array1::zeros(self.lgdt_grid.n);
         for (i1, &x1) in t.iter().enumerate() {
             for &x2 in t[i1 + 1..].iter() {
@@ -213,7 +213,7 @@ where
     }
 }
 
-pub fn normalise_u8<T>(a: &Array2<T>) -> Array2<u8>
+pub fn normalise_max_u8<T>(a: &Array2<T>) -> Array2<u8>
 where
     T: Normalisable + std::fmt::Debug,
 {

@@ -1,5 +1,5 @@
 use clap::{value_t, App, Arg, ArgMatches};
-use light_curve_dmdt::{normalise_u8, to_png, DmDt, ErrorFunction, Grid};
+use light_curve_dmdt::{normalise_max_u8, to_png, DmDt, ErrorFunction, Grid};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
@@ -37,10 +37,10 @@ fn main() -> Result<(), MainError> {
         };
         to_png(
             writer,
-            &normalise_u8(&dmdt.gausses(&t, &m, &err2.unwrap(), &error_func)),
+            &normalise_max_u8(&dmdt.gausses(&t, &m, &err2.unwrap(), &error_func)),
         )?;
     } else {
-        to_png(writer, &normalise_u8(&dmdt.points(&t, &m)))?;
+        to_png(writer, &normalise_max_u8(&dmdt.points(&t, &m)))?;
     }
 
     Ok(())
