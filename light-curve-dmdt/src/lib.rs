@@ -195,9 +195,25 @@ where
         }
         a
     }
+
+    pub fn lgdt_points(&self, t: &[T]) -> Array1<T> {
+        let mut a = Array1::zeros(self.lgdt_grid.n);
+        for (i1, &x1) in t.iter().enumerate() {
+            for &x2 in t[i1 + 1..].iter() {
+                let lgdt = T::log10(x2 - x1);
+                let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
+                    CellIndex::LowerMin => continue,
+                    CellIndex::GreaterMax => break,
+                    CellIndex::Value(idx_lgdt) => idx_lgdt,
+                };
+                a[idx_lgdt] += 1;
+            }
+        }
+        a
+    }
 }
 
-pub fn normalise<T>(a: &Array2<T>) -> Array2<u8>
+pub fn normalise_u8<T>(a: &Array2<T>) -> Array2<u8>
 where
     T: Normalisable + std::fmt::Debug,
 {
