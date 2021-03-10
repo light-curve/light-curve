@@ -1,4 +1,5 @@
 use conv::ConvUtil;
+use enumflags2::{bitflags, BitFlags};
 use itertools::Itertools;
 use light_curve_dmdt as lcdmdt;
 use light_curve_feature as lcf;
@@ -64,10 +65,19 @@ enum GenericArray1<'a> {
     Float64(&'a Arr<f64>),
 }
 
+#[bitflags]
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum NormFlag {
+    LgDt,
+    Max,
+}
+
 #[pyclass]
 struct DmDt {
     dmdt_f64: lcdmdt::DmDt<f64>,
     dmdt_f32: lcdmdt::DmDt<f32>,
+    norm: BitFlags<NormFlag>,
 }
 
 impl DmDt {
@@ -95,12 +105,12 @@ impl DmDt {
     }
 
     fn generic_points<T>(
+        &self,
         py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         t: &Arr<T>,
         m: &Arr<T>,
         sorted: Option<bool>,
-        normalize: Option<T>,
     ) -> PyResult<PyObject>
     where
         T: Element + ndarray::NdFloat + lcdmdt::Float,
@@ -108,37 +118,24 @@ impl DmDt {
         let t = Self::convert_t(t, sorted)?;
         let m = ArrWrapper::new(m, true);
 
-        let map = dmdt.convert_lc_to_points(&t, &m);
-        let result = match normalize {
-            Some(norm) => {
-                let max = (*map.iter().max().unwrap()).value_as::<T>().unwrap() / norm;
-                match max.is_zero() {
-                    true => ndarray::Array2::zeros((map.nrows(), map.ncols())),
-                    false => map.mapv(|x| x.value_as::<T>().unwrap() / max),
-                }
-            }
-            None => map.mapv(|x| x.value_as::<T>().unwrap()),
-        };
+        let mut result = dmdt.points(&t, &m).mapv(|x| x.value_as::<T>().unwrap());
+        self.normalize(&mut result, dmdt, &t);
         Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
 
     #[allow(clippy::too_many_arguments)]
     fn generic_gausses<T>(
+        &self,
         py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         t: &Arr<T>,
         m: &Arr<T>,
         sigma: &Arr<T>,
         sorted: Option<bool>,
-        normalize: Option<T>,
         approx_erf: bool,
     ) -> PyResult<PyObject>
     where
-        T: Element
-            + ndarray::NdFloat
-            + lcdmdt::Float
-            + lcdmdt::LibMFloat
-            + lcdmdt::ErfEps1Over1e3Float,
+        T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
     {
         let t = Self::convert_t(t, sorted)?;
         let m = ArrWrapper::new(m, true);
@@ -153,33 +150,56 @@ impl DmDt {
             false => lcdmdt::ErrorFunction::Exact,
         };
 
-        let mut result = dmdt.convert_lc_to_gausses(&t, &m, &err2, &error_func);
-        if let Some(norm) = normalize {
-            let max = *result
-                .iter()
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap()
-                / norm;
+        let mut result = dmdt.gausses(&t, &m, &err2, &error_func);
+        self.normalize(&mut result, dmdt, &t);
+
+        Ok(result.into_pyarray(py).to_owned().into_py(py))
+    }
+
+    fn normalize<T>(&self, a: &mut ndarray::Array2<T>, dmdt: &lcdmdt::DmDt<T>, t: &[T])
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::Float,
+    {
+        if self.norm.contains(NormFlag::LgDt) {
+            let lgdt = dmdt.lgdt_points(&t);
+            let lgdt_no_zeros = lgdt.mapv(|x| {
+                if x == 0 {
+                    T::one()
+                } else {
+                    x.value_as::<T>().unwrap()
+                }
+            });
+            *a /= &lgdt_no_zeros.into_shape((a.nrows(), 1)).unwrap();
+        }
+        if self.norm.contains(NormFlag::Max) {
+            let max = *a.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
             if !max.is_zero() {
-                result.mapv_inplace(|x| x / max);
+                a.mapv_inplace(|x| x / max);
             }
         }
-        Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
 }
 
 #[pymethods]
 impl DmDt {
     #[new]
-    #[args(min_lgdt, max_lgdt, max_abs_dm, lgdt_size, dm_size)]
+    #[args(
+        min_lgdt,
+        max_lgdt,
+        max_abs_dm,
+        lgdt_size,
+        dm_size,
+        norm = "vec![\"lgdt\"]"
+    )]
     fn __new__(
         min_lgdt: f64,
         max_lgdt: f64,
         max_abs_dm: f64,
         lgdt_size: usize,
         dm_size: usize,
-    ) -> Self {
-        Self {
+        norm: Vec<&str>,
+    ) -> PyResult<Self> {
+        Ok(Self {
             dmdt_f64: lcdmdt::DmDt {
                 lgdt_grid: lcdmdt::Grid::new(min_lgdt, max_lgdt, lgdt_size),
                 dm_grid: lcdmdt::Grid::new(-max_abs_dm, max_abs_dm, dm_size),
@@ -188,36 +208,41 @@ impl DmDt {
                 lgdt_grid: lcdmdt::Grid::new(min_lgdt as f32, max_lgdt as f32, lgdt_size),
                 dm_grid: lcdmdt::Grid::new(-max_abs_dm as f32, max_abs_dm as f32, dm_size),
             },
-        }
+            norm: norm
+                .iter()
+                .map(|&s| match s {
+                    "lgdt" => Ok(NormFlag::LgDt),
+                    "max" => Ok(NormFlag::Max),
+                    _ => Err(PyValueError::new_err(format!(
+                        "normalisation name {:?} is unknown, known names are: \"lgdt\", \"norm\"",
+                        s
+                    ))),
+                })
+                .collect::<PyResult<BitFlags<NormFlag>>>()?,
+        })
     }
 
-    #[args(t, m, sorted = "None", normalize = "1.0")]
+    #[args(t, m, sorted = "None")]
     fn points(
         &self,
         py: Python,
         t: GenericArray1,
         m: GenericArray1,
         sorted: Option<bool>,
-        normalize: Option<f64>,
     ) -> PyResult<PyObject> {
         match (t, m) {
-            (GenericArray1::Float32(t), GenericArray1::Float32(m)) => Self::generic_points(
-                py,
-                &self.dmdt_f32,
-                t,
-                m,
-                sorted,
-                normalize.map(|x| x as f32),
-            ),
+            (GenericArray1::Float32(t), GenericArray1::Float32(m)) => {
+                self.generic_points(py, &self.dmdt_f32, t, m, sorted)
+            }
             (GenericArray1::Float64(t), GenericArray1::Float64(m)) => {
-                Self::generic_points(py, &self.dmdt_f64, t, m, sorted, normalize)
+                self.generic_points(py, &self.dmdt_f64, t, m, sorted)
             }
             _ => Err(PyValueError::new_err("t and m must have the same dtype")),
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[args(t, m, sigma, sorted = "None", normalize = "1.0", approx_erf = "false")]
+    #[args(t, m, sigma, sorted = "None", approx_erf = "false")]
     fn gausses(
         &self,
         py: Python,
@@ -225,7 +250,6 @@ impl DmDt {
         m: GenericArray1,
         sigma: GenericArray1,
         sorted: Option<bool>,
-        normalize: Option<f64>,
         approx_erf: bool,
     ) -> PyResult<PyObject> {
         match (t, m, sigma) {
@@ -233,30 +257,12 @@ impl DmDt {
                 GenericArray1::Float32(t),
                 GenericArray1::Float32(m),
                 GenericArray1::Float32(sigma),
-            ) => Self::generic_gausses(
-                py,
-                &self.dmdt_f32,
-                t,
-                m,
-                sigma,
-                sorted,
-                normalize.map(|x| x as f32),
-                approx_erf,
-            ),
+            ) => self.generic_gausses(py, &self.dmdt_f32, t, m, sigma, sorted, approx_erf),
             (
                 GenericArray1::Float64(t),
                 GenericArray1::Float64(m),
                 GenericArray1::Float64(sigma),
-            ) => Self::generic_gausses(
-                py,
-                &self.dmdt_f64,
-                t,
-                m,
-                sigma,
-                sorted,
-                normalize,
-                approx_erf,
-            ),
+            ) => self.generic_gausses(py, &self.dmdt_f64, t, m, sigma, sorted, approx_erf),
             _ => Err(PyValueError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
