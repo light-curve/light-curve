@@ -78,6 +78,7 @@ struct DmDt {
     dmdt_f64: lcdmdt::DmDt<f64>,
     dmdt_f32: lcdmdt::DmDt<f32>,
     norm: BitFlags<NormFlag>,
+    error_func: lcdmdt::ErrorFunction,
 }
 
 impl DmDt {
@@ -132,7 +133,6 @@ impl DmDt {
         m: &Arr<T>,
         sigma: &Arr<T>,
         sorted: Option<bool>,
-        approx_erf: bool,
     ) -> PyResult<PyObject>
     where
         T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
@@ -145,12 +145,7 @@ impl DmDt {
             ArrWrapper::Owned(err2)
         };
 
-        let error_func = match approx_erf {
-            true => lcdmdt::ErrorFunction::Eps1Over1e3,
-            false => lcdmdt::ErrorFunction::Exact,
-        };
-
-        let mut result = dmdt.gausses(&t, &m, &err2, &error_func);
+        let mut result = dmdt.gausses(&t, &m, &err2, &self.error_func);
         self.normalize(&mut result, dmdt, &t);
 
         Ok(result.into_pyarray(py).to_owned().into_py(py))
@@ -182,6 +177,7 @@ impl DmDt {
 
 #[pymethods]
 impl DmDt {
+    #[allow(clippy::too_many_arguments)]
     #[new]
     #[args(
         min_lgdt,
@@ -189,7 +185,8 @@ impl DmDt {
         max_abs_dm,
         lgdt_size,
         dm_size,
-        norm = "vec![\"lgdt\"]"
+        norm = "vec![\"lgdt\"]",
+        approx_erf = "false"
     )]
     fn __new__(
         min_lgdt: f64,
@@ -198,6 +195,7 @@ impl DmDt {
         lgdt_size: usize,
         dm_size: usize,
         norm: Vec<&str>,
+        approx_erf: bool,
     ) -> PyResult<Self> {
         Ok(Self {
             dmdt_f64: lcdmdt::DmDt {
@@ -219,6 +217,10 @@ impl DmDt {
                     ))),
                 })
                 .collect::<PyResult<BitFlags<NormFlag>>>()?,
+            error_func: match approx_erf {
+                true => lcdmdt::ErrorFunction::Eps1Over1e3,
+                false => lcdmdt::ErrorFunction::Exact,
+            },
         })
     }
 
@@ -241,8 +243,7 @@ impl DmDt {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    #[args(t, m, sigma, sorted = "None", approx_erf = "false")]
+    #[args(t, m, sigma, sorted = "None")]
     fn gausses(
         &self,
         py: Python,
@@ -250,19 +251,18 @@ impl DmDt {
         m: GenericArray1,
         sigma: GenericArray1,
         sorted: Option<bool>,
-        approx_erf: bool,
     ) -> PyResult<PyObject> {
         match (t, m, sigma) {
             (
                 GenericArray1::Float32(t),
                 GenericArray1::Float32(m),
                 GenericArray1::Float32(sigma),
-            ) => self.generic_gausses(py, &self.dmdt_f32, t, m, sigma, sorted, approx_erf),
+            ) => self.generic_gausses(py, &self.dmdt_f32, t, m, sigma, sorted),
             (
                 GenericArray1::Float64(t),
                 GenericArray1::Float64(m),
                 GenericArray1::Float64(sigma),
-            ) => self.generic_gausses(py, &self.dmdt_f64, t, m, sigma, sorted, approx_erf),
+            ) => self.generic_gausses(py, &self.dmdt_f64, t, m, sigma, sorted),
             _ => Err(PyValueError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
