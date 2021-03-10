@@ -11,6 +11,7 @@ pub use float_trait::Float;
 
 pub trait Normalisable:
     ApproxInto<u8, DefaultApprox>
+    + ValueFrom<usize>
     + num_traits::Num
     + num_traits::NumOps
     + PartialOrd
@@ -210,19 +211,6 @@ where
             }
         }
         a
-    }
-}
-
-pub fn normalise_max_u8<T>(a: &Array2<T>) -> Array2<u8>
-where
-    T: Normalisable + std::fmt::Debug,
-{
-    let max = *a.iter().max_by(|&x, &y| x.partial_cmp(y).unwrap()).unwrap();
-    if max.is_zero() {
-        Array2::zeros((a.nrows(), a.ncols()))
-    } else {
-        let normalised = a * T::max_u8() / max;
-        normalised.mapv(|x| x.clamp(T::zero(), T::max_u8()).approx_into().unwrap())
     }
 }
 

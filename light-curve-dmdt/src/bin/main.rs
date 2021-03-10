@@ -1,5 +1,6 @@
 use clap::{value_t, App, Arg, ArgMatches};
-use light_curve_dmdt::{normalise_max_u8, to_png, DmDt, ErrorFunction, Grid};
+use enumflags2::{bitflags, BitFlags};
+use light_curve_dmdt::{to_png, DmDt, ErrorFunction, Grid};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
@@ -25,25 +26,64 @@ fn main() -> Result<(), MainError> {
         dm_grid: Grid::new(-config.max_abs_dm, config.max_abs_dm, config.n_dm),
     };
 
+    let map_float_or_u8 = if config.smearing {
+        let error_func = match config.approx_smearing {
+            true => ErrorFunction::Eps1Over1e3,
+            false => ErrorFunction::Exact,
+        };
+        let map_float = dmdt.gausses(&t, &m, &err2.unwrap(), &error_func);
+        Array2FloatOrU8::Float(map_float)
+    } else {
+        let map_usize = dmdt.points(&t, &m);
+        if config.norm.is_empty() {
+            Array2FloatOrU8::U8(map_usize.mapv(|x| x.clamp(0, 255) as u8))
+        } else {
+            Array2FloatOrU8::Float(map_usize.mapv(|x| x as f32))
+        }
+    };
+    let map_u8 = match map_float_or_u8 {
+        Array2FloatOrU8::U8(map_u8) => map_u8,
+        Array2FloatOrU8::Float(mut map_float) => {
+            if config.norm.contains(DmDtNorm::LgDt) {
+                let lgdt = dmdt.lgdt_points(&t);
+                let lgdt_no_zeros = lgdt.mapv(|x| if x == 0 { 1.0 } else { x as f32 });
+                map_float /= &lgdt_no_zeros.into_shape((map_float.nrows(), 1)).unwrap();
+            }
+            if config.norm.contains(DmDtNorm::Max) {
+                let max = *map_float
+                    .iter()
+                    .max_by(|&x, &y| x.partial_cmp(y).unwrap())
+                    .unwrap();
+                map_float /= max;
+            }
+            if !config.norm.is_empty() {
+                map_float *= 255.0;
+            }
+            map_float.mapv(|x| x.clamp(0.0, 255.0) as u8)
+        }
+    };
+
     let stdout = std::io::stdout();
     let writer: Box<dyn Write> = match &config.output {
         Some(path) => Box::new(BufWriter::new(File::create(path)?)),
         None => Box::new(stdout.lock()),
     };
-    if config.smearing {
-        let error_func = match config.approx_smearing {
-            true => ErrorFunction::Eps1Over1e3,
-            false => ErrorFunction::Exact,
-        };
-        to_png(
-            writer,
-            &normalise_max_u8(&dmdt.gausses(&t, &m, &err2.unwrap(), &error_func)),
-        )?;
-    } else {
-        to_png(writer, &normalise_max_u8(&dmdt.points(&t, &m)))?;
-    }
+    to_png(writer, &map_u8)?;
 
     Ok(())
+}
+
+enum Array2FloatOrU8 {
+    Float(ndarray::Array2<f32>),
+    U8(ndarray::Array2<u8>),
+}
+
+#[bitflags]
+#[repr(u8)]
+#[derive(Clone, Copy)]
+pub enum DmDtNorm {
+    LgDt,
+    Max,
 }
 
 type TME2 = (Vec<f32>, Vec<f32>, Option<Vec<f32>>);
@@ -175,6 +215,32 @@ fn arg_matches() -> ArgMatches<'static> {
                 .takes_value(false)
                 .help("speed up smearing using approximate error function"),
         )
+        .arg(
+            Arg::with_name("normalisation")
+                .short("n")
+                .long("norm")
+                .takes_value(true)
+                .multiple(true)
+                .possible_values(&["lgdt", "max"])
+                .help("normalisation, any combination of: max, lgdt")
+                .long_help(
+                    "Normalisation to do after dmdt map building. The order \
+                    of operations is:\
+                    1) build dmdt map, each dm-lgdt pair brings a unity value \
+                    to dmdt space;\
+                    2) if --norm=lgdt, then divide each cell value by the \
+                    total number of the corresponding lgdt pairs, i.e. divide \
+                    each cell of some column by the integral value in the \
+                    column (including values out of the interval of \
+                    [-max_abs_dm; max_abs_dm)); \
+                    3) if --norm=max, then divide each cell by the overall \
+                    maximum value; \
+                    4) if any of --norm=lgdt or --norm=max is specified, then \
+                    all values should be in [0; 1] interval, so they are \
+                    multiplied by 255 and casted to uint8 to make it possible \
+                    to save dmdt map as a PNG file.",
+                ),
+        )
         .get_matches()
 }
 
@@ -188,6 +254,7 @@ struct Config {
     n_dm: usize,
     smearing: bool,
     approx_smearing: bool,
+    norm: BitFlags<DmDtNorm>,
 }
 
 impl Config {
@@ -208,6 +275,16 @@ impl Config {
             n_dm: value_t!(matches, "N dm", usize).unwrap(),
             smearing: matches.is_present("smear"),
             approx_smearing: matches.is_present("approx smearing"),
+            norm: match matches.values_of("normalisation") {
+                Some(values) => values
+                    .map(|s| match s {
+                        "lgdt" => DmDtNorm::LgDt,
+                        "max" => DmDtNorm::Max,
+                        _ => panic!("the normalisation '{}' is not supported", s),
+                    })
+                    .collect(),
+                None => BitFlags::empty(),
+            },
         }
     }
 }
