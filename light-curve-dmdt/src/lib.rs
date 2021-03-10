@@ -177,15 +177,15 @@ where
                 {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => self.dm_grid.n - 1,
-                    CellIndex::Value(max_idx_dm) => max_idx_dm,
+                    CellIndex::Value(i) => usize::min(i + 1, self.dm_grid.n),
                 };
 
-                a.slice_mut(s![idx_lgdt, min_idx_dm..=max_idx_dm])
+                a.slice_mut(s![idx_lgdt, min_idx_dm..max_idx_dm])
                     .iter_mut()
                     .zip(
                         self.dm_grid
                             .borders
-                            .slice(s![min_idx_dm..=max_idx_dm + 1])
+                            .slice(s![min_idx_dm..max_idx_dm + 1])
                             .iter()
                             .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_err))
                             .tuple_windows()
