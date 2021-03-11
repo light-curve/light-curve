@@ -25,6 +25,9 @@ itertools = "~0.10"
 light-curve-dmdt = "0.2.1"
 ndarray = "^0.14"
 numpy = "^0.13"
+num_cpus = "^1.13.0"
+num-traits = "^0.2"
+rayon = "^1.5.0"
 
 [dependencies.light-curve-feature]
 version = "0.2.1-beta.1"
