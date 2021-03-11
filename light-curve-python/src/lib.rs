@@ -90,6 +90,55 @@ enum NormFlag {
     Max,
 }
 
+/// dm-lg(dt) map producer
+///
+/// Each pair of observations is mapped to dm-lg(dt) plane bringing unity
+/// value. dmdt-map is a rectangle on this plane consisted of
+/// `lgdt_size` x `dm_size` cells, and limited by `[min_lgdt; max_lgdt)` and
+/// `[-max_abs_dm; max_abs_dm)` intervals. `.points*()` methods assigns unity
+/// value of each observation to a single cell, while `.gausses*()` methods
+/// smears this unity value over all cells with given lg(t2 - t1) value using
+/// normal distribution `N(m2 - m1, sigma1^2 + sigma2^2)`, where
+/// `(t1, m1, sigma1)` and `(t2, m2, sigma2)` is a pair of observations
+/// including uncertainties. Optionally after the map is built, normalisation
+/// is performed ("norm" parameter): "lgdt" means divide each lg(dt) = const
+/// column by the total number of all observations corresponded to given dt;
+/// "max" means divide all values by the maximum value; both options can be
+/// combined, then "max" is performed after "lgdt".
+///
+/// Parameters
+/// ----------
+/// min_lgdt : float
+///     Left border of lg(dt) interval
+/// max_lgdt : float
+///     Right border of lg(dt) interval
+/// max_abs_dm : float
+///     Absolute values of dm interval borders
+/// lgdt_size : int
+///     Number of lg(dt) cells
+/// dm_size : int
+///     Number of dm cells
+/// norm : list of str, opional
+///     Types of normalisation, cab be any combination of "lgdt" and "max",
+///     default is `["lgdt"]`
+/// n_jobs : int, optional
+///     Number of parallel threads to run in bulk transmormation methods,
+///     default is `-1` which means to use as many threads as CPU cores
+/// approx_erf : bool, optional
+///     Use approximation normal CDF in `gausses*` methods, reduces accuracy,
+///     but has better performance, default is `False`
+///
+/// Methods
+/// -------
+/// points(t, m, sorted=None)
+///     Produces dmdt-map from light curve
+/// gausses(t, m, sigma, sorted=None)
+///     Produces smeared dmdt-map from noisy light curve
+/// points_from_columnar(edges, t, m, sorted=None)
+///     Produces dmdt-maps from light curves represented by columns
+/// gausses_from_columnar(edges, t, m, sigma, sorted=None)
+///     Produces smeared dmdt-maps from columnar light curves
+///
 #[pyclass]
 struct DmDt {
     dmdt_f64: lcdmdt::DmDt<f64>,
@@ -128,7 +177,7 @@ impl DmDt {
         Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
 
-    fn generic_points_many<T>(
+    fn generic_points_from_columnar<T>(
         &self,
         py: Python,
         dmdt: &lcdmdt::DmDt<T>,
@@ -199,7 +248,7 @@ impl DmDt {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn generic_gausses_many<T>(
+    fn generic_gausses_from_columnar<T>(
         &self,
         py: Python,
         dmdt: &lcdmdt::DmDt<T>,
@@ -325,6 +374,21 @@ impl DmDt {
         })
     }
 
+    /// Produces dmdt-map from light curve
+    ///
+    /// Parameters
+    /// ----------
+    /// t : 1d-ndarray of float
+    ///     Time moments, must be sorted
+    /// m : 1d-ndarray of float
+    ///     Magnitudes
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that the light curve is sorted
+    ///
+    /// Returns
+    /// -------
+    /// 2d-array of float
+    ///
     #[args(t, m, sorted = "None")]
     fn points(
         &self,
@@ -344,8 +408,28 @@ impl DmDt {
         }
     }
 
+    /// Produces dmdt-map from light curve
+    ///
+    /// Parameters
+    /// ----------
+    /// edges : 1d-ndarray of np.int64
+    ///     Indices of light curve edges: each light curve is described by
+    ///     `t[edges[i]:edges[i+1]], m[edges[i]:edges[i+1]]`, i.e. edges must
+    ///     have `n + 1` elements, where `n` is a number of light curves
+    /// t : 1d-ndarray of float
+    ///     Time moments, must be sorted
+    /// m : 1d-ndarray of float
+    ///     Magnitudes
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that the light curve is sorted
+    ///
+    /// Returns
+    /// -------
+    /// 3d-array of float
+    ///     First axis is light curve index, two other axes are dmdt map
+    ///
     #[args(edges, t, m, sorted = "None")]
-    fn points_many(
+    fn points_from_columnar(
         &self,
         py: Python,
         edges: &Arr<i64>,
@@ -355,15 +439,32 @@ impl DmDt {
     ) -> PyResult<PyObject> {
         match (t, m) {
             (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
-                self.generic_points_many(py, &self.dmdt_f32, edges, t, m, sorted)
+                self.generic_points_from_columnar(py, &self.dmdt_f32, edges, t, m, sorted)
             }
             (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
-                self.generic_points_many(py, &self.dmdt_f64, edges, t, m, sorted)
+                self.generic_points_from_columnar(py, &self.dmdt_f64, edges, t, m, sorted)
             }
             _ => Err(PyValueError::new_err("t and m must have the same dtype")),
         }
     }
 
+    /// Produces dmdt-map from light curve
+    ///
+    /// Parameters
+    /// ----------
+    /// t : 1d-ndarray of float
+    ///     Time moments, must be sorted
+    /// m : 1d-ndarray of float
+    ///     Magnitudes
+    /// sigma : 1d-ndarray of float
+    ///     Uncertainties
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that the light curve is sorted
+    ///
+    /// Returns
+    /// -------
+    /// 2d-array of float
+    ///
     #[args(t, m, sigma, sorted = "None")]
     fn gausses(
         &self,
@@ -390,8 +491,31 @@ impl DmDt {
         }
     }
 
+    /// Produces dmdt-map from light curve
+    ///
+    /// Parameters
+    /// ----------
+    /// edges : 1d-ndarray of np.int64
+    ///     Indices of light curve edges: each light curve is described by
+    ///     `t[edges[i]:edges[i+1]], m[edges[i]:edges[i+1]], sigma[edges[i]:edges[i+1]]`,
+    ///     i.e. edges must have `n + 1` elements, where `n` is a number of
+    ///     light curves
+    /// t : 1d-ndarray of float
+    ///     Time moments, must be sorted
+    /// m : 1d-ndarray of float
+    ///     Magnitudes
+    /// sigma : 1d-ndarray of float
+    ///     Observation uncertainties
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that the light curve is sorted
+    ///
+    /// Returns
+    /// -------
+    /// 3d-array of float
+    ///     First axis is light curve index, two other axes are dmdt map
+    ///
     #[args(edges, t, m, sigma, sorted = "None")]
-    fn gausses_many(
+    fn gausses_from_columnar(
         &self,
         py: Python,
         edges: &Arr<i64>,
@@ -405,12 +529,12 @@ impl DmDt {
                 GenericFloatArray1::Float32(t),
                 GenericFloatArray1::Float32(m),
                 GenericFloatArray1::Float32(sigma),
-            ) => self.generic_gausses_many(py, &self.dmdt_f32, edges, t, m, sigma, sorted),
+            ) => self.generic_gausses_from_columnar(py, &self.dmdt_f32, edges, t, m, sigma, sorted),
             (
                 GenericFloatArray1::Float64(t),
                 GenericFloatArray1::Float64(m),
                 GenericFloatArray1::Float64(sigma),
-            ) => self.generic_gausses_many(py, &self.dmdt_f64, edges, t, m, sigma, sorted),
+            ) => self.generic_gausses_from_columnar(py, &self.dmdt_f64, edges, t, m, sigma, sorted),
             _ => Err(PyValueError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
