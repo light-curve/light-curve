@@ -9,6 +9,7 @@ use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
+use rayon::prelude::*;
 use std::ops::Deref;
 
 type F = f64;
@@ -22,11 +23,8 @@ enum ArrWrapper<'a, T> {
 
 impl<'a, T> ArrWrapper<'a, T>
 where
-    T: Element + ndarray::NdFloat,
+    T: Element + num_traits::identities::Zero,
 {
-    /// Construct ndarray::Array1 wrapper of numpy array
-    ///
-    /// Right now it always returns Ok
     fn new(a: &'a PyArray1<T>, required: bool) -> Self {
         match (a.is_contiguous(), required) {
             (true, _) => Self::Readonly(a.readonly()),
@@ -57,8 +55,27 @@ where
     a.iter().tuple_windows().all(|(a, b)| a < b)
 }
 
+fn check_sorted<T>(a: &[T], sorted: Option<bool>) -> PyResult<()>
+where
+    T: PartialOrd,
+{
+    match sorted {
+        Some(true) => Ok(()),
+        Some(false) => Err(PyNotImplementedError::new_err(
+            "sorting is not implemented, please provide time-sorted arrays",
+        )),
+        None => {
+            if is_sorted(&a) {
+                Ok(())
+            } else {
+                Err(PyValueError::new_err("t must be in ascending order"))
+            }
+        }
+    }
+}
+
 #[derive(FromPyObject)]
-enum GenericArray1<'a> {
+enum GenericFloatArray1<'a> {
     #[pyo3(transparent, annotation = "np.ndarray[float32]")]
     Float32(&'a Arr<f32>),
     #[pyo3(transparent, annotation = "np.ndarray[float64]")]
@@ -79,6 +96,7 @@ struct DmDt {
     dmdt_f32: lcdmdt::DmDt<f32>,
     norm: BitFlags<NormFlag>,
     error_func: lcdmdt::ErrorFunction,
+    n_jobs: usize,
 }
 
 impl DmDt {
@@ -87,21 +105,7 @@ impl DmDt {
         T: Element + ndarray::NdFloat,
     {
         let t = ArrWrapper::new(t, true);
-
-        match sorted {
-            Some(true) => {}
-            Some(false) => {
-                return Err(PyNotImplementedError::new_err(
-                    "sorting is not implemented, please provide time-sorted arrays",
-                ))
-            }
-            None => {
-                if !is_sorted(&t) {
-                    return Err(PyValueError::new_err("t must be in ascending order"));
-                }
-            }
-        }
-
+        check_sorted(&t, sorted)?;
         Ok(t)
     }
 
@@ -121,6 +125,49 @@ impl DmDt {
 
         let mut result = dmdt.points(&t, &m).mapv(|x| x.value_as::<T>().unwrap());
         self.normalize(&mut result, dmdt, &t);
+        Ok(result.into_pyarray(py).to_owned().into_py(py))
+    }
+
+    fn generic_points_many<T>(
+        &self,
+        py: Python,
+        dmdt: &lcdmdt::DmDt<T>,
+        edges: &Arr<i64>,
+        t: &Arr<T>,
+        m: &Arr<T>,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject>
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::Float,
+    {
+        let edges = &ArrWrapper::new(edges, true)[..];
+        let t = &ArrWrapper::new(t, true)[..];
+        let m = &ArrWrapper::new(m, true)[..];
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.n_jobs)
+            .build()
+            .unwrap();
+
+        let maps = pool.install(|| {
+            edges
+                .par_windows(2)
+                .map(|idx| {
+                    let (first, last) = (idx[0] as usize, idx[1] as usize);
+                    let t_lc = &t[first..last];
+                    check_sorted(t_lc, sorted)?;
+                    let m_lc = &m[first..last];
+
+                    let mut a = dmdt.points(t_lc, m_lc).mapv(|x| x.value_as::<T>().unwrap());
+                    self.normalize(&mut a, &dmdt, t_lc);
+
+                    let (nrows, ncols) = (a.nrows(), a.ncols());
+                    Ok(a.into_shape((1, nrows, ncols)).unwrap())
+                })
+                .collect::<PyResult<Vec<_>>>()
+        })?;
+        let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
+        let result = ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap();
         Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
 
@@ -148,6 +195,53 @@ impl DmDt {
         let mut result = dmdt.gausses(&t, &m, &err2, &self.error_func);
         self.normalize(&mut result, dmdt, &t);
 
+        Ok(result.into_pyarray(py).to_owned().into_py(py))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn generic_gausses_many<T>(
+        &self,
+        py: Python,
+        dmdt: &lcdmdt::DmDt<T>,
+        edges: &Arr<i64>,
+        t: &Arr<T>,
+        m: &Arr<T>,
+        sigma: &Arr<T>,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject>
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
+    {
+        let edges = &ArrWrapper::new(edges, true)[..];
+        let t = &ArrWrapper::new(t, true)[..];
+        let m = &ArrWrapper::new(m, true)[..];
+        let sigma = &ArrWrapper::new(sigma, true)[..];
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.n_jobs)
+            .build()
+            .unwrap();
+
+        let maps = pool.install(|| {
+            edges
+                .par_windows(2)
+                .map(|idx| {
+                    let (first, last) = (idx[0] as usize, idx[1] as usize);
+                    let t_lc = &t[first..last];
+                    check_sorted(t_lc, sorted)?;
+                    let m_lc = &m[first..last];
+                    let err2_lc: Vec<_> = sigma[first..last].iter().map(|x| x.powi(2)).collect();
+
+                    let mut a = dmdt.gausses(t_lc, m_lc, &err2_lc, &self.error_func);
+                    self.normalize(&mut a, &dmdt, t_lc);
+
+                    let (nrows, ncols) = (a.nrows(), a.ncols());
+                    Ok(a.into_shape((1, nrows, ncols)).unwrap())
+                })
+                .collect::<PyResult<Vec<_>>>()
+        })?;
+        let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
+        let result = ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap();
         Ok(result.into_pyarray(py).to_owned().into_py(py))
     }
 
@@ -186,6 +280,7 @@ impl DmDt {
         lgdt_size,
         dm_size,
         norm = "vec![\"lgdt\"]",
+        n_jobs = -1,
         approx_erf = "false"
     )]
     fn __new__(
@@ -195,6 +290,7 @@ impl DmDt {
         lgdt_size: usize,
         dm_size: usize,
         norm: Vec<&str>,
+        n_jobs: i64,
         approx_erf: bool,
     ) -> PyResult<Self> {
         Ok(Self {
@@ -221,6 +317,11 @@ impl DmDt {
                 true => lcdmdt::ErrorFunction::Eps1Over1e3,
                 false => lcdmdt::ErrorFunction::Exact,
             },
+            n_jobs: if n_jobs <= 0 {
+                num_cpus::get()
+            } else {
+                n_jobs as usize
+            },
         })
     }
 
@@ -228,16 +329,36 @@ impl DmDt {
     fn points(
         &self,
         py: Python,
-        t: GenericArray1,
-        m: GenericArray1,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
         sorted: Option<bool>,
     ) -> PyResult<PyObject> {
         match (t, m) {
-            (GenericArray1::Float32(t), GenericArray1::Float32(m)) => {
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
                 self.generic_points(py, &self.dmdt_f32, t, m, sorted)
             }
-            (GenericArray1::Float64(t), GenericArray1::Float64(m)) => {
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
                 self.generic_points(py, &self.dmdt_f64, t, m, sorted)
+            }
+            _ => Err(PyValueError::new_err("t and m must have the same dtype")),
+        }
+    }
+
+    #[args(edges, t, m, sorted = "None")]
+    fn points_many(
+        &self,
+        py: Python,
+        edges: &Arr<i64>,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject> {
+        match (t, m) {
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
+                self.generic_points_many(py, &self.dmdt_f32, edges, t, m, sorted)
+            }
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
+                self.generic_points_many(py, &self.dmdt_f64, edges, t, m, sorted)
             }
             _ => Err(PyValueError::new_err("t and m must have the same dtype")),
         }
@@ -247,22 +368,49 @@ impl DmDt {
     fn gausses(
         &self,
         py: Python,
-        t: GenericArray1,
-        m: GenericArray1,
-        sigma: GenericArray1,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
+        sigma: GenericFloatArray1,
         sorted: Option<bool>,
     ) -> PyResult<PyObject> {
         match (t, m, sigma) {
             (
-                GenericArray1::Float32(t),
-                GenericArray1::Float32(m),
-                GenericArray1::Float32(sigma),
+                GenericFloatArray1::Float32(t),
+                GenericFloatArray1::Float32(m),
+                GenericFloatArray1::Float32(sigma),
             ) => self.generic_gausses(py, &self.dmdt_f32, t, m, sigma, sorted),
             (
-                GenericArray1::Float64(t),
-                GenericArray1::Float64(m),
-                GenericArray1::Float64(sigma),
+                GenericFloatArray1::Float64(t),
+                GenericFloatArray1::Float64(m),
+                GenericFloatArray1::Float64(sigma),
             ) => self.generic_gausses(py, &self.dmdt_f64, t, m, sigma, sorted),
+            _ => Err(PyValueError::new_err(
+                "t, m and sigma must have the same dtype",
+            )),
+        }
+    }
+
+    #[args(edges, t, m, sigma, sorted = "None")]
+    fn gausses_many(
+        &self,
+        py: Python,
+        edges: &Arr<i64>,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
+        sigma: GenericFloatArray1,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject> {
+        match (t, m, sigma) {
+            (
+                GenericFloatArray1::Float32(t),
+                GenericFloatArray1::Float32(m),
+                GenericFloatArray1::Float32(sigma),
+            ) => self.generic_gausses_many(py, &self.dmdt_f32, edges, t, m, sigma, sorted),
+            (
+                GenericFloatArray1::Float64(t),
+                GenericFloatArray1::Float64(m),
+                GenericFloatArray1::Float64(sigma),
+            ) => self.generic_gausses_many(py, &self.dmdt_f64, edges, t, m, sigma, sorted),
             _ => Err(PyValueError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
@@ -319,19 +467,7 @@ impl PyFeatureEvaluator {
             (false, false, _) => false,
         };
         let t = ArrWrapper::new(t, is_t_required);
-        match sorted {
-            Some(true) => {}
-            Some(false) => {
-                return Err(PyNotImplementedError::new_err(
-                    "sorting is not implemented, please provide time-sorted arrays",
-                ))
-            }
-            None => {
-                if self.feature_evaluator.is_sorting_required() & !is_sorted(&t) {
-                    return Err(PyValueError::new_err("t must be in ascending order"));
-                }
-            }
-        }
+        check_sorted(&t, sorted)?;
 
         let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required());
 
