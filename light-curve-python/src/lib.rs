@@ -467,7 +467,19 @@ impl PyFeatureEvaluator {
             (false, false, _) => false,
         };
         let t = ArrWrapper::new(t, is_t_required);
-        check_sorted(&t, sorted)?;
+        match sorted {
+            Some(true) => {}
+            Some(false) => {
+                return Err(PyNotImplementedError::new_err(
+                    "sorting is not implemented, please provide time-sorted arrays",
+                ))
+            }
+            None => {
+                if self.feature_evaluator.is_sorting_required() & !is_sorted(&t) {
+                    return Err(PyValueError::new_err("t must be in ascending order"));
+                }
+            }
+        }
 
         let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required());
 
