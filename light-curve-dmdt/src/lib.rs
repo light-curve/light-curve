@@ -92,14 +92,20 @@ where
     }
 
     fn idx(&self, x: T) -> CellIndex {
-        match x {
-            _ if x < self.start => CellIndex::LowerMin,
-            _ if x >= self.end => CellIndex::GreaterMax,
-            _ => CellIndex::Value(
-                ((x - self.start) / self.cell_size)
-                    .approx_by::<RoundToZero>()
-                    .unwrap(),
-            ),
+        if x < self.start {
+            return CellIndex::LowerMin;
+        }
+        if x >= self.end {
+            return CellIndex::GreaterMax;
+        }
+        let i = ((x - self.start) / self.cell_size)
+            .approx_by::<RoundToZero>()
+            .unwrap();
+        if i < self.n {
+            CellIndex::Value(i)
+        } else {
+            // x is a bit smaller self.end + float rounding
+            CellIndex::Value(self.n - 1)
         }
     }
 }
@@ -176,7 +182,7 @@ where
                     .idx(dm + erf.max_dx_nonunity_normal_cdf(dm_err))
                 {
                     CellIndex::LowerMin => continue,
-                    CellIndex::GreaterMax => self.dm_grid.n - 1,
+                    CellIndex::GreaterMax => self.dm_grid.n,
                     CellIndex::Value(i) => usize::min(i + 1, self.dm_grid.n),
                 };
 
