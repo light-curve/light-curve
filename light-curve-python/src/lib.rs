@@ -158,6 +158,21 @@ impl DmDt {
         Ok(t)
     }
 
+    fn generic_count_lgdt<T>(
+        &self,
+        py: Python,
+        dmdt: &lcdmdt::DmDt<T>,
+        t: &Arr<T>,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject>
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::Float,
+    {
+        let t = Self::convert_t(t, sorted)?;
+        let result = dmdt.lgdt_points(&t).mapv(|x| x.value_as::<T>().unwrap());
+        Ok(result.into_pyarray(py).to_owned().into_py(py))
+    }
+
     fn generic_points<T>(
         &self,
         py: Python,
@@ -372,6 +387,35 @@ impl DmDt {
                 n_jobs as usize
             },
         })
+    }
+
+    /// Number of observations per each lg(dt) interval
+    ///
+    /// Parameters
+    /// ----------
+    /// t : 1d-ndarray of float
+    ///     Time moments, must be sorted
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that `t` is sorted
+    ///
+    /// Returns
+    /// 1d-array of float
+    ///
+    #[args(t, sorted = "None")]
+    fn count_lgdt(
+        &self,
+        py: Python,
+        t: GenericFloatArray1,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject> {
+        match t {
+            GenericFloatArray1::Float32(t) => {
+                self.generic_count_lgdt(py, &self.dmdt_f32, t, sorted)
+            }
+            GenericFloatArray1::Float64(t) => {
+                self.generic_count_lgdt(py, &self.dmdt_f64, t, sorted)
+            }
+        }
     }
 
     /// Produces dmdt-map from light curve
