@@ -120,7 +120,7 @@ enum NormFlag {
 ///     Number of dm cells
 /// norm : list of str, opional
 ///     Types of normalisation, cab be any combination of "lgdt" and "max",
-///     default is `["lgdt"]`
+///     default is an empty list `[]` which means no normalisation
 /// n_jobs : int, optional
 ///     Number of parallel threads to run in bulk transmormation methods,
 ///     default is `-1` which means to use as many threads as CPU cores
@@ -343,7 +343,7 @@ impl DmDt {
         max_abs_dm,
         lgdt_size,
         dm_size,
-        norm = "vec![\"lgdt\"]",
+        norm = "vec![]",
         n_jobs = -1,
         approx_erf = "false"
     )]
