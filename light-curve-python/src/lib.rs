@@ -5,7 +5,7 @@ use light_curve_dmdt as lcdmdt;
 use light_curve_feature as lcf;
 use ndarray::Array1 as NDArray;
 use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::{PyNotImplementedError, PyValueError};
+use pyo3::exceptions::{PyNotImplementedError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
@@ -131,11 +131,15 @@ enum NormFlag {
 /// Methods
 /// -------
 /// points(t, m, sorted=None)
-///     Produces dmdt-map from light curve
+///     Produces dmdt-maps from light curve
 /// gausses(t, m, sigma, sorted=None)
 ///     Produces smeared dmdt-map from noisy light curve
+/// points_many(lcs, sorted=None)
+///     Produces dmdt-maps from a list of light curves
+/// gausses_many(lcs, sorted=None)
+///     Produces smeared dmdt-maps from a list of light curves
 /// points_from_columnar(edges, t, m, sorted=None)
-///     Produces dmdt-maps from light curves represented by columns
+///     Produces dmdt-maps from light curves given in columnar form
 /// gausses_from_columnar(edges, t, m, sigma, sorted=None)
 ///     Produces smeared dmdt-maps from columnar light curves
 ///
@@ -158,29 +162,49 @@ impl DmDt {
         Ok(t)
     }
 
+    fn normalize<T>(&self, a: &mut ndarray::Array2<T>, dmdt: &lcdmdt::DmDt<T>, t: &[T])
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::Float,
+    {
+        if self.norm.contains(NormFlag::LgDt) {
+            let lgdt = dmdt.lgdt_points(&t);
+            let lgdt_no_zeros = lgdt.mapv(|x| {
+                if x == 0 {
+                    T::one()
+                } else {
+                    x.value_as::<T>().unwrap()
+                }
+            });
+            *a /= &lgdt_no_zeros.into_shape((a.nrows(), 1)).unwrap();
+        }
+        if self.norm.contains(NormFlag::Max) {
+            let max = *a.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+            if !max.is_zero() {
+                a.mapv_inplace(|x| x / max);
+            }
+        }
+    }
+
     fn generic_count_lgdt<T>(
         &self,
-        py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         t: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject>
+    ) -> PyResult<ndarray::Array1<T>>
     where
         T: Element + ndarray::NdFloat + lcdmdt::Float,
     {
         let t = Self::convert_t(t, sorted)?;
-        let result = dmdt.lgdt_points(&t).mapv(|x| x.value_as::<T>().unwrap());
-        Ok(result.into_pyarray(py).to_owned().into_py(py))
+        Ok(dmdt.lgdt_points(&t).mapv(|x| x.value_as::<T>().unwrap()))
     }
 
     fn generic_points<T>(
         &self,
-        py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         t: &Arr<T>,
         m: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject>
+    ) -> PyResult<ndarray::Array2<T>>
     where
         T: Element + ndarray::NdFloat + lcdmdt::Float,
     {
@@ -189,18 +213,34 @@ impl DmDt {
 
         let mut result = dmdt.points(&t, &m).mapv(|x| x.value_as::<T>().unwrap());
         self.normalize(&mut result, dmdt, &t);
-        Ok(result.into_pyarray(py).to_owned().into_py(py))
+        Ok(result)
+    }
+
+    fn generic_points_many<T>(
+        &self,
+        dmdt: &lcdmdt::DmDt<T>,
+        lcs: Vec<(&Arr<T>, &Arr<T>)>,
+        sorted: Option<bool>,
+    ) -> PyResult<ndarray::Array3<T>>
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::Float,
+    {
+        let dmdt_shape = dmdt.shape();
+        let mut result = ndarray::Array3::zeros((lcs.len(), dmdt_shape.0, dmdt_shape.1));
+        for (mut map, (t, m)) in result.outer_iter_mut().zip(lcs) {
+            map.assign(&self.generic_points(dmdt, t, m, sorted)?);
+        }
+        Ok(result)
     }
 
     fn generic_points_from_columnar<T>(
         &self,
-        py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         edges: &Arr<i64>,
         t: &Arr<T>,
         m: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject>
+    ) -> PyResult<ndarray::Array3<T>>
     where
         T: Element + ndarray::NdFloat + lcdmdt::Float,
     {
@@ -231,20 +271,17 @@ impl DmDt {
                 .collect::<PyResult<Vec<_>>>()
         })?;
         let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
-        let result = ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap();
-        Ok(result.into_pyarray(py).to_owned().into_py(py))
+        Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn generic_gausses<T>(
         &self,
-        py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         t: &Arr<T>,
         m: &Arr<T>,
         sigma: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject>
+    ) -> PyResult<ndarray::Array2<T>>
     where
         T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
     {
@@ -258,21 +295,35 @@ impl DmDt {
 
         let mut result = dmdt.gausses(&t, &m, &err2, &self.error_func);
         self.normalize(&mut result, dmdt, &t);
-
-        Ok(result.into_pyarray(py).to_owned().into_py(py))
+        Ok(result)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    fn generic_gausses_many<T>(
+        &self,
+        dmdt: &lcdmdt::DmDt<T>,
+        lcs: Vec<(&Arr<T>, &Arr<T>, &Arr<T>)>,
+        sorted: Option<bool>,
+    ) -> PyResult<ndarray::Array3<T>>
+    where
+        T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
+    {
+        let dmdt_shape = dmdt.shape();
+        let mut result = ndarray::Array3::zeros((lcs.len(), dmdt_shape.0, dmdt_shape.1));
+        for (mut map, (t, m, sigma)) in result.outer_iter_mut().zip(lcs) {
+            map.assign(&self.generic_gausses(dmdt, t, m, sigma, sorted)?);
+        }
+        Ok(result)
+    }
+
     fn generic_gausses_from_columnar<T>(
         &self,
-        py: Python,
         dmdt: &lcdmdt::DmDt<T>,
         edges: &Arr<i64>,
         t: &Arr<T>,
         m: &Arr<T>,
         sigma: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject>
+    ) -> PyResult<ndarray::Array3<T>>
     where
         T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
     {
@@ -305,31 +356,7 @@ impl DmDt {
                 .collect::<PyResult<Vec<_>>>()
         })?;
         let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
-        let result = ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap();
-        Ok(result.into_pyarray(py).to_owned().into_py(py))
-    }
-
-    fn normalize<T>(&self, a: &mut ndarray::Array2<T>, dmdt: &lcdmdt::DmDt<T>, t: &[T])
-    where
-        T: Element + ndarray::NdFloat + lcdmdt::Float,
-    {
-        if self.norm.contains(NormFlag::LgDt) {
-            let lgdt = dmdt.lgdt_points(&t);
-            let lgdt_no_zeros = lgdt.mapv(|x| {
-                if x == 0 {
-                    T::one()
-                } else {
-                    x.value_as::<T>().unwrap()
-                }
-            });
-            *a /= &lgdt_no_zeros.into_shape((a.nrows(), 1)).unwrap();
-        }
-        if self.norm.contains(NormFlag::Max) {
-            let max = *a.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-            if !max.is_zero() {
-                a.mapv_inplace(|x| x / max);
-            }
-        }
+        Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
     }
 }
 
@@ -409,12 +436,12 @@ impl DmDt {
         sorted: Option<bool>,
     ) -> PyResult<PyObject> {
         match t {
-            GenericFloatArray1::Float32(t) => {
-                self.generic_count_lgdt(py, &self.dmdt_f32, t, sorted)
-            }
-            GenericFloatArray1::Float64(t) => {
-                self.generic_count_lgdt(py, &self.dmdt_f64, t, sorted)
-            }
+            GenericFloatArray1::Float32(t) => self
+                .generic_count_lgdt(&self.dmdt_f32, t, sorted)
+                .map(|a| a.into_pyarray(py).to_owned().into_py(py)),
+            GenericFloatArray1::Float64(t) => self
+                .generic_count_lgdt(&self.dmdt_f64, t, sorted)
+                .map(|a| a.into_pyarray(py).to_owned().into_py(py)),
         }
     }
 
@@ -431,7 +458,7 @@ impl DmDt {
     ///
     /// Returns
     /// -------
-    /// 2d-array of float
+    /// 2d-ndarray of float
     ///
     #[args(t, m, sorted = "None")]
     fn points(
@@ -442,17 +469,72 @@ impl DmDt {
         sorted: Option<bool>,
     ) -> PyResult<PyObject> {
         match (t, m) {
-            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
-                self.generic_points(py, &self.dmdt_f32, t, m, sorted)
-            }
-            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
-                self.generic_points(py, &self.dmdt_f64, t, m, sorted)
-            }
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok(self
+                .generic_points(&self.dmdt_f32, t, m, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok(self
+                .generic_points(&self.dmdt_f64, t, m, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
             _ => Err(PyValueError::new_err("t and m must have the same dtype")),
         }
     }
 
-    /// Produces dmdt-map from light curve
+    /// Produces dmdt-map from a collection of light curves
+    ///
+    /// Parameters
+    /// ----------
+    /// lcs : list of (ndarray, ndarray)
+    ///     List or tuple of tuple pairs (t, m) represented individual light
+    ///     curves. All arrays must have the same dtype
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that all light curves is sorted
+    ///
+    /// Returns
+    /// -------
+    /// 3d-ndarray of float
+    ///    
+    #[args(lcs, sorted = "None")]
+    fn points_many(
+        &self,
+        py: Python,
+        lcs: Vec<(GenericFloatArray1, GenericFloatArray1)>,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject> {
+        if lcs.is_empty() {
+            Err(PyValueError::new_err("lcs is empty"))
+        } else {
+            match lcs[0].0 {
+                GenericFloatArray1::Float32(_) => {
+                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
+                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok((*t, *m)),
+                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<PyResult<Vec<_>>>()?;
+                    Ok(self
+                        .generic_points_many(&self.dmdt_f32, typed_lcs, sorted)?
+                        .into_pyarray(py)
+                        .to_owned()
+                        .into_py(py))
+                }
+                GenericFloatArray1::Float64(_) => {
+                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
+                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok((*t, *m)),
+                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
+                    }).collect::<PyResult<Vec<_>>>()?;
+                    Ok(self
+                        .generic_points_many(&self.dmdt_f64, typed_lcs, sorted)?
+                        .into_pyarray(py)
+                        .to_owned()
+                        .into_py(py))
+                }
+            }
+        }
+    }
+
+    /// Produces dmdt-maps from light curves given in columnar form
     ///
     /// Parameters
     /// ----------
@@ -482,17 +564,21 @@ impl DmDt {
         sorted: Option<bool>,
     ) -> PyResult<PyObject> {
         match (t, m) {
-            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
-                self.generic_points_from_columnar(py, &self.dmdt_f32, edges, t, m, sorted)
-            }
-            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
-                self.generic_points_from_columnar(py, &self.dmdt_f64, edges, t, m, sorted)
-            }
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok(self
+                .generic_points_from_columnar(&self.dmdt_f32, edges, t, m, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok(self
+                .generic_points_from_columnar(&self.dmdt_f64, edges, t, m, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
             _ => Err(PyValueError::new_err("t and m must have the same dtype")),
         }
     }
 
-    /// Produces dmdt-map from light curve
+    /// Produces smeared dmdt-map from light curve
     ///
     /// Parameters
     /// ----------
@@ -523,19 +609,78 @@ impl DmDt {
                 GenericFloatArray1::Float32(t),
                 GenericFloatArray1::Float32(m),
                 GenericFloatArray1::Float32(sigma),
-            ) => self.generic_gausses(py, &self.dmdt_f32, t, m, sigma, sorted),
+            ) => Ok(self
+                .generic_gausses(&self.dmdt_f32, t, m, sigma, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
             (
                 GenericFloatArray1::Float64(t),
                 GenericFloatArray1::Float64(m),
                 GenericFloatArray1::Float64(sigma),
-            ) => self.generic_gausses(py, &self.dmdt_f64, t, m, sigma, sorted),
+            ) => Ok(self
+                .generic_gausses(&self.dmdt_f64, t, m, sigma, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
             _ => Err(PyValueError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
         }
     }
 
-    /// Produces dmdt-map from light curve
+    /// Produces smeared dmdt-map from a collection of light curves
+    ///
+    /// Parameters
+    /// ----------
+    /// lcs : list of (ndarray, ndarray, ndarray)
+    ///     List or tuple of tuple pairs (t, m, sigma) represented individual
+    ///     light curves. All arrays must have the same dtype
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that all light curves are sorted
+    ///
+    /// Returns
+    /// -------
+    /// 3d-ndarray of float
+    ///    
+    #[args(lcs, sorted = "None")]
+    fn gausses_many(
+        &self,
+        py: Python,
+        lcs: Vec<(GenericFloatArray1, GenericFloatArray1, GenericFloatArray1)>,
+        sorted: Option<bool>,
+    ) -> PyResult<PyObject> {
+        if lcs.is_empty() {
+            Err(PyValueError::new_err("lcs is empty"))
+        } else {
+            match lcs[0].0 {
+                GenericFloatArray1::Float32(_) => {
+                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
+                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => Ok((*t, *m, *sigma)),
+                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<PyResult<Vec<_>>>()?;
+                    Ok(self
+                        .generic_gausses_many(&self.dmdt_f32, typed_lcs, sorted)?
+                        .into_pyarray(py)
+                        .to_owned()
+                        .into_py(py))
+                }
+                GenericFloatArray1::Float64(_) => {
+                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
+                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => Ok((*t, *m, *sigma)),
+                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
+                    }).collect::<PyResult<Vec<_>>>()?;
+                    Ok(self
+                        .generic_gausses_many(&self.dmdt_f64, typed_lcs, sorted)?
+                        .into_pyarray(py)
+                        .to_owned()
+                        .into_py(py))
+                }
+            }
+        }
+    }
+
+    /// Produces smeared dmdt-maps from light curves given in columnar form
     ///
     /// Parameters
     /// ----------
@@ -573,12 +718,20 @@ impl DmDt {
                 GenericFloatArray1::Float32(t),
                 GenericFloatArray1::Float32(m),
                 GenericFloatArray1::Float32(sigma),
-            ) => self.generic_gausses_from_columnar(py, &self.dmdt_f32, edges, t, m, sigma, sorted),
+            ) => Ok(self
+                .generic_gausses_from_columnar(&self.dmdt_f32, edges, t, m, sigma, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
             (
                 GenericFloatArray1::Float64(t),
                 GenericFloatArray1::Float64(m),
                 GenericFloatArray1::Float64(sigma),
-            ) => self.generic_gausses_from_columnar(py, &self.dmdt_f64, edges, t, m, sigma, sorted),
+            ) => Ok(self
+                .generic_gausses_from_columnar(&self.dmdt_f64, edges, t, m, sigma, sorted)?
+                .into_pyarray(py)
+                .to_owned()
+                .into_py(py)),
             _ => Err(PyValueError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
