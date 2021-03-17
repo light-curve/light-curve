@@ -122,11 +122,17 @@ enum NormFlag {
 ///     Types of normalisation, cab be any combination of "lgdt" and "max",
 ///     default is an empty list `[]` which means no normalisation
 /// n_jobs : int, optional
-///     Number of parallel threads to run in bulk transmormation methods,
-///     default is `-1` which means to use as many threads as CPU cores
+///     Number of parallel threads to run in bulk transformation methods such
+///     as `points_many()` or `gausses_from_columnar()`, default is `-1` which
+///     means to use as many threads as CPU cores
 /// approx_erf : bool, optional
 ///     Use approximation normal CDF in `gausses*` methods, reduces accuracy,
 ///     but has better performance, default is `False`
+///
+/// Attributes
+/// ----------
+/// n_jons : int
+///     Number of threads to use in paralleled methods
 ///
 /// Methods
 /// -------
@@ -416,6 +422,23 @@ impl DmDt {
         })
     }
 
+    #[getter]
+    fn get_n_jobs(&self) -> usize {
+        self.n_jobs
+    }
+
+    #[setter]
+    fn set_n_jobs(&mut self, value: i64) -> PyResult<()> {
+        if value <= 0 {
+            Err(PyValueError::new_err(
+                "cannot set non-positive n_jobs value",
+            ))
+        } else {
+            self.n_jobs = value as usize;
+            Ok(())
+        }
+    }
+
     /// Number of observations per each lg(dt) interval
     ///
     /// Parameters
@@ -479,7 +502,7 @@ impl DmDt {
                 .into_pyarray(py)
                 .to_owned()
                 .into_py(py)),
-            _ => Err(PyValueError::new_err("t and m must have the same dtype")),
+            _ => Err(PyTypeError::new_err("t and m must have the same dtype")),
         }
     }
 
@@ -574,7 +597,7 @@ impl DmDt {
                 .into_pyarray(py)
                 .to_owned()
                 .into_py(py)),
-            _ => Err(PyValueError::new_err("t and m must have the same dtype")),
+            _ => Err(PyTypeError::new_err("t and m must have the same dtype")),
         }
     }
 
@@ -732,7 +755,7 @@ impl DmDt {
                 .into_pyarray(py)
                 .to_owned()
                 .into_py(py)),
-            _ => Err(PyValueError::new_err(
+            _ => Err(PyTypeError::new_err(
                 "t, m and sigma must have the same dtype",
             )),
         }
