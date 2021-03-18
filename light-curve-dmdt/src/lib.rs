@@ -1,6 +1,7 @@
 use conv::*;
 use itertools::Itertools;
 use ndarray::{s, Array1, Array2, ScalarOperand};
+use std::fmt::Debug;
 use std::io::Write;
 
 mod erf;
@@ -59,6 +60,7 @@ impl Normalisable for f64 {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Grid<T> {
     start: T, // coordinate of the left border of the leftmost cell
     end: T,   // coordinate of the right border of the rightmost cell
@@ -116,6 +118,7 @@ enum CellIndex {
     Value(usize),
 }
 
+#[derive(Clone, Debug)]
 pub struct DmDt<T> {
     pub lgdt_grid: Grid<T>,
     pub dm_grid: Grid<T>,
