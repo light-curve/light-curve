@@ -32,10 +32,12 @@ def test_dmdt_points_three_obs():
     t = np.array([0, 1, 2], dtype=np.float32)
     m = np.array([0, 1, 2], dtype=np.float32)
 
-    desired = np.array([
-        [0, 0, 2, 0],
-        [0, 0, 0, 1],
-    ])
+    desired = np.array(
+        [
+            [0, 0, 2, 0],
+            [0, 0, 0, 1],
+        ]
+    )
     actual = dmdt.points(t, m)
 
     assert_array_equal(actual, desired)
@@ -54,8 +56,10 @@ def test_dmdt_points_many_one(lc, norm):
     assert_array_equal(actual[0], desired)
 
 
-@pytest.mark.parametrize("lcs", [[sine_lc(101, False), sine_lc(11, False)],
-                                 [random_lc(101, False), random_lc(101, False), random_lc(11, False)]])
+@pytest.mark.parametrize(
+    "lcs",
+    [[sine_lc(101, False), sine_lc(11, False)], [random_lc(101, False), random_lc(101, False), random_lc(11, False)]],
+)
 @pytest.mark.parametrize("norm", [[], ["lgdt"], ["max"], ["lgdt", "max"]])
 def test_dmdt_points_many(lcs, norm):
     dmdt = DmDt(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=norm)
@@ -80,8 +84,7 @@ def test_dmdt_gausses_many_one(lc, norm, approx_erf):
     assert_array_equal(actual[0], desired)
 
 
-@pytest.mark.parametrize("lcs", [[sine_lc(101), sine_lc(11)],
-                                 [random_lc(101), random_lc(101), random_lc(11)]])
+@pytest.mark.parametrize("lcs", [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]])
 @pytest.mark.parametrize("norm", [[], ["lgdt"], ["max"], ["lgdt", "max"]])
 @pytest.mark.parametrize("approx_erf", [True, False])
 def test_dmdt_points_many(lcs, norm, approx_erf):
