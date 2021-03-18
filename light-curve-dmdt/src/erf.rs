@@ -1,7 +1,7 @@
 use crate::float_trait::Float;
 use conv::*;
 
-#[derive(std::fmt::Debug)]
+#[derive(Copy, Clone, std::fmt::Debug)]
 pub enum ErrorFunction {
     Exact,
     Eps1Over1e3,
