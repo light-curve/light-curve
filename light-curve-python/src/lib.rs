@@ -4,6 +4,7 @@ use itertools::Itertools;
 use light_curve_dmdt as lcdmdt;
 use light_curve_feature as lcf;
 use ndarray::Array1 as NDArray;
+use ndarray::IntoNdProducer;
 use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::class::iter::PyIterProtocol;
 use pyo3::exceptions::{PyNotImplementedError, PyTypeError, PyValueError};
@@ -155,12 +156,19 @@ where
     ) -> PyResult<ndarray::Array3<T>> {
         let dmdt_shape = self.dmdt.shape();
         let mut result = ndarray::Array3::zeros((lcs.len(), dmdt_shape.0, dmdt_shape.1));
-        result
-            .outer_iter_mut()
-            .zip(lcs)
-            .try_for_each::<_, PyResult<_>>(|(mut map, (t, m))| {
-                map.assign(&self.points(t, m, sorted)?);
-                Ok(())
+
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(self.n_jobs)
+            .build()
+            .unwrap()
+            .install(|| {
+                ndarray::Zip::from(result.outer_iter_mut())
+                    .and(lcs.into_producer())
+                    .into_par_iter()
+                    .try_for_each::<_, PyResult<_>>(|(mut map, (t, m))| {
+                        map.assign(&self.points(t, m, sorted)?);
+                        Ok(())
+                    })
             })?;
         Ok(result)
     }
@@ -226,12 +234,19 @@ where
     ) -> PyResult<ndarray::Array3<T>> {
         let dmdt_shape = self.dmdt.shape();
         let mut result = ndarray::Array3::zeros((lcs.len(), dmdt_shape.0, dmdt_shape.1));
-        result
-            .outer_iter_mut()
-            .zip(lcs)
-            .try_for_each::<_, PyResult<_>>(|(mut map, (t, m, err2))| {
-                map.assign(&self.gausses(t, m, err2, sorted)?);
-                Ok(())
+
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(self.n_jobs)
+            .build()
+            .unwrap()
+            .install(|| {
+                ndarray::Zip::from(result.outer_iter_mut())
+                    .and(lcs.into_producer())
+                    .into_par_iter()
+                    .try_for_each::<_, PyResult<_>>(|(mut map, (t, m, err2))| {
+                        map.assign(&self.gausses(t, m, err2, sorted)?);
+                        Ok(())
+                    })
             })?;
         Ok(result)
     }
