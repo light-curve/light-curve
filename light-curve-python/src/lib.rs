@@ -485,8 +485,8 @@ py_dmdt_batches!(
 ///     default is an empty list `[]` which means no normalisation
 /// n_jobs : int, optional
 ///     Number of parallel threads to run in bulk transformation methods such
-///     as `points_many()` or `gausses_from_columnar()`, default is `-1` which
-///     means to use as many threads as CPU cores
+///     as `points_many()`, `gausses_batches()` or `points_from_columnar()`,
+///     default is `-1` which means to use as many threads as CPU cores
 /// approx_erf : bool, optional
 ///     Use approximation normal CDF in `gausses*` methods, reduces accuracy,
 ///     but has better performance, default is `False`
@@ -506,6 +506,10 @@ py_dmdt_batches!(
 ///     Produces dmdt-maps from a list of light curves
 /// gausses_many(lcs, sorted=None)
 ///     Produces smeared dmdt-maps from a list of light curves
+/// points_batches(lcs, sorted=None, batch_size=1)
+///     Gives an iterable which yields dmdt-maps
+/// gausses_batches(lcs, sorted=None, batch_size=1)
+///     Gives an iterable which yields smeared dmdt-maps
 /// points_from_columnar(edges, t, m, sorted=None)
 ///     Produces dmdt-maps from light curves given in columnar form
 /// gausses_from_columnar(edges, t, m, sigma, sorted=None)
@@ -676,6 +680,8 @@ impl DmDt {
 
     /// Produces dmdt-map from a collection of light curves
     ///
+    /// The method is performed in parallel using `n_jobs` threads
+    ///
     /// Parameters
     /// ----------
     /// lcs : list of (ndarray, ndarray)
@@ -729,6 +735,26 @@ impl DmDt {
         }
     }
 
+    /// Iterable yielding dmdt-maps
+    ///
+    /// The dmdt-maps are producted in parallel using `n_jobs` threads, batches
+    /// are being generated in background, so the next batch is started to
+    /// generate just after the previous one is yeilded    
+    ///
+    /// Parameters
+    /// ----------
+    /// lcs : list of (ndarray, ndarray)
+    ///     List or tuple of tuple pairs (t, m) represented individual light
+    ///     curves. All arrays must have the same dtype
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that all light curves is sorted
+    /// batch_size : int, optional
+    ///     The number of dmdt-maps to yield. The last batch can be smaller
+    ///
+    /// Returns
+    /// -------
+    /// Iterable of 3d-ndarray
+    ///
     #[args(lcs, sorted = "None", batch_size = 1)]
     fn points_batches(
         &self,
@@ -776,6 +802,8 @@ impl DmDt {
     }
 
     /// Produces dmdt-maps from light curves given in columnar form
+    ///
+    /// The method is performed in parallel using `n_jobs` threads
     ///
     /// Parameters
     /// ----------
@@ -892,6 +920,8 @@ impl DmDt {
 
     /// Produces smeared dmdt-map from a collection of light curves
     ///
+    /// The method is performed in parallel using `n_jobs` threads
+    ///
     /// Parameters
     /// ----------
     /// lcs : list of (ndarray, ndarray, ndarray)
@@ -951,6 +981,26 @@ impl DmDt {
         }
     }
 
+    /// Iterable yielding smeared dmdt-maps
+    ///
+    /// The dmdt-maps are producted in parallel using `n_jobs` threads, batches
+    /// are being generated in background, so the next batch is started to
+    /// generate just after the previous one is yeilded    
+    ///
+    /// Parameters
+    /// ----------
+    /// lcs : list of (ndarray, ndarray, ndarray)
+    ///     List or tuple of tuple pairs (t, m, sigma) represented individual
+    ///     light curves. All arrays must have the same dtype
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that all light curves is sorted
+    /// batch_size : int, optional
+    ///     The number of dmdt-maps to yield. The last batch can be smaller
+    ///
+    /// Returns
+    /// -------
+    /// Iterable of 3d-ndarray
+    ///
     #[args(lcs, sorted = "None", batch_size = 1)]
     fn gausses_batches(
         &self,
@@ -998,6 +1048,8 @@ impl DmDt {
     }
 
     /// Produces smeared dmdt-maps from light curves given in columnar form
+    ///
+    /// The method is performed in parallel using `n_jobs` threads
     ///
     /// Parameters
     /// ----------
