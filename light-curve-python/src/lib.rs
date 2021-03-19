@@ -5,12 +5,15 @@ use light_curve_dmdt as lcdmdt;
 use light_curve_feature as lcf;
 use ndarray::Array1 as NDArray;
 use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1};
+use pyo3::class::iter::PyIterProtocol;
 use pyo3::exceptions::{PyNotImplementedError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
 use rayon::prelude::*;
-use std::ops::Deref;
+use std::cell::RefCell;
+use std::ops::{Deref, Range};
+use std::sync::Arc;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
@@ -264,6 +267,113 @@ where
         Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
     }
 }
+
+#[derive(Clone)]
+struct GenericDmDtPointsBatches<T> {
+    dmdt: GenericDmDt<T>,
+    lcs: Vec<(ndarray::Array1<T>, ndarray::Array1<T>)>,
+    sorted: Option<bool>,
+    batch_size: usize,
+}
+
+macro_rules! dmdt_points_batches {
+    ($name_batches: ident, $name_iter: ident, $t: ty $(,)?) => {
+        #[pyclass]
+        struct $name_batches {
+            dmdt_batches: Arc<GenericDmDtPointsBatches<$t>>,
+        }
+
+        #[pyproto]
+        impl PyIterProtocol for $name_batches {
+            fn __iter__(slf: PyRef<Self>) -> PyResult<Py<$name_iter>> {
+                let iter = $name_iter::new(slf.dmdt_batches.clone());
+                Py::new(slf.py(), iter)
+            }
+        }
+
+        #[pyclass]
+        struct $name_iter {
+            dmdt_batches: Arc<GenericDmDtPointsBatches<$t>>,
+            idx: usize,
+            worker_thread: RefCell<Option<std::thread::JoinHandle<PyResult<ndarray::Array3<$t>>>>>,
+        }
+
+        impl $name_iter {
+            fn new(dmdt_batches: Arc<GenericDmDtPointsBatches<$t>>) -> Self {
+                let idx = usize::min(dmdt_batches.batch_size, dmdt_batches.lcs.len());
+
+                let batches = dmdt_batches.clone();
+                let worker_thread = RefCell::new(Some(std::thread::spawn(move || {
+                    Self::worker(batches, 0..idx)
+                })));
+
+                Self {
+                    dmdt_batches,
+                    idx,
+                    worker_thread,
+                }
+            }
+
+            fn worker(
+                dmdt_batches: Arc<GenericDmDtPointsBatches<$t>>,
+                range: Range<usize>,
+            ) -> PyResult<ndarray::Array3<$t>> {
+                let lcs: Vec<_> = dmdt_batches.lcs[range]
+                    .iter()
+                    .map(|(t, m)| {
+                        (
+                            t.as_slice_memory_order().unwrap(),
+                            m.as_slice_memory_order().unwrap(),
+                        )
+                    })
+                    .collect();
+                Ok(dmdt_batches.dmdt.points_many(lcs, dmdt_batches.sorted)?)
+            }
+        }
+
+        impl Drop for $name_iter {
+            fn drop(&mut self) {
+                let t = self.worker_thread.replace(None);
+                t.into_iter().for_each(|t| drop(t.join().unwrap()));
+            }
+        }
+
+        #[pyproto]
+        impl PyIterProtocol for $name_iter {
+            fn __iter__(slf: PyRef<Self>) -> PyRef<Self> {
+                slf
+            }
+
+            fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<Py<numpy::PyArray3<$t>>>> {
+                if slf.worker_thread.borrow().is_none() {
+                    return Ok(None);
+                }
+
+                let range = slf.idx
+                    ..usize::min(
+                        slf.idx + slf.dmdt_batches.batch_size,
+                        slf.dmdt_batches.lcs.len(),
+                    );
+                slf.idx = range.end;
+
+                // Replace with None temporary to not have two workers running simultaneously
+                let result = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
+                if !range.is_empty() {
+                    let batches = slf.dmdt_batches.clone();
+                    slf.worker_thread.replace(Some(std::thread::spawn(move || {
+                        Self::worker(batches, range)
+                    })));
+                }
+
+                Ok(Some(result.into_pyarray(slf.py()).to_owned()))
+            }
+        }
+    };
+}
+
+dmdt_points_batches!(DmDtPointsBatchesF32, DmDtPointsIterF32, f32);
+
+dmdt_points_batches!(DmDtPointsBatchesF64, DmDtPointsIterF64, f64);
 
 /// dm-lg(dt) map producer
 ///
@@ -542,12 +652,13 @@ impl DmDt {
         }
     }
 
-    #[args(lcs, sorted = "None")]
+    #[args(lcs, sorted = "None", batch_size = 1)]
     fn points_batches(
         &self,
         py: Python,
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
+        batch_size: usize,
     ) -> PyResult<PyObject> {
         if lcs.is_empty() {
             Err(PyValueError::new_err("lcs is empty"))
@@ -563,6 +674,7 @@ impl DmDt {
                             dmdt: self.dmdt_f32.clone(),
                             lcs: typed_lcs,
                             sorted,
+                            batch_size,
                         }),
                     }
                     .into_py(py))
@@ -577,6 +689,7 @@ impl DmDt {
                             dmdt: self.dmdt_f64.clone(),
                             lcs: typed_lcs,
                             sorted,
+                            batch_size,
                         }),
                     }
                     .into_py(py))
