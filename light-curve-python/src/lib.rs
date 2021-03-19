@@ -14,6 +14,7 @@ use rayon::prelude::*;
 use std::cell::RefCell;
 use std::ops::{Deref, Range};
 use std::sync::Arc;
+use std::thread::JoinHandle;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
@@ -294,24 +295,30 @@ macro_rules! dmdt_points_batches {
         #[pyclass]
         struct $name_iter {
             dmdt_batches: Arc<GenericDmDtPointsBatches<$t>>,
-            idx: usize,
-            worker_thread: RefCell<Option<std::thread::JoinHandle<PyResult<ndarray::Array3<$t>>>>>,
+            range: Range<usize>,
+            worker_thread: RefCell<Option<JoinHandle<PyResult<ndarray::Array3<$t>>>>>,
         }
 
         impl $name_iter {
             fn new(dmdt_batches: Arc<GenericDmDtPointsBatches<$t>>) -> Self {
-                let idx = usize::min(dmdt_batches.batch_size, dmdt_batches.lcs.len());
+                let range = 0..usize::min(dmdt_batches.batch_size, dmdt_batches.lcs.len());
 
-                let batches = dmdt_batches.clone();
-                let worker_thread = RefCell::new(Some(std::thread::spawn(move || {
-                    Self::worker(batches, 0..idx)
-                })));
+                let worker_thread = RefCell::new(Some(Self::worker_thread(&dmdt_batches, &range)));
 
                 Self {
                     dmdt_batches,
-                    idx,
+                    range,
                     worker_thread,
                 }
+            }
+
+            fn worker_thread(
+                dmdt_batches: &Arc<GenericDmDtPointsBatches<$t>>,
+                range: &Range<usize>,
+            ) -> JoinHandle<PyResult<ndarray::Array3<$t>>> {
+                let dmdt_batches = dmdt_batches.clone();
+                let range = range.clone();
+                std::thread::spawn(move || Self::worker(dmdt_batches, range))
             }
 
             fn worker(
@@ -349,20 +356,17 @@ macro_rules! dmdt_points_batches {
                     return Ok(None);
                 }
 
-                let range = slf.idx
+                slf.range = slf.range.end
                     ..usize::min(
-                        slf.idx + slf.dmdt_batches.batch_size,
+                        slf.range.end + slf.dmdt_batches.batch_size,
                         slf.dmdt_batches.lcs.len(),
                     );
-                slf.idx = range.end;
 
                 // Replace with None temporary to not have two workers running simultaneously
                 let result = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
-                if !range.is_empty() {
-                    let batches = slf.dmdt_batches.clone();
-                    slf.worker_thread.replace(Some(std::thread::spawn(move || {
-                        Self::worker(batches, range)
-                    })));
+                if !slf.range.is_empty() {
+                    slf.worker_thread
+                        .replace(Some(Self::worker_thread(&slf.dmdt_batches, &slf.range)));
                 }
 
                 Ok(Some(result.into_pyarray(slf.py()).to_owned()))
@@ -873,6 +877,52 @@ impl DmDt {
             }
         }
     }
+
+    // #[args(lcs, sorted = "None", batch_size = 1)]
+    // fn gausses_batches(
+    //     &self,
+    //     py: Python,
+    //     lcs: Vec<(GenericFloatArray1, GenericFloatArray1, GenericFloatArray1)>,
+    //     sorted: Option<bool>,
+    //     batch_size: usize,
+    // ) -> PyResult<PyObject> {
+    //     if lcs.is_empty() {
+    //         Err(PyValueError::new_err("lcs is empty"))
+    //     } else {
+    //         match lcs[0].0 {
+    //             GenericFloatArray1::Float32(_) => {
+    //                 let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
+    //                     (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => Ok((t.to_owned_array(), m.to_owned_array(), sigma_to_err2(sigma))),
+    //                     _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+    //                 }).collect::<PyResult<Vec<_>>>()?;
+    //                 Ok(DmDtPointsGaussesF32 {
+    //                     dmdt_batches: Arc::new(GenericDmDtGaussesBatches {
+    //                         dmdt: self.dmdt_f32.clone(),
+    //                         lcs: typed_lcs,
+    //                         sorted,
+    //                         batch_size,
+    //                     }),
+    //                 }
+    //                 .into_py(py))
+    //             }
+    //             GenericFloatArray1::Float64(_) => {
+    //                 let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
+    //                     (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => Ok((t.to_owned_array(), m.to_owned_array(), sigma_to_err2(sigma))),
+    //                     _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
+    //                 }).collect::<PyResult<Vec<_>>>()?;
+    //                 Ok(DmDtPointsGaussesF64 {
+    //                     dmdt_batches: Arc::new(GenericDmDtGaussesBatches {
+    //                         dmdt: self.dmdt_f64.clone(),
+    //                         lcs: typed_lcs,
+    //                         sorted,
+    //                         batch_size,
+    //                     }),
+    //                 }
+    //                 .into_py(py))
+    //             }
+    //         }
+    //     }
+    // }
 
     /// Produces smeared dmdt-maps from light curves given in columnar form
     ///
