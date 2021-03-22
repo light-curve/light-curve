@@ -11,10 +11,12 @@ use pyo3::exceptions::{PyNotImplementedError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
+use rand::SeedableRng;
+use rand_xoshiro::Xoshiro256PlusPlus;
 use rayon::prelude::*;
 use std::cell::RefCell;
-use std::ops::{Deref, Range};
-use std::sync::Arc;
+use std::ops::{Deref, DerefMut, Range};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 type F = f64;
@@ -85,6 +87,14 @@ enum GenericFloatArray1<'a> {
     Float32(&'a Arr<f32>),
     #[pyo3(transparent, annotation = "np.ndarray[float64]")]
     Float64(&'a Arr<f64>),
+}
+
+#[derive(FromPyObject)]
+enum DropNObsType {
+    #[pyo3(transparent, annotation = "int")]
+    Int(usize),
+    #[pyo3(transparent, annotation = "float")]
+    Float(f64),
 }
 
 #[bitflags]
@@ -292,23 +302,40 @@ where
     }
 }
 
-#[derive(Clone)]
-struct GenericDmDtPointsBatches<T> {
+struct GenericDmDtBatches<T, LC> {
     dmdt: GenericDmDt<T>,
-    lcs: Vec<(ndarray::Array1<T>, ndarray::Array1<T>)>,
+    lcs: Vec<LC>,
     sorted: Option<bool>,
     batch_size: usize,
+    shuffle: bool,
+    rng: Mutex<Xoshiro256PlusPlus>,
 }
 
-#[derive(Clone)]
-struct GenericDmDtGaussesBatches<T> {
-    dmdt: GenericDmDt<T>,
-    lcs: Vec<(ndarray::Array1<T>, ndarray::Array1<T>, ndarray::Array1<T>)>,
-    sorted: Option<bool>,
-    batch_size: usize,
+impl<T, LC> GenericDmDtBatches<T, LC> {
+    fn new(
+        dmdt: GenericDmDt<T>,
+        lcs: Vec<LC>,
+        sorted: Option<bool>,
+        batch_size: usize,
+        shuffle: bool,
+        random_seed: Option<u64>,
+    ) -> Self {
+        let rng = match random_seed {
+            Some(seed) => Xoshiro256PlusPlus::seed_from_u64(seed),
+            None => Xoshiro256PlusPlus::from_rng(&mut rand::thread_rng()).unwrap(),
+        };
+        Self {
+            dmdt,
+            lcs,
+            sorted,
+            batch_size,
+            shuffle,
+            rng: Mutex::new(rng),
+        }
+    }
 }
 
-macro_rules! dmdt_points_batches {
+macro_rules! dmdt_batches {
     ($worker: expr, $generic: ty, $name_batches: ident, $name_iter: ident, $t: ty $(,)?) => {
         #[pyclass]
         struct $name_batches {
@@ -326,6 +353,7 @@ macro_rules! dmdt_points_batches {
         #[pyclass]
         struct $name_iter {
             dmdt_batches: Arc<$generic>,
+            lcs_order: Vec<usize>,
             range: Range<usize>,
             worker_thread: RefCell<Option<JoinHandle<PyResult<ndarray::Array3<$t>>>>>,
         }
@@ -334,10 +362,24 @@ macro_rules! dmdt_points_batches {
             fn new(dmdt_batches: Arc<$generic>) -> Self {
                 let range = 0..usize::min(dmdt_batches.batch_size, dmdt_batches.lcs.len());
 
-                let worker_thread = RefCell::new(Some(Self::worker_thread(&dmdt_batches, &range)));
+                let lcs_order = match dmdt_batches.shuffle {
+                    false => (0..dmdt_batches.lcs.len()).collect(),
+                    true => rand::seq::index::sample(
+                        dmdt_batches.rng.lock().unwrap().deref_mut(),
+                        dmdt_batches.lcs.len(),
+                        dmdt_batches.lcs.len(),
+                    )
+                    .into_vec(),
+                };
+
+                let worker_thread = RefCell::new(Some(Self::worker_thread(
+                    &dmdt_batches,
+                    &lcs_order[range.start..range.end],
+                )));
 
                 Self {
                     dmdt_batches,
+                    lcs_order,
                     range,
                     worker_thread,
                 }
@@ -345,18 +387,18 @@ macro_rules! dmdt_points_batches {
 
             fn worker_thread(
                 dmdt_batches: &Arc<$generic>,
-                range: &Range<usize>,
+                indexes: &[usize],
             ) -> JoinHandle<PyResult<ndarray::Array3<$t>>> {
                 let dmdt_batches = dmdt_batches.clone();
-                let range = range.clone();
-                std::thread::spawn(move || Self::worker(dmdt_batches, range))
+                let indexes = indexes.to_vec();
+                std::thread::spawn(move || Self::worker(dmdt_batches, &indexes))
             }
 
             fn worker(
                 dmdt_batches: Arc<$generic>,
-                range: Range<usize>,
+                indexes: &[usize],
             ) -> PyResult<ndarray::Array3<$t>> {
-                $worker(dmdt_batches, range)
+                $worker(dmdt_batches, indexes)
             }
         }
 
@@ -387,8 +429,10 @@ macro_rules! dmdt_points_batches {
                 // Replace with None temporary to not have two workers running simultaneously
                 let result = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
                 if !slf.range.is_empty() {
-                    slf.worker_thread
-                        .replace(Some(Self::worker_thread(&slf.dmdt_batches, &slf.range)));
+                    slf.worker_thread.replace(Some(Self::worker_thread(
+                        &slf.dmdt_batches,
+                        &slf.lcs_order[slf.range.start..slf.range.end],
+                    )));
                 }
 
                 Ok(Some(result.into_pyarray(slf.py()).to_owned()))
@@ -400,16 +444,17 @@ macro_rules! dmdt_points_batches {
 macro_rules! py_dmdt_batches {
     ($worker: expr, $($generic: ty, $name_batches: ident, $name_iter: ident, $t: ty),* $(,)?) => {
         $(
-            dmdt_points_batches!($worker, $generic, $name_batches, $name_iter, $t);
+            dmdt_batches!($worker, $generic, $name_batches, $name_iter, $t);
         )*
     };
 }
 
 py_dmdt_batches!(
-    |dmdt_batches: Arc<GenericDmDtPointsBatches<_>>, range: Range<usize>| {
-        let lcs: Vec<_> = dmdt_batches.lcs[range]
+    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize]| {
+        let lcs: Vec<_> = indexes
             .iter()
-            .map(|(t, m)| {
+            .map(|&i| {
+                let (t, m) = &dmdt_batches.lcs[i];
                 (
                     t.as_slice_memory_order().unwrap(),
                     m.as_slice_memory_order().unwrap(),
@@ -418,21 +463,22 @@ py_dmdt_batches!(
             .collect();
         Ok(dmdt_batches.dmdt.points_many(lcs, dmdt_batches.sorted)?)
     },
-    GenericDmDtPointsBatches<f32>,
+    GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>)>,
     DmDtPointsBatchesF32,
     DmDtPointsIterF32,
     f32,
-    GenericDmDtPointsBatches<f64>,
+    GenericDmDtBatches<f64, (ndarray::Array1<f64>, ndarray::Array1<f64>)>,
     DmDtPointsBatchesF64,
     DmDtPointsIterF64,
     f64,
 );
 
 py_dmdt_batches!(
-    |dmdt_batches: Arc<GenericDmDtGaussesBatches<_>>, range: Range<usize>| {
-        let lcs: Vec<_> = dmdt_batches.lcs[range]
+    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize]| {
+        let lcs: Vec<_> = indexes
             .iter()
-            .map(|(t, m, err2)| {
+            .map(|&i| {
+                let (t, m, err2) = &dmdt_batches.lcs[i];
                 (
                     t.as_slice_memory_order().unwrap(),
                     m.as_slice_memory_order().unwrap(),
@@ -442,11 +488,11 @@ py_dmdt_batches!(
             .collect();
         Ok(dmdt_batches.dmdt.gausses_many(lcs, dmdt_batches.sorted)?)
     },
-    GenericDmDtGaussesBatches<f32>,
+    GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>, ndarray::Array1<f32>)>,
     DmDtGaussesBatchesF32,
     DmDtGaussesIterF32,
     f32,
-    GenericDmDtGaussesBatches<f64>,
+    GenericDmDtBatches<f64, (ndarray::Array1<f64>, ndarray::Array1<f64>, ndarray::Array1<f64>)>,
     DmDtGaussesBatchesF64,
     DmDtGaussesIterF64,
     f64,
@@ -755,13 +801,23 @@ impl DmDt {
     /// -------
     /// Iterable of 3d-ndarray
     ///
-    #[args(lcs, sorted = "None", batch_size = 1)]
+    #[args(
+        lcs,
+        sorted = "None",
+        batch_size = 1,
+        shuffle = false,
+        drop_nobs = "DropNObsType::Int(0)",
+        random_seed = "None"
+    )]
     fn points_batches(
         &self,
         py: Python,
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
         batch_size: usize,
+        shuffle: bool,
+        drop_nobs: DropNObsType,
+        random_seed: Option<u64>,
     ) -> PyResult<PyObject> {
         if lcs.is_empty() {
             Err(PyValueError::new_err("lcs is empty"))
@@ -773,12 +829,14 @@ impl DmDt {
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtPointsBatchesF32 {
-                        dmdt_batches: Arc::new(GenericDmDtPointsBatches {
-                            dmdt: self.dmdt_f32.clone(),
-                            lcs: typed_lcs,
+                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
+                            self.dmdt_f32.clone(),
+                            typed_lcs,
                             sorted,
                             batch_size,
-                        }),
+                            shuffle,
+                            random_seed,
+                        )),
                     }
                     .into_py(py))
                 }
@@ -788,12 +846,14 @@ impl DmDt {
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtPointsBatchesF64 {
-                        dmdt_batches: Arc::new(GenericDmDtPointsBatches {
-                            dmdt: self.dmdt_f64.clone(),
-                            lcs: typed_lcs,
+                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
+                            self.dmdt_f64.clone(),
+                            typed_lcs,
                             sorted,
                             batch_size,
-                        }),
+                            shuffle,
+                            random_seed,
+                        )),
                     }
                     .into_py(py))
                 }
@@ -1001,13 +1061,23 @@ impl DmDt {
     /// -------
     /// Iterable of 3d-ndarray
     ///
-    #[args(lcs, sorted = "None", batch_size = 1)]
+    #[args(
+        lcs,
+        sorted = "None",
+        batch_size = 1,
+        shuffle = false,
+        drop_nobs = "DropNObsType::Int(0)",
+        random_seed = "None"
+    )]
     fn gausses_batches(
         &self,
         py: Python,
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
         batch_size: usize,
+        shuffle: bool,
+        drop_nobs: DropNObsType,
+        random_seed: Option<u64>,
     ) -> PyResult<PyObject> {
         if lcs.is_empty() {
             Err(PyValueError::new_err("lcs is empty"))
@@ -1019,12 +1089,14 @@ impl DmDt {
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtGaussesBatchesF32 {
-                        dmdt_batches: Arc::new(GenericDmDtGaussesBatches {
-                            dmdt: self.dmdt_f32.clone(),
-                            lcs: typed_lcs,
+                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
+                            self.dmdt_f32.clone(),
+                            typed_lcs,
                             sorted,
                             batch_size,
-                        }),
+                            shuffle,
+                            random_seed,
+                        )),
                     }
                     .into_py(py))
                 }
@@ -1034,12 +1106,14 @@ impl DmDt {
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtGaussesBatchesF64 {
-                        dmdt_batches: Arc::new(GenericDmDtGaussesBatches {
-                            dmdt: self.dmdt_f64.clone(),
-                            lcs: typed_lcs,
+                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
+                            self.dmdt_f64.clone(),
+                            typed_lcs,
                             sorted,
                             batch_size,
-                        }),
+                            shuffle,
+                            random_seed,
+                        )),
                     }
                     .into_py(py))
                 }
