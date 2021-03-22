@@ -18,11 +18,34 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use thiserror::Error;
 use unzip3::Unzip3;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
 type PyArrF = Py<Arr<F>>;
+
+#[derive(Clone, Error, std::fmt::Debug)]
+#[error("{0}")]
+enum Exception {
+    NotImplementedError(String),
+    RuntimeError(String),
+    TypeError(String),
+    ValueError(String),
+}
+
+impl std::convert::From<Exception> for PyErr {
+    fn from(err: Exception) -> PyErr {
+        match err.clone() {
+            Exception::NotImplementedError(err) => PyNotImplementedError::new_err(err),
+            Exception::RuntimeError(err) => PyRuntimeError::new_err(err),
+            Exception::TypeError(err) => PyTypeError::new_err(err),
+            Exception::ValueError(err) => PyValueError::new_err(err),
+        }
+    }
+}
+
+type Res<T> = std::result::Result<T, Exception>;
 
 enum ArrWrapper<'a, T> {
     Readonly(PyReadonlyArray1<'a, T>),
@@ -63,20 +86,22 @@ where
     a.iter().tuple_windows().all(|(a, b)| a < b)
 }
 
-fn check_sorted<T>(a: &[T], sorted: Option<bool>) -> PyResult<()>
+fn check_sorted<T>(a: &[T], sorted: Option<bool>) -> Res<()>
 where
     T: PartialOrd,
 {
     match sorted {
         Some(true) => Ok(()),
-        Some(false) => Err(PyNotImplementedError::new_err(
+        Some(false) => Err(Exception::NotImplementedError(String::from(
             "sorting is not implemented, please provide time-sorted arrays",
-        )),
+        ))),
         None => {
             if is_sorted(&a) {
                 Ok(())
             } else {
-                Err(PyValueError::new_err("t must be in ascending order"))
+                Err(Exception::ValueError(String::from(
+                    "t must be in ascending order",
+                )))
             }
         }
     }
@@ -144,7 +169,7 @@ where
         }
     }
 
-    fn count_lgdt(&self, t: &[T], sorted: Option<bool>) -> PyResult<ndarray::Array1<T>> {
+    fn count_lgdt(&self, t: &[T], sorted: Option<bool>) -> Res<ndarray::Array1<T>> {
         check_sorted(t, sorted)?;
         Ok(self
             .dmdt
@@ -152,7 +177,7 @@ where
             .mapv(|x| x.value_as::<T>().unwrap()))
     }
 
-    fn points(&self, t: &[T], m: &[T], sorted: Option<bool>) -> PyResult<ndarray::Array2<T>> {
+    fn points(&self, t: &[T], m: &[T], sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
         check_sorted(t, sorted)?;
 
         let mut result = self.dmdt.points(t, m).mapv(|x| x.value_as::<T>().unwrap());
@@ -160,11 +185,7 @@ where
         Ok(result)
     }
 
-    fn points_many(
-        &self,
-        lcs: Vec<(&[T], &[T])>,
-        sorted: Option<bool>,
-    ) -> PyResult<ndarray::Array3<T>> {
+    fn points_many(&self, lcs: Vec<(&[T], &[T])>, sorted: Option<bool>) -> Res<ndarray::Array3<T>> {
         let dmdt_shape = self.dmdt.shape();
         let mut result = ndarray::Array3::zeros((lcs.len(), dmdt_shape.0, dmdt_shape.1));
 
@@ -176,7 +197,7 @@ where
                 ndarray::Zip::from(result.outer_iter_mut())
                     .and(lcs.into_producer())
                     .into_par_iter()
-                    .try_for_each::<_, PyResult<_>>(|(mut map, (t, m))| {
+                    .try_for_each::<_, Res<_>>(|(mut map, (t, m))| {
                         map.assign(&self.points(t, m, sorted)?);
                         Ok(())
                     })
@@ -190,7 +211,7 @@ where
         t: &Arr<T>,
         m: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<ndarray::Array3<T>> {
+    ) -> Res<ndarray::Array3<T>> {
         let edges = &ArrWrapper::new(edges, true)[..];
         let t = &ArrWrapper::new(t, true)[..];
         let m = &ArrWrapper::new(m, true)[..];
@@ -218,7 +239,7 @@ where
                     let (nrows, ncols) = (a.nrows(), a.ncols());
                     Ok(a.into_shape((1, nrows, ncols)).unwrap())
                 })
-                .collect::<PyResult<Vec<_>>>()
+                .collect::<Res<Vec<_>>>()
         })?;
         let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
         Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
@@ -230,7 +251,7 @@ where
         m: &[T],
         err2: &[T],
         sorted: Option<bool>,
-    ) -> PyResult<ndarray::Array2<T>> {
+    ) -> Res<ndarray::Array2<T>> {
         check_sorted(t, sorted)?;
 
         let mut result = self.dmdt.gausses(&t, &m, err2, &self.error_func);
@@ -242,7 +263,7 @@ where
         &self,
         lcs: Vec<(&[T], &[T], &[T])>,
         sorted: Option<bool>,
-    ) -> PyResult<ndarray::Array3<T>> {
+    ) -> Res<ndarray::Array3<T>> {
         let dmdt_shape = self.dmdt.shape();
         let mut result = ndarray::Array3::zeros((lcs.len(), dmdt_shape.0, dmdt_shape.1));
 
@@ -254,7 +275,7 @@ where
                 ndarray::Zip::from(result.outer_iter_mut())
                     .and(lcs.into_producer())
                     .into_par_iter()
-                    .try_for_each::<_, PyResult<_>>(|(mut map, (t, m, err2))| {
+                    .try_for_each::<_, Res<_>>(|(mut map, (t, m, err2))| {
                         map.assign(&self.gausses(t, m, err2, sorted)?);
                         Ok(())
                     })
@@ -269,7 +290,7 @@ where
         m: &Arr<T>,
         sigma: &Arr<T>,
         sorted: Option<bool>,
-    ) -> PyResult<ndarray::Array3<T>> {
+    ) -> Res<ndarray::Array3<T>> {
         let edges = &ArrWrapper::new(edges, true)[..];
         let t = &ArrWrapper::new(t, true)[..];
         let m = &ArrWrapper::new(m, true)[..];
@@ -296,7 +317,7 @@ where
                     let (nrows, ncols) = (a.nrows(), a.ncols());
                     Ok(a.into_shape((1, nrows, ncols)).unwrap())
                 })
-                .collect::<PyResult<Vec<_>>>()
+                .collect::<Res<Vec<_>>>()
         })?;
         let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
         Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
@@ -320,7 +341,7 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
         shuffle: bool,
         drop_nobs: DropNObsType,
         random_seed: Option<u64>,
-    ) -> PyResult<Self> {
+    ) -> Res<Self> {
         let rng = match random_seed {
             Some(seed) => Xoshiro256PlusPlus::seed_from_u64(seed),
             None => Xoshiro256PlusPlus::from_rng(&mut rand::thread_rng()).unwrap(),
@@ -332,9 +353,9 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
                 _ if x == 0.0 => None,
                 _ if (0.0..1.0).contains(&x) => Some(drop_nobs),
                 _ => {
-                    return Err(PyValueError::new_err(
+                    return Err(Exception::ValueError(String::from(
                         "if drop_nobs is float, it must be in [0.0, 1.0)",
-                    ))
+                    )))
                 }
             },
         };
@@ -348,13 +369,13 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
         })
     }
 
-    fn dropped_index<R: rand::Rng>(&self, rng: &mut R, length: usize) -> PyResult<Vec<usize>> {
+    fn dropped_index<R: rand::Rng>(&self, rng: &mut R, length: usize) -> Res<Vec<usize>> {
         let drop_nobs = match self.drop_nobs {
             Some(drop_nobs) => drop_nobs,
             None => {
-                return Err(PyRuntimeError::new_err(
+                return Err(Exception::RuntimeError(String::from(
                     "dropping is not required: drop_nobs = 0",
-                ))
+                )))
             }
         };
         let drop_nobs = match drop_nobs {
@@ -362,7 +383,7 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
             DropNObsType::Float(x) => f64::round(x * length as f64) as usize,
         };
         if drop_nobs >= length {
-            return Err(PyValueError::new_err(format!(
+            return Err(Exception::ValueError(format!(
                 "cannot drop {} observations from light curve containing {} points",
                 drop_nobs, length
             )));
@@ -393,7 +414,7 @@ macro_rules! dmdt_batches {
             dmdt_batches: Arc<$generic>,
             lcs_order: Vec<usize>,
             range: Range<usize>,
-            worker_thread: RefCell<Option<JoinHandle<PyResult<ndarray::Array3<$t>>>>>,
+            worker_thread: RefCell<Option<JoinHandle<Res<ndarray::Array3<$t>>>>>,
             rng: Option<Xoshiro256PlusPlus>,
         }
 
@@ -442,7 +463,7 @@ macro_rules! dmdt_batches {
                 dmdt_batches: &Arc<$generic>,
                 indexes: &[usize],
                 rng: Option<Xoshiro256PlusPlus>,
-            ) -> JoinHandle<PyResult<ndarray::Array3<$t>>> {
+            ) -> JoinHandle<Res<ndarray::Array3<$t>>> {
                 let dmdt_batches = dmdt_batches.clone();
                 let indexes = indexes.to_vec();
                 std::thread::spawn(move || Self::worker(dmdt_batches, &indexes, rng))
@@ -452,7 +473,7 @@ macro_rules! dmdt_batches {
                 dmdt_batches: Arc<$generic>,
                 indexes: &[usize],
                 rng: Option<Xoshiro256PlusPlus>,
-            ) -> PyResult<ndarray::Array3<$t>> {
+            ) -> Res<ndarray::Array3<$t>> {
                 $worker(dmdt_batches, indexes, rng)
             }
         }
@@ -470,7 +491,7 @@ macro_rules! dmdt_batches {
                 slf
             }
 
-            fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<Py<numpy::PyArray3<$t>>>> {
+            fn __next__(mut slf: PyRefMut<Self>) -> Res<Option<Py<numpy::PyArray3<$t>>>> {
                 if slf.worker_thread.borrow().is_none() {
                     return Ok(None);
                 }
@@ -522,11 +543,11 @@ py_dmdt_batches!(
             (Some(_), Some(mut rng)) => {
                 let owned_lcs: Vec<(Vec<_>, Vec<_>)> = lcs.iter().map(|(t, m)| {
                     Ok(dmdt_batches.dropped_index(&mut rng, t.len())?.iter().map(|&i| (t[i], m[i])).unzip())
-                }).collect::<PyResult<_>>()?;
+                }).collect::<Res<_>>()?;
                 Some(owned_lcs)
             },
             (None, None) => None,
-            (_, _) => return Err(PyRuntimeError::new_err("cannot be here, please report an issue"))
+            (_, _) => return Err(Exception::RuntimeError(String::from("cannot be here, please report an issue")))
         };
         if let Some(owned_lcs) = &dropped_owned_lcs {
             for (ref_lc, lc) in lcs.iter_mut().zip(owned_lcs) {
@@ -562,11 +583,11 @@ py_dmdt_batches!(
             (Some(_), Some(mut rng)) => {
                 let owned_lcs: Vec<(Vec<_>, Vec<_>, Vec<_>)> = lcs.iter().map(|(t, m, err2)| {
                     Ok(dmdt_batches.dropped_index(&mut rng, t.len())?.iter().map(|&i| (t[i], m[i], err2[i])).unzip3())
-                }).collect::<PyResult<_>>()?;
+                }).collect::<Res<_>>()?;
                 Some(owned_lcs)
             },
             (None, None) => None,
-            (_, _) => return Err(PyRuntimeError::new_err("cannot be here, please report an issue"))
+            (_, _) => return Err(Exception::RuntimeError(String::from("cannot be here, please report an issue")))
         };
         if let Some(owned_lcs) = &dropped_owned_lcs {
             for (ref_lc, lc) in lcs.iter_mut().zip(owned_lcs) {
@@ -677,7 +698,7 @@ impl DmDt {
         norm: Vec<&str>,
         n_jobs: i64,
         approx_erf: bool,
-    ) -> PyResult<Self> {
+    ) -> Res<Self> {
         let dmdt_f32 = lcdmdt::DmDt {
             lgdt_grid: lcdmdt::Grid::new(min_lgdt as f32, max_lgdt as f32, lgdt_size),
             dm_grid: lcdmdt::Grid::new(-max_abs_dm as f32, max_abs_dm as f32, dm_size),
@@ -691,12 +712,12 @@ impl DmDt {
             .map(|&s| match s {
                 "lgdt" => Ok(NormFlag::LgDt),
                 "max" => Ok(NormFlag::Max),
-                _ => Err(PyValueError::new_err(format!(
+                _ => Err(Exception::ValueError(format!(
                     "normalisation name {:?} is unknown, known names are: \"lgdt\", \"norm\"",
                     s
                 ))),
             })
-            .collect::<PyResult<BitFlags<NormFlag>>>()?;
+            .collect::<Res<BitFlags<NormFlag>>>()?;
         let error_func = match approx_erf {
             true => lcdmdt::ErrorFunction::Eps1Over1e3,
             false => lcdmdt::ErrorFunction::Exact,
@@ -728,10 +749,10 @@ impl DmDt {
     }
 
     #[setter]
-    fn set_n_jobs(&mut self, value: i64) -> PyResult<()> {
+    fn set_n_jobs(&mut self, value: i64) -> Res<()> {
         if value <= 0 {
-            Err(PyValueError::new_err(
-                "cannot set non-positive n_jobs value",
+            Err(Exception::ValueError(
+                "cannot set non-positive n_jobs value".to_owned(),
             ))
         } else {
             self.dmdt_f32.n_jobs = value as usize;
@@ -753,12 +774,7 @@ impl DmDt {
     /// 1d-array of float
     ///
     #[args(t, sorted = "None")]
-    fn count_lgdt(
-        &self,
-        py: Python,
-        t: GenericFloatArray1,
-        sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    fn count_lgdt(&self, py: Python, t: GenericFloatArray1, sorted: Option<bool>) -> Res<PyObject> {
         match t {
             GenericFloatArray1::Float32(t) => self
                 .dmdt_f32
@@ -793,7 +809,7 @@ impl DmDt {
         t: GenericFloatArray1,
         m: GenericFloatArray1,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         match (t, m) {
             (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok(self
                 .dmdt_f32
@@ -807,7 +823,9 @@ impl DmDt {
                 .into_pyarray(py)
                 .to_owned()
                 .into_py(py)),
-            _ => Err(PyTypeError::new_err("t and m must have the same dtype")),
+            _ => Err(Exception::TypeError(
+                "t and m must have the same dtype".to_owned(),
+            )),
         }
     }
 
@@ -833,16 +851,16 @@ impl DmDt {
         py: Python,
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         if lcs.is_empty() {
-            Err(PyValueError::new_err("lcs is empty"))
+            Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
                 GenericFloatArray1::Float32(_) => {
                     let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
                         (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true))),
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     let typed_lcs = wrapped_lcs.iter().map(|(t, m)| (&t[..], &m[..])).collect();
                     Ok(self
                         .dmdt_f32
@@ -854,8 +872,8 @@ impl DmDt {
                 GenericFloatArray1::Float64(_) => {
                     let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
                         (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true))),
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     let typed_lcs = wrapped_lcs.iter().map(|(t, m)| (&t[..], &m[..])).collect();
                     Ok(self
                         .dmdt_f64
@@ -921,9 +939,9 @@ impl DmDt {
         shuffle: bool,
         drop_nobs: DropNObsType,
         random_seed: Option<u64>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         if lcs.is_empty() {
-            Err(PyValueError::new_err("lcs is empty"))
+            Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
                 GenericFloatArray1::Float32(_) => {
@@ -934,8 +952,8 @@ impl DmDt {
                             let m = m.to_owned_array();
                             Ok((t, m))
                         },
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     Ok(DmDtPointsBatchesF32 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f32.clone(),
@@ -956,8 +974,8 @@ impl DmDt {
                             let m = m.to_owned_array();
                             Ok((t, m))
                         },
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     Ok(DmDtPointsBatchesF64 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f64.clone(),
@@ -1004,7 +1022,7 @@ impl DmDt {
         t: GenericFloatArray1,
         m: GenericFloatArray1,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         match (t, m) {
             (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok(self
                 .dmdt_f32
@@ -1018,7 +1036,9 @@ impl DmDt {
                 .into_pyarray(py)
                 .to_owned()
                 .into_py(py)),
-            _ => Err(PyTypeError::new_err("t and m must have the same dtype")),
+            _ => Err(Exception::TypeError(
+                "t and m must have the same dtype".to_owned(),
+            )),
         }
     }
 
@@ -1047,7 +1067,7 @@ impl DmDt {
         m: GenericFloatArray1,
         sigma: GenericFloatArray1,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         match (t, m, sigma) {
             (
                 GenericFloatArray1::Float32(t),
@@ -1085,8 +1105,8 @@ impl DmDt {
                     .to_owned()
                     .into_py(py))
             }
-            _ => Err(PyValueError::new_err(
-                "t, m and sigma must have the same dtype",
+            _ => Err(Exception::ValueError(
+                "t, m and sigma must have the same dtype".to_owned(),
             )),
         }
     }
@@ -1113,16 +1133,16 @@ impl DmDt {
         py: Python,
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         if lcs.is_empty() {
-            Err(PyValueError::new_err("lcs is empty"))
+            Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
                 GenericFloatArray1::Float32(_) => {
                     let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
                         (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true), GenericDmDt::sigma_to_err2(sigma))),
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     let typed_lcs = wrapped_lcs
                         .iter()
                         .map(|(t, m, err2)| (&t[..], &m[..], err2.as_slice_memory_order().unwrap()))
@@ -1137,8 +1157,8 @@ impl DmDt {
                 GenericFloatArray1::Float64(_) => {
                     let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
                         (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true), GenericDmDt::sigma_to_err2(sigma))),
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     let typed_lcs = wrapped_lcs
                         .iter()
                         .map(|(t, m, err2)| (&t[..], &m[..], err2.as_slice_memory_order().unwrap()))
@@ -1203,9 +1223,9 @@ impl DmDt {
         shuffle: bool,
         drop_nobs: DropNObsType,
         random_seed: Option<u64>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         if lcs.is_empty() {
-            Err(PyValueError::new_err("lcs is empty"))
+            Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
                 GenericFloatArray1::Float32(_) => {
@@ -1217,8 +1237,8 @@ impl DmDt {
                             let err2 = GenericDmDt::sigma_to_err2(sigma);
                             Ok((t, m, err2))
                         },
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     Ok(DmDtGaussesBatchesF32 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f32.clone(),
@@ -1240,8 +1260,8 @@ impl DmDt {
                             let err2 = GenericDmDt::sigma_to_err2(sigma);
                             Ok((t, m, err2))
                         },
-                        _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
-                    }).collect::<PyResult<Vec<_>>>()?;
+                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
+                    }).collect::<Res<Vec<_>>>()?;
                     Ok(DmDtGaussesBatchesF64 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f64.clone(),
@@ -1292,7 +1312,7 @@ impl DmDt {
         m: GenericFloatArray1,
         sigma: GenericFloatArray1,
         sorted: Option<bool>,
-    ) -> PyResult<PyObject> {
+    ) -> Res<PyObject> {
         match (t, m, sigma) {
             (
                 GenericFloatArray1::Float32(t),
@@ -1314,9 +1334,9 @@ impl DmDt {
                 .into_pyarray(py)
                 .to_owned()
                 .into_py(py)),
-            _ => Err(PyTypeError::new_err(
+            _ => Err(Exception::TypeError(String::from(
                 "t, m and sigma must have the same dtype",
-            )),
+            ))),
         }
     }
 }
