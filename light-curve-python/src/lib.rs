@@ -23,7 +23,6 @@ use unzip3::Unzip3;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
-type PyArrF = Py<Arr<F>>;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Clone, Error, std::fmt::Debug)]
@@ -329,6 +328,7 @@ struct GenericDmDtBatches<T, LC> {
     dmdt: GenericDmDt<T>,
     lcs: Vec<LC>,
     batch_size: usize,
+    yield_index: bool,
     shuffle: bool,
     drop_nobs: Option<DropNObsType>,
     rng: Mutex<Xoshiro256PlusPlus>,
@@ -339,6 +339,7 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
         dmdt: GenericDmDt<T>,
         lcs: Vec<LC>,
         batch_size: usize,
+        yield_index: bool,
         shuffle: bool,
         drop_nobs: DropNObsType,
         random_seed: Option<u64>,
@@ -364,6 +365,7 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
             dmdt,
             lcs,
             batch_size,
+            yield_index,
             shuffle,
             drop_nobs,
             rng: Mutex::new(rng),
@@ -495,10 +497,15 @@ macro_rules! dmdt_batches {
                 slf
             }
 
-            fn __next__(mut slf: PyRefMut<Self>) -> Res<Option<Py<numpy::PyArray3<$t>>>> {
+            fn __next__(mut slf: PyRefMut<Self>) -> Res<Option<PyObject>> {
                 if slf.worker_thread.borrow().is_none() {
                     return Ok(None);
                 }
+
+                let current_range = match slf.dmdt_batches.yield_index {
+                    true => Some(slf.range.clone()),
+                    false => None,
+                };
 
                 slf.range = slf.range.end
                     ..usize::min(
@@ -507,7 +514,7 @@ macro_rules! dmdt_batches {
                     );
 
                 // Replace with None temporary to not have two workers running simultaneously
-                let result = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
+                let array = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
                 if !slf.range.is_empty() {
                     let rng = Self::child_rng(slf.rng.as_mut());
                     slf.worker_thread.replace(Some(Self::worker_thread(
@@ -517,7 +524,17 @@ macro_rules! dmdt_batches {
                     )));
                 }
 
-                Ok(Some(result.into_pyarray(slf.py()).to_owned()))
+                let py_array = array.into_pyarray(slf.py()).into_py(slf.py());
+                match current_range {
+                    Some(range) => {
+                        let py_index =
+                            PyArray1::from_slice(slf.py(), &slf.lcs_order[range.start..range.end])
+                                .into_py(slf.py());
+                        let tuple = PyTuple::new(slf.py(), &[py_index, py_array]).into_py(slf.py());
+                        Ok(Some(tuple))
+                    }
+                    None => Ok(Some(py_array)),
+                }
             }
         }
     };
@@ -664,9 +681,9 @@ py_dmdt_batches!(
 ///     Produces dmdt-maps from a list of light curves
 /// gausses_many(lcs, sorted=None)
 ///     Produces smeared dmdt-maps from a list of light curves
-/// points_batches(lcs, sorted=None, batch_size=1, shuffle=False, drop_nobs=0, random_seed=None)
+/// points_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
 ///     Gives a reusable iterable which yields dmdt-maps
-/// gausses_batches(lcs, sorted=None, batch_size=1, shuffle=False, drop_nobs=0, random_seed=None)
+/// gausses_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
 ///     Gives a reusable iterable which yields smeared dmdt-maps
 /// points_from_columnar(edges, t, m, sorted=None)
 ///     Produces dmdt-maps from light curves given in columnar form
@@ -783,11 +800,11 @@ impl DmDt {
             GenericFloatArray1::Float32(t) => self
                 .dmdt_f32
                 .count_lgdt(&ArrWrapper::new(t, true), sorted)
-                .map(|a| a.into_pyarray(py).to_owned().into_py(py)),
+                .map(|a| a.into_pyarray(py).into_py(py)),
             GenericFloatArray1::Float64(t) => self
                 .dmdt_f64
                 .count_lgdt(&ArrWrapper::new(t, true), sorted)
-                .map(|a| a.into_pyarray(py).to_owned().into_py(py)),
+                .map(|a| a.into_pyarray(py).into_py(py)),
         }
     }
 
@@ -819,13 +836,11 @@ impl DmDt {
                 .dmdt_f32
                 .points(&ArrWrapper::new(t, true), &ArrWrapper::new(m, true), sorted)?
                 .into_pyarray(py)
-                .to_owned()
                 .into_py(py)),
             (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok(self
                 .dmdt_f64
                 .points(&ArrWrapper::new(t, true), &ArrWrapper::new(m, true), sorted)?
                 .into_pyarray(py)
-                .to_owned()
                 .into_py(py)),
             _ => Err(Exception::TypeError(
                 "t and m must have the same dtype".to_owned(),
@@ -870,7 +885,6 @@ impl DmDt {
                         .dmdt_f32
                         .points_many(typed_lcs, sorted)?
                         .into_pyarray(py)
-                        .to_owned()
                         .into_py(py))
                 }
                 GenericFloatArray1::Float64(_) => {
@@ -883,7 +897,6 @@ impl DmDt {
                         .dmdt_f64
                         .points_many(typed_lcs, sorted)?
                         .into_pyarray(py)
-                        .to_owned()
                         .into_py(py))
                 }
             }
@@ -909,6 +922,9 @@ impl DmDt {
     /// batch_size : int, optional
     ///     The number of dmdt-maps to yield. The last batch can be smaller.
     ///     Default is 1
+    /// yield_index : bool, optional
+    ///     Yield a tuple of (indexes, maps) instead of just maps. Could be
+    ///     useful when shuffle is `True`. Default is `False`
     /// shuffle : bool, optional
     ///     If `True`, shuffle light curves (not individual observations) on
     ///     each creating of new iterator. Default is `False`
@@ -923,13 +939,14 @@ impl DmDt {
     ///
     /// Returns
     /// -------
-    /// Iterable of 3d-ndarray
+    /// Iterable of 3d-ndarray or (1d-ndarray, 3d-ndarray)
     ///
     #[allow(clippy::too_many_arguments)]
     #[args(
         lcs,
         sorted = "None",
         batch_size = 1,
+        yield_index = false,
         shuffle = false,
         drop_nobs = "DropNObsType::Int(0)",
         random_seed = "None"
@@ -940,6 +957,7 @@ impl DmDt {
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
         batch_size: usize,
+        yield_index: bool,
         shuffle: bool,
         drop_nobs: DropNObsType,
         random_seed: Option<u64>,
@@ -963,6 +981,7 @@ impl DmDt {
                             self.dmdt_f32.clone(),
                             typed_lcs,
                             batch_size,
+                            yield_index,
                             shuffle,
                             drop_nobs,
                             random_seed,
@@ -985,6 +1004,7 @@ impl DmDt {
                             self.dmdt_f64.clone(),
                             typed_lcs,
                             batch_size,
+                            yield_index,
                             shuffle,
                             drop_nobs,
                             random_seed,
@@ -1032,13 +1052,11 @@ impl DmDt {
                 .dmdt_f32
                 .points_from_columnar(edges, t, m, sorted)?
                 .into_pyarray(py)
-                .to_owned()
                 .into_py(py)),
             (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok(self
                 .dmdt_f64
                 .points_from_columnar(edges, t, m, sorted)?
                 .into_pyarray(py)
-                .to_owned()
                 .into_py(py)),
             _ => Err(Exception::TypeError(
                 "t and m must have the same dtype".to_owned(),
@@ -1088,7 +1106,6 @@ impl DmDt {
                         sorted,
                     )?
                     .into_pyarray(py)
-                    .to_owned()
                     .into_py(py))
             }
             (
@@ -1106,7 +1123,6 @@ impl DmDt {
                         sorted,
                     )?
                     .into_pyarray(py)
-                    .to_owned()
                     .into_py(py))
             }
             _ => Err(Exception::ValueError(
@@ -1155,7 +1171,6 @@ impl DmDt {
                         .dmdt_f32
                         .gausses_many(typed_lcs, sorted)?
                         .into_pyarray(py)
-                        .to_owned()
                         .into_py(py))
                 }
                 GenericFloatArray1::Float64(_) => {
@@ -1171,7 +1186,6 @@ impl DmDt {
                         .dmdt_f64
                         .gausses_many(typed_lcs, sorted)?
                         .into_pyarray(py)
-                        .to_owned()
                         .into_py(py))
                 }
             }
@@ -1197,6 +1211,9 @@ impl DmDt {
     /// batch_size : int, optional
     ///     The number of dmdt-maps to yield. The last batch can be smaller.
     ///     Default is 1
+    /// yield_index : bool, optional
+    ///     Yield a tuple of (indexes, maps) instead of just maps. Could be
+    ///     useful when shuffle is `True`. Default is `False`    
     /// shuffle : bool, optional
     ///     If `True`, shuffle light curves (not individual observations) on
     ///     each creating of new iterator. Default is `False`
@@ -1214,6 +1231,7 @@ impl DmDt {
         lcs,
         sorted = "None",
         batch_size = 1,
+        yeild_index = false,
         shuffle = false,
         drop_nobs = "DropNObsType::Int(0)",
         random_seed = "None"
@@ -1224,6 +1242,7 @@ impl DmDt {
         lcs: Vec<(GenericFloatArray1, GenericFloatArray1, GenericFloatArray1)>,
         sorted: Option<bool>,
         batch_size: usize,
+        yield_index: bool,
         shuffle: bool,
         drop_nobs: DropNObsType,
         random_seed: Option<u64>,
@@ -1248,6 +1267,7 @@ impl DmDt {
                             self.dmdt_f32.clone(),
                             typed_lcs,
                             batch_size,
+                            yield_index,
                             shuffle,
                             drop_nobs,
                             random_seed,
@@ -1271,6 +1291,7 @@ impl DmDt {
                             self.dmdt_f64.clone(),
                             typed_lcs,
                             batch_size,
+                            yield_index,
                             shuffle,
                             drop_nobs,
                             random_seed,
@@ -1326,7 +1347,6 @@ impl DmDt {
                 .dmdt_f32
                 .gausses_from_columnar(edges, t, m, sigma, sorted)?
                 .into_pyarray(py)
-                .to_owned()
                 .into_py(py)),
             (
                 GenericFloatArray1::Float64(t),
@@ -1336,7 +1356,6 @@ impl DmDt {
                 .dmdt_f64
                 .gausses_from_columnar(edges, t, m, sigma, sorted)?
                 .into_pyarray(py)
-                .to_owned()
                 .into_py(py)),
             _ => Err(Exception::TypeError(String::from(
                 "t, m and sigma must have the same dtype",
@@ -1354,15 +1373,15 @@ struct PyFeatureEvaluator {
 impl PyFeatureEvaluator {
     #[call]
     #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
-    fn __call__(
+    fn __call__<'py>(
         &self,
-        py: Python,
+        py: Python<'py>,
         t: &Arr<F>,
         m: &Arr<F>,
         sigma: Option<&Arr<F>>,
         sorted: Option<bool>,
         fill_value: Option<F>,
-    ) -> PyResult<Py<Arr<F>>> {
+    ) -> PyResult<&'py PyArray1<F>> {
         if t.len() != m.len() {
             return Err(PyValueError::new_err("t and m must have the same size"));
         }
@@ -1429,7 +1448,7 @@ impl PyFeatureEvaluator {
                 .eval(&mut ts)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
         };
-        Ok(result.into_pyarray(py).to_owned())
+        Ok(result.into_pyarray(py))
     }
 
     /// Feature names
@@ -1861,15 +1880,17 @@ impl Periodogram {
 
     /// Angular frequencies and periodogram values
     #[text_signature = "(t, m)"]
-    fn freq_power(&self, py: Python, t: &Arr<F>, m: &Arr<F>) -> (PyArrF, PyArrF) {
+    fn freq_power<'py>(
+        &self,
+        py: Python<'py>,
+        t: &Arr<F>,
+        m: &Arr<F>,
+    ) -> (&'py PyArray1<F>, &'py PyArray1<F>) {
         let t = ArrWrapper::new(t, true);
         let m = ArrWrapper::new(m, true);
         let mut ts = lcf::TimeSeries::new(&t, &m, None);
         let (freq, power) = self.eval.freq_power(&mut ts);
-        (
-            freq.into_pyarray(py).to_owned(),
-            power.into_pyarray(py).to_owned(),
-        )
+        (freq.into_pyarray(py), power.into_pyarray(py))
     }
 }
 
