@@ -25,6 +25,7 @@ type F = f64;
 type Arr<T> = PyArray1<T>;
 type PyArrF = Py<Arr<F>>;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Error, std::fmt::Debug)]
 #[error("{0}")]
 enum Exception {
@@ -36,7 +37,7 @@ enum Exception {
 
 impl std::convert::From<Exception> for PyErr {
     fn from(err: Exception) -> PyErr {
-        match err.clone() {
+        match err {
             Exception::NotImplementedError(err) => PyNotImplementedError::new_err(err),
             Exception::RuntimeError(err) => PyRuntimeError::new_err(err),
             Exception::TypeError(err) => PyTypeError::new_err(err),
