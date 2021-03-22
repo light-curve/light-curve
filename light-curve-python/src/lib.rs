@@ -389,6 +389,9 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
                 drop_nobs, length
             )));
         }
+        if drop_nobs == 0 {
+            return Ok((0..length).collect());
+        }
         let mut idx = rand::seq::index::sample(rng, length, length - drop_nobs).into_vec();
         idx.sort_unstable();
         Ok(idx)
