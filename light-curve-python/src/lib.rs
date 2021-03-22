@@ -7,7 +7,7 @@ use ndarray::Array1 as NDArray;
 use ndarray::IntoNdProducer;
 use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::class::iter::PyIterProtocol;
-use pyo3::exceptions::{PyNotImplementedError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::wrap_pymodule;
@@ -18,6 +18,7 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use unzip3::Unzip3;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
@@ -89,7 +90,7 @@ enum GenericFloatArray1<'a> {
     Float64(&'a Arr<f64>),
 }
 
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Copy, Clone, std::fmt::Debug)]
 enum DropNObsType {
     #[pyo3(transparent, annotation = "int")]
     Int(usize),
@@ -305,9 +306,9 @@ where
 struct GenericDmDtBatches<T, LC> {
     dmdt: GenericDmDt<T>,
     lcs: Vec<LC>,
-    sorted: Option<bool>,
     batch_size: usize,
     shuffle: bool,
+    drop_nobs: Option<DropNObsType>,
     rng: Mutex<Xoshiro256PlusPlus>,
 }
 
@@ -315,23 +316,60 @@ impl<T, LC> GenericDmDtBatches<T, LC> {
     fn new(
         dmdt: GenericDmDt<T>,
         lcs: Vec<LC>,
-        sorted: Option<bool>,
         batch_size: usize,
         shuffle: bool,
+        drop_nobs: DropNObsType,
         random_seed: Option<u64>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let rng = match random_seed {
             Some(seed) => Xoshiro256PlusPlus::seed_from_u64(seed),
             None => Xoshiro256PlusPlus::from_rng(&mut rand::thread_rng()).unwrap(),
         };
-        Self {
+        let drop_nobs = match drop_nobs {
+            DropNObsType::Int(0) => None,
+            DropNObsType::Int(_) => Some(drop_nobs),
+            DropNObsType::Float(x) => match x {
+                _ if x == 0.0 => None,
+                _ if (0.0..1.0).contains(&x) => Some(drop_nobs),
+                _ => {
+                    return Err(PyValueError::new_err(
+                        "if drop_nobs is float, it must be in [0.0, 1.0)",
+                    ))
+                }
+            },
+        };
+        Ok(Self {
             dmdt,
             lcs,
-            sorted,
             batch_size,
             shuffle,
+            drop_nobs,
             rng: Mutex::new(rng),
+        })
+    }
+
+    fn dropped_index<R: rand::Rng>(&self, rng: &mut R, length: usize) -> PyResult<Vec<usize>> {
+        let drop_nobs = match self.drop_nobs {
+            Some(drop_nobs) => drop_nobs,
+            None => {
+                return Err(PyRuntimeError::new_err(
+                    "dropping is not required: drop_nobs = 0",
+                ))
+            }
+        };
+        let drop_nobs = match drop_nobs {
+            DropNObsType::Int(x) => x,
+            DropNObsType::Float(x) => f64::round(x * length as f64) as usize,
+        };
+        if drop_nobs >= length {
+            return Err(PyValueError::new_err(format!(
+                "cannot drop {} observations from light curve containing {} points",
+                drop_nobs, length
+            )));
         }
+        let mut idx = rand::seq::index::sample(rng, length, length - drop_nobs).into_vec();
+        idx.sort_unstable();
+        Ok(idx)
     }
 }
 
@@ -356,9 +394,14 @@ macro_rules! dmdt_batches {
             lcs_order: Vec<usize>,
             range: Range<usize>,
             worker_thread: RefCell<Option<JoinHandle<PyResult<ndarray::Array3<$t>>>>>,
+            rng: Option<Xoshiro256PlusPlus>,
         }
 
         impl $name_iter {
+            fn child_rng(rng: Option<&mut Xoshiro256PlusPlus>) -> Option<Xoshiro256PlusPlus> {
+                rng.map(|rng| Xoshiro256PlusPlus::from_rng(rng).unwrap())
+            }
+
             fn new(dmdt_batches: Arc<$generic>) -> Self {
                 let range = 0..usize::min(dmdt_batches.batch_size, dmdt_batches.lcs.len());
 
@@ -372,9 +415,18 @@ macro_rules! dmdt_batches {
                     .into_vec(),
                 };
 
+                let mut rng = match dmdt_batches.drop_nobs {
+                    Some(_) => {
+                        let mut parent_rng = dmdt_batches.rng.lock().unwrap();
+                        Self::child_rng(Some(parent_rng.deref_mut()))
+                    }
+                    None => None,
+                };
+
                 let worker_thread = RefCell::new(Some(Self::worker_thread(
                     &dmdt_batches,
                     &lcs_order[range.start..range.end],
+                    Self::child_rng(rng.as_mut()),
                 )));
 
                 Self {
@@ -382,23 +434,26 @@ macro_rules! dmdt_batches {
                     lcs_order,
                     range,
                     worker_thread,
+                    rng,
                 }
             }
 
             fn worker_thread(
                 dmdt_batches: &Arc<$generic>,
                 indexes: &[usize],
+                rng: Option<Xoshiro256PlusPlus>,
             ) -> JoinHandle<PyResult<ndarray::Array3<$t>>> {
                 let dmdt_batches = dmdt_batches.clone();
                 let indexes = indexes.to_vec();
-                std::thread::spawn(move || Self::worker(dmdt_batches, &indexes))
+                std::thread::spawn(move || Self::worker(dmdt_batches, &indexes, rng))
             }
 
             fn worker(
                 dmdt_batches: Arc<$generic>,
                 indexes: &[usize],
+                rng: Option<Xoshiro256PlusPlus>,
             ) -> PyResult<ndarray::Array3<$t>> {
-                $worker(dmdt_batches, indexes)
+                $worker(dmdt_batches, indexes, rng)
             }
         }
 
@@ -429,9 +484,11 @@ macro_rules! dmdt_batches {
                 // Replace with None temporary to not have two workers running simultaneously
                 let result = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
                 if !slf.range.is_empty() {
+                    let rng = Self::child_rng(slf.rng.as_mut());
                     slf.worker_thread.replace(Some(Self::worker_thread(
                         &slf.dmdt_batches,
                         &slf.lcs_order[slf.range.start..slf.range.end],
+                        rng,
                     )));
                 }
 
@@ -450,8 +507,8 @@ macro_rules! py_dmdt_batches {
 }
 
 py_dmdt_batches!(
-    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize]| {
-        let lcs: Vec<_> = indexes
+    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
+        let mut lcs: Vec<_> = indexes
             .iter()
             .map(|&i| {
                 let (t, m) = &dmdt_batches.lcs[i];
@@ -461,7 +518,22 @@ py_dmdt_batches!(
                 )
             })
             .collect();
-        Ok(dmdt_batches.dmdt.points_many(lcs, dmdt_batches.sorted)?)
+        let dropped_owned_lcs = match (dmdt_batches.drop_nobs, rng) {
+            (Some(_), Some(mut rng)) => {
+                let owned_lcs: Vec<(Vec<_>, Vec<_>)> = lcs.iter().map(|(t, m)| {
+                    Ok(dmdt_batches.dropped_index(&mut rng, t.len())?.iter().map(|&i| (t[i], m[i])).unzip())
+                }).collect::<PyResult<_>>()?;
+                Some(owned_lcs)
+            },
+            (None, None) => None,
+            (_, _) => return Err(PyRuntimeError::new_err("cannot be here, please report an issue"))
+        };
+        if let Some(owned_lcs) = &dropped_owned_lcs {
+            for (ref_lc, lc) in lcs.iter_mut().zip(owned_lcs) {
+                *ref_lc = (&lc.0, &lc.1);
+            }
+        }
+        Ok(dmdt_batches.dmdt.points_many(lcs, Some(true))?)
     },
     GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>)>,
     DmDtPointsBatchesF32,
@@ -474,8 +546,8 @@ py_dmdt_batches!(
 );
 
 py_dmdt_batches!(
-    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize]| {
-        let lcs: Vec<_> = indexes
+    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
+        let mut lcs: Vec<_> = indexes
             .iter()
             .map(|&i| {
                 let (t, m, err2) = &dmdt_batches.lcs[i];
@@ -486,7 +558,22 @@ py_dmdt_batches!(
                 )
             })
             .collect();
-        Ok(dmdt_batches.dmdt.gausses_many(lcs, dmdt_batches.sorted)?)
+        let dropped_owned_lcs = match (dmdt_batches.drop_nobs, rng) {
+            (Some(_), Some(mut rng)) => {
+                let owned_lcs: Vec<(Vec<_>, Vec<_>, Vec<_>)> = lcs.iter().map(|(t, m, err2)| {
+                    Ok(dmdt_batches.dropped_index(&mut rng, t.len())?.iter().map(|&i| (t[i], m[i], err2[i])).unzip3())
+                }).collect::<PyResult<_>>()?;
+                Some(owned_lcs)
+            },
+            (None, None) => None,
+            (_, _) => return Err(PyRuntimeError::new_err("cannot be here, please report an issue"))
+        };
+        if let Some(owned_lcs) = &dropped_owned_lcs {
+            for (ref_lc, lc) in lcs.iter_mut().zip(owned_lcs) {
+                *ref_lc = (&lc.0, &lc.1, &lc.2);
+            }
+        }
+        Ok(dmdt_batches.dmdt.gausses_many(lcs, Some(true))?)
     },
     GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>, ndarray::Array1<f32>)>,
     DmDtGaussesBatchesF32,
@@ -553,9 +640,9 @@ py_dmdt_batches!(
 /// gausses_many(lcs, sorted=None)
 ///     Produces smeared dmdt-maps from a list of light curves
 /// points_batches(lcs, sorted=None, batch_size=1)
-///     Gives an iterable which yields dmdt-maps
+///     Gives a reusable iterable which yields dmdt-maps
 /// gausses_batches(lcs, sorted=None, batch_size=1)
-///     Gives an iterable which yields smeared dmdt-maps
+///     Gives a reusable iterable which yields smeared dmdt-maps
 /// points_from_columnar(edges, t, m, sorted=None)
 ///     Produces dmdt-maps from light curves given in columnar form
 /// gausses_from_columnar(edges, t, m, sigma, sorted=None)
@@ -781,11 +868,13 @@ impl DmDt {
         }
     }
 
-    /// Iterable yielding dmdt-maps
+    /// Reusable iterable yielding dmdt-maps
     ///
-    /// The dmdt-maps are producted in parallel using `n_jobs` threads, batches
+    /// The dmdt-maps are produced in parallel using `n_jobs` threads, batches
     /// are being generated in background, so the next batch is started to
-    /// generate just after the previous one is yeilded    
+    /// generate just after the previous one is yielded. Note that light curves
+    /// data are copied, so from the performance point of view it is better to
+    /// use `points_many` if you don't need observation dropping
     ///
     /// Parameters
     /// ----------
@@ -793,9 +882,22 @@ impl DmDt {
     ///     List or tuple of tuple pairs (t, m) represented individual light
     ///     curves. All arrays must have the same dtype
     /// sorted : bool or None, optional
-    ///     `True` guarantees that all light curves is sorted
+    ///     `True` guarantees that all light curves is sorted, default is
+    ///     `None`
     /// batch_size : int, optional
-    ///     The number of dmdt-maps to yield. The last batch can be smaller
+    ///     The number of dmdt-maps to yield. The last batch can be smaller.
+    ///     Default is 1
+    /// shuffle : bool, optional
+    ///     If `True`, shuffle light curves (not individual observations) on
+    ///     each creating of new iterator. Default is `False`
+    /// drop_nobs : int or float, optional
+    ///     Drop observations from every light curve. If it is a positive
+    ///     integer, it is a number of observations to drop. If it is a
+    ///     floating point between 0 and 1, it is a part of observation to
+    ///     drop. Default is `0`, which means usage of the original data
+    /// random_seed : int or None, optional
+    ///     Random seed for shuffling and dropping. Default is `None` which
+    ///     means random seed
     ///
     /// Returns
     /// -------
@@ -825,35 +927,45 @@ impl DmDt {
             match lcs[0].0 {
                 GenericFloatArray1::Float32(_) => {
                     let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok((t.to_owned_array(), m.to_owned_array())),
+                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
+                            let t = t.to_owned_array();
+                            check_sorted(t.as_slice().unwrap(), sorted)?;
+                            let m = m.to_owned_array();
+                            Ok((t, m))
+                        },
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtPointsBatchesF32 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f32.clone(),
                             typed_lcs,
-                            sorted,
                             batch_size,
                             shuffle,
+                            drop_nobs,
                             random_seed,
-                        )),
+                        )?),
                     }
                     .into_py(py))
                 }
                 GenericFloatArray1::Float64(_) => {
                     let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok((t.to_owned_array(), m.to_owned_array())),
+                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
+                            let t = t.to_owned_array();
+                            check_sorted(t.as_slice().unwrap(), sorted)?;
+                            let m = m.to_owned_array();
+                            Ok((t, m))
+                        },
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtPointsBatchesF64 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f64.clone(),
                             typed_lcs,
-                            sorted,
                             batch_size,
                             shuffle,
+                            drop_nobs,
                             random_seed,
-                        )),
+                        )?),
                     }
                     .into_py(py))
                 }
@@ -1041,11 +1153,13 @@ impl DmDt {
         }
     }
 
-    /// Iterable yielding smeared dmdt-maps
+    /// Reusable iterable yielding dmdt-maps
     ///
-    /// The dmdt-maps are producted in parallel using `n_jobs` threads, batches
+    /// The dmdt-maps are produced in parallel using `n_jobs` threads, batches
     /// are being generated in background, so the next batch is started to
-    /// generate just after the previous one is yeilded    
+    /// generate just after the previous one is yielded. Note that light curves
+    /// data are copied, so from the performance point of view it is better to
+    /// use `gausses_many` if you don't need observation dropping
     ///
     /// Parameters
     /// ----------
@@ -1053,14 +1167,23 @@ impl DmDt {
     ///     List or tuple of tuple pairs (t, m, sigma) represented individual
     ///     light curves. All arrays must have the same dtype
     /// sorted : bool or None, optional
-    ///     `True` guarantees that all light curves is sorted
+    ///     `True` guarantees that all light curves is sorted, default is
+    ///     `None`
     /// batch_size : int, optional
-    ///     The number of dmdt-maps to yield. The last batch can be smaller
-    ///
-    /// Returns
-    /// -------
-    /// Iterable of 3d-ndarray
-    ///
+    ///     The number of dmdt-maps to yield. The last batch can be smaller.
+    ///     Default is 1
+    /// shuffle : bool, optional
+    ///     If `True`, shuffle light curves (not individual observations) on
+    ///     each creating of new iterator. Default is `False`
+    /// drop_nobs : int or float, optional
+    ///     Drop observations from every light curve. If it is a positive
+    ///     integer, it is a number of observations to drop. If it is a
+    ///     floating point between 0 and 1, it is a part of observation to
+    ///     drop. Default is `0`, which means usage of the original data
+    /// random_seed : int or None, optional
+    ///     Random seed for shuffling and dropping. Default is `None` which
+    ///     means random seed
+    ///     
     #[args(
         lcs,
         sorted = "None",
@@ -1085,35 +1208,47 @@ impl DmDt {
             match lcs[0].0 {
                 GenericFloatArray1::Float32(_) => {
                     let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => Ok((t.to_owned_array(), m.to_owned_array(), GenericDmDt::sigma_to_err2(sigma))),
+                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => {
+                            let t = t.to_owned_array();
+                            check_sorted(t.as_slice().unwrap(), sorted)?;
+                            let m = m.to_owned_array();
+                            let err2 = GenericDmDt::sigma_to_err2(sigma);
+                            Ok((t, m, err2))
+                        },
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtGaussesBatchesF32 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f32.clone(),
                             typed_lcs,
-                            sorted,
                             batch_size,
                             shuffle,
+                            drop_nobs,
                             random_seed,
-                        )),
+                        )?),
                     }
                     .into_py(py))
                 }
                 GenericFloatArray1::Float64(_) => {
                     let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => Ok((t.to_owned_array(), m.to_owned_array(), GenericDmDt::sigma_to_err2(sigma))),
+                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => {
+                            let t = t.to_owned_array();
+                            check_sorted(t.as_slice().unwrap(), sorted)?;
+                            let m = m.to_owned_array();
+                            let err2 = GenericDmDt::sigma_to_err2(sigma);
+                            Ok((t, m, err2))
+                        },
                         _ => Err(PyTypeError::new_err(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
                     }).collect::<PyResult<Vec<_>>>()?;
                     Ok(DmDtGaussesBatchesF64 {
                         dmdt_batches: Arc::new(GenericDmDtBatches::new(
                             self.dmdt_f64.clone(),
                             typed_lcs,
-                            sorted,
                             batch_size,
                             shuffle,
+                            drop_nobs,
                             random_seed,
-                        )),
+                        )?),
                     }
                     .into_py(py))
                 }
