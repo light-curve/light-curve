@@ -903,6 +903,7 @@ impl DmDt {
     /// -------
     /// Iterable of 3d-ndarray
     ///
+    #[allow(clippy::too_many_arguments)]
     #[args(
         lcs,
         sorted = "None",
@@ -1183,7 +1184,8 @@ impl DmDt {
     /// random_seed : int or None, optional
     ///     Random seed for shuffling and dropping. Default is `None` which
     ///     means random seed
-    ///     
+    ///
+    #[allow(clippy::too_many_arguments)]
     #[args(
         lcs,
         sorted = "None",
