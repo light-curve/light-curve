@@ -6,6 +6,8 @@ mod arr_wrapper;
 mod dmdt;
 use dmdt::DmDt;
 
+mod errors;
+
 mod features;
 use features::*;
 
@@ -13,10 +15,14 @@ mod sorted;
 
 /// High-performance time-series feature extractor
 ///
-/// The module provides a collection of features to be extracted from time-series.
-/// This module if based on a Rust crate `light-curve-feature`, features
-/// documentation can be found on https://docs.rs/light-curve-feature
+/// The module provides a collection of features to be extracted from unevenly
+/// separated time-series. This module if based on Rust crates
+/// `light-curve-feature` & `light-curve-dmdt`.
 ///
+/// dm-lg(dt) maps generator is represented by `DmDt` class, it has different
+/// interface from all other features, see its documentation for details.
+///
+/// Features documentation can be found on https://docs.rs/light-curve-feature
 /// All features are represented by classes with callable instances, which have
 /// the same attributes and call signature:
 ///

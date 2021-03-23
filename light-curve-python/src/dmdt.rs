@@ -1,12 +1,12 @@
 use crate::arr_wrapper::ArrWrapper;
-use crate::sorted::is_sorted;
+use crate::errors::{Exception, Res};
+use crate::sorted::check_sorted;
 use conv::ConvUtil;
 use enumflags2::{bitflags, BitFlags};
 use light_curve_dmdt as lcdmdt;
 use ndarray::IntoNdProducer;
 use numpy::{Element, IntoPyArray, PyArray1};
 use pyo3::class::iter::PyIterProtocol;
-use pyo3::exceptions::{PyNotImplementedError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use rand::SeedableRng;
@@ -16,52 +16,7 @@ use std::cell::RefCell;
 use std::ops::{DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use thiserror::Error;
 use unzip3::Unzip3;
-
-#[allow(clippy::enum_variant_names)]
-#[derive(Clone, Error, std::fmt::Debug)]
-#[error("{0}")]
-enum Exception {
-    NotImplementedError(String),
-    RuntimeError(String),
-    TypeError(String),
-    ValueError(String),
-}
-
-impl std::convert::From<Exception> for PyErr {
-    fn from(err: Exception) -> PyErr {
-        match err {
-            Exception::NotImplementedError(err) => PyNotImplementedError::new_err(err),
-            Exception::RuntimeError(err) => PyRuntimeError::new_err(err),
-            Exception::TypeError(err) => PyTypeError::new_err(err),
-            Exception::ValueError(err) => PyValueError::new_err(err),
-        }
-    }
-}
-
-type Res<T> = std::result::Result<T, Exception>;
-
-fn check_sorted<T>(a: &[T], sorted: Option<bool>) -> Res<()>
-where
-    T: PartialOrd,
-{
-    match sorted {
-        Some(true) => Ok(()),
-        Some(false) => Err(Exception::NotImplementedError(String::from(
-            "sorting is not implemented, please provide time-sorted arrays",
-        ))),
-        None => {
-            if is_sorted(&a) {
-                Ok(())
-            } else {
-                Err(Exception::ValueError(String::from(
-                    "t must be in ascending order",
-                )))
-            }
-        }
-    }
-}
 
 #[derive(FromPyObject)]
 enum GenericFloatArray1<'a> {
