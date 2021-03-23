@@ -458,9 +458,9 @@ impl Periodogram {
         }
         if let Some(fast) = fast {
             if fast {
-                eval.set_periodogram_algorithm(move || Box::new(lcf::PeriodogramPowerFft));
+                eval.set_periodogram_algorithm(Box::new(lcf::PeriodogramPowerFft::new()));
             } else {
-                eval.set_periodogram_algorithm(move || Box::new(lcf::PeriodogramPowerDirect));
+                eval.set_periodogram_algorithm(Box::new(lcf::PeriodogramPowerDirect {}));
             }
         }
         if let Some(features) = features {
