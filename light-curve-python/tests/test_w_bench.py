@@ -94,45 +94,47 @@ class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
-class TestBazinFit(_FeatureTest, _NaiveTest):
-    feature = lc.BazinFit()
-    rtol = 1e-4  # Precision used in the feature implementation
+if hasattr(lc, BazinFit):
+    class TestBazinFit(_FeatureTest, _NaiveTest):
+        feature = lc.BazinFit()
+        rtol = 1e-4  # Precision used in the feature implementation
 
-    @staticmethod
-    def _model(t, a, b, t0, rise, fall):
-        dt = t - t0
-        return b + a * np.exp(-dt / fall) / (1.0 + np.exp(-dt / rise))
+        @staticmethod
+        def _model(t, a, b, t0, rise, fall):
+            dt = t - t0
+            return b + a * np.exp(-dt / fall) / (1.0 + np.exp(-dt / rise))
 
-    def _params(self):
-        a = 1000
-        b = 0
-        t0 = 0.5 * (self.t_min + self.t_max)
-        rise = 0.3 * (self.t_max - self.t_min)
-        fall = 0.4 * (self.t_max - self.t_min)
-        return a, b, t0, rise, fall
+        def _params(self):
+            a = 1000
+            b = 0
+            t0 = 0.5 * (self.t_min + self.t_max)
+            rise = 0.3 * (self.t_max - self.t_min)
+            fall = 0.4 * (self.t_max - self.t_min)
+            return a, b, t0, rise, fall
 
-    # Random data yields to random results because target function has a lot of local minima
-    # BTW, this test shouldn't use fixed random seed because the curve has good enough S/N to be fitted for any give
-    # noise sample
-    def generate_data(self):
-        rng = np.random.default_rng(0)
-        t = np.linspace(self.t_min, self.t_max, self.n_obs)
-        sigma = np.ones_like(t)
-        m = self._model(t, *self._params()) + sigma * rng.normal(size=self.n_obs)
-        return t, m, sigma
+        # Random data yields to random results because target function has a lot of local minima
+        # BTW, this test shouldn't use fixed random seed because the curve has good enough S/N to be fitted for any give
+        # noise sample
+        def generate_data(self):
+            rng = np.random.default_rng(0)
+            t = np.linspace(self.t_min, self.t_max, self.n_obs)
+            sigma = np.ones_like(t)
+            m = self._model(t, *self._params()) + sigma * rng.normal(size=self.n_obs)
+            return t, m, sigma
 
-    def naive(self, t, m, sigma):
-        params, _cov = curve_fit(
-            self._model,
-            xdata=t,
-            ydata=m,
-            sigma=sigma,
-            xtol=self.rtol,
-            # We give really good parameters estimation!
-            p0=self._params(),
-        )
-        reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (t.size - params.size)
-        return *params, reduced_chi2
+        def naive(self, t, m, sigma):
+            params, _cov = curve_fit(
+                self._model,
+                xdata=t,
+                ydata=m,
+                sigma=sigma,
+                xtol=self.rtol,
+                # We give really good parameters estimation!
+                p0=self._params(),
+            )
+            reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (t.size - params.size)
+            return_value = tuple(params) + (reduced_chi2,)
+            return return_value
 
 
 class TestBeyond1Std(_FeatureTest, _NaiveTest, _FeetsTest):
