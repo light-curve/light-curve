@@ -579,8 +579,10 @@ py_dmdt_batches!(
 ///
 /// Attributes
 /// ----------
-/// n_jons : int
+/// n_jobs : int
 ///     Number of threads to use in paralleled methods
+/// shape : (int, int)
+///     Shape of a single dmdt map, `(lgdt_size, dm_size)`
 ///
 /// Methods
 /// -------
@@ -691,6 +693,11 @@ impl DmDt {
             self.dmdt_f64.n_jobs = value as usize;
             Ok(())
         }
+    }
+
+    #[getter]
+    fn shape(&self) -> (usize, usize) {
+        self.dmdt_f32.dmdt.shape()
     }
 
     /// Number of observations per each lg(dt) interval
