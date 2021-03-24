@@ -94,7 +94,7 @@ class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
-if hasattr(lc, BazinFit):
+if hasattr(lc, 'BazinFit'):
     class TestBazinFit(_FeatureTest, _NaiveTest):
         feature = lc.BazinFit()
         rtol = 1e-4  # Precision used in the feature implementation
