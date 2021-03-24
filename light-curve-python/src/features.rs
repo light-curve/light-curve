@@ -193,6 +193,9 @@ impl BeyondNStd {
     }
 }
 
+#[cfg(feature = "nonlinear-fit")]
+evaluator!(BazinFit, lcf::BazinFit);
+
 /// Binned time-series
 ///
 /// Parameters
