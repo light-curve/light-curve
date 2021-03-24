@@ -1149,7 +1149,7 @@ impl DmDt {
         lcs,
         sorted = "None",
         batch_size = 1,
-        yeild_index = false,
+        yield_index = false,
         shuffle = false,
         drop_nobs = "DropNObsType::Int(0)",
         random_seed = "None"
