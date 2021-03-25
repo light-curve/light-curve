@@ -580,9 +580,11 @@ py_dmdt_batches!(
 /// Attributes
 /// ----------
 /// n_jobs : int
-///     Number of threads to use in paralleled methods
 /// shape : (int, int)
 ///     Shape of a single dmdt map, `(lgdt_size, dm_size)`
+/// min_lgdt : float
+/// max_lgdt : float
+/// max_abs_dm : float
 ///
 /// Methods
 /// -------
@@ -702,7 +704,27 @@ impl DmDt {
 
     #[getter]
     fn min_lgdt(&self) -> f64 {
-        self.dmdt_f64.dmdt.lgdt_grid.
+        self.dmdt_f64.dmdt.lgdt_grid.get_start()
+    }
+
+    #[getter]
+    fn max_lgdt(&self) -> f64 {
+        self.dmdt_f64.dmdt.lgdt_grid.get_end()
+    }
+
+    #[getter]
+    fn min_dm(&self) -> f64 {
+        self.dmdt_f64.dmdt.dm_grid.get_start()
+    }
+
+    #[getter]
+    fn max_dm(&self) -> f64 {
+        self.dmdt_f64.dmdt.dm_grid.get_end()
+    }
+
+    #[getter]
+    fn max_abs_dm(&self) -> f64 {
+        self.dmdt_f64.dmdt.dm_grid.get_end()
     }
 
     /// Number of observations per each lg(dt) interval
