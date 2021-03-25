@@ -700,6 +700,11 @@ impl DmDt {
         self.dmdt_f32.dmdt.shape()
     }
 
+    #[getter]
+    fn min_lgdt(&self) -> f64 {
+        self.dmdt_f64.dmdt.lgdt_grid.
+    }
+
     /// Number of observations per each lg(dt) interval
     ///
     /// Parameters

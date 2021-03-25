@@ -93,6 +93,22 @@ where
         self.n
     }
 
+    pub fn get_start(&self) -> T {
+        self.start
+    }
+
+    pub fn get_end(&self) -> T {
+        self.end
+    }
+
+    pub fn get_cell_size(&self) -> T {
+        self.cell_size
+    }
+
+    pub fn get_borders(&self) -> &Array1<T> {
+        &self.borders
+    }
+
     fn idx(&self, x: T) -> CellIndex {
         if x < self.start {
             return CellIndex::LowerMin;
