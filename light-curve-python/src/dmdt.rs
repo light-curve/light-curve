@@ -361,7 +361,7 @@ macro_rules! dmdt_batches {
                     None => None,
                 };
 
-                let worker_thread = RefCell::new(Some(Self::worker_thread(
+                let worker_thread = RefCell::new(Some(Self::run_worker_thread(
                     &dmdt_batches,
                     &lcs_order[range.start..range.end],
                     Self::child_rng(rng.as_mut()),
@@ -376,7 +376,7 @@ macro_rules! dmdt_batches {
                 }
             }
 
-            fn worker_thread(
+            fn run_worker_thread(
                 dmdt_batches: &Arc<$generic>,
                 indexes: &[usize],
                 rng: Option<Xoshiro256PlusPlus>,
@@ -428,7 +428,7 @@ macro_rules! dmdt_batches {
                 let array = slf.worker_thread.replace(None).unwrap().join().unwrap()?;
                 if !slf.range.is_empty() {
                     let rng = Self::child_rng(slf.rng.as_mut());
-                    slf.worker_thread.replace(Some(Self::worker_thread(
+                    slf.worker_thread.replace(Some(Self::run_worker_thread(
                         &slf.dmdt_batches,
                         &slf.lcs_order[slf.range.start..slf.range.end],
                         rng,
