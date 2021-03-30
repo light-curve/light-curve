@@ -6,14 +6,14 @@ use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct NLSProblem {
+pub struct NlsProblem {
     pub max_iter: usize,
     pub atol: f64,
     pub rtol: f64,
     fit_function: MultiFitFunctionFdf,
 }
 
-impl NLSProblem {
+impl NlsProblem {
     fn new(fit_function: MultiFitFunctionFdf) -> Self {
         Self {
             max_iter: 10,
@@ -23,7 +23,7 @@ impl NLSProblem {
         }
     }
 
-    pub fn solve(&mut self, x0: VectorF64) -> NLSFitResult {
+    pub fn solve(&mut self, x0: VectorF64) -> NlsFitResult {
         let mut solver = MultiFitFdfSolver::new(
             &MultiFitFdfSolverType::lmsder(),
             self.fit_function.n,
@@ -32,21 +32,21 @@ impl NLSProblem {
         .unwrap();
         match solver.set(&mut self.fit_function, &x0) {
             Value::Success => {}
-            status => return NLSFitResult { status, solver },
+            status => return NlsFitResult { status, solver },
         }
 
         for _ in 0..self.max_iter {
             match solver.iterate() {
                 Value::Success | Value::ToleranceX | Value::ToleranceF | Value::ToleranceG => {}
-                status => return NLSFitResult { status, solver },
+                status => return NlsFitResult { status, solver },
             }
 
             match rgsl::multifit::test_delta(&solver.dx(), &solver.x(), self.atol, self.rtol) {
                 Value::Continue => {}
-                status => return NLSFitResult { status, solver },
+                status => return NlsFitResult { status, solver },
             }
         }
-        NLSFitResult {
+        NlsFitResult {
             status: Value::MaxIteration,
             solver,
         }
@@ -161,12 +161,12 @@ where
         .collect()
 }
 
-pub struct NLSFitResult {
+pub struct NlsFitResult {
     pub status: Value,
     solver: MultiFitFdfSolver,
 }
 
-impl NLSFitResult {
+impl NlsFitResult {
     pub fn x(&self) -> VectorF64 {
         self.solver.x()
     }
@@ -206,7 +206,7 @@ mod tests {
 
         const P: usize = 2;
 
-        let mut fitter = NLSProblem::from_f_df(
+        let mut fitter = NlsProblem::from_f_df(
             x.len(),
             P,
             move |x, mut residual| {
@@ -301,7 +301,7 @@ mod tests {
         let mut solver = {
             let data_f = data.clone();
             let data_df = data;
-            NLSProblem::from_f_df(
+            NlsProblem::from_f_df(
                 n,
                 p,
                 move |param, mut residual| func(&param, &mut residual, &data_f),
@@ -333,7 +333,7 @@ mod tests {
         let data_real = data.clone();
         let data_dual = data;
 
-        let mut fitter = NLSProblem::from_dual_f(
+        let mut fitter = NlsProblem::from_dual_f(
             N,
             move |param, result| {
                 for (i, r) in result.iter_mut().enumerate() {
@@ -430,7 +430,7 @@ mod tests {
             Value::Success
         };
 
-        let mut fitter = NLSProblem::from_f_df_fdf(N, P, function, jac, fdf);
+        let mut fitter = NlsProblem::from_f_df_fdf(N, P, function, jac, fdf);
         fitter.rtol = RTOL;
 
         let result = fitter.solve(param_init);
@@ -472,7 +472,7 @@ mod tests {
         let data_real = data.clone();
         let data_dual = data;
 
-        let mut fitter = NLSProblem::from_dual_f(
+        let mut fitter = NlsProblem::from_dual_f(
             N,
             move |x: &[f64], result: &mut [f64]| {
                 for (t, (&y, r)) in data_real

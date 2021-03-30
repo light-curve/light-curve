@@ -93,7 +93,7 @@ where
         self
     }
 
-    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
+    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmwVectors<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let (t, m, w) = ts
             .tmw_iter()
@@ -110,7 +110,7 @@ where
                 (bin_t, bin_m, bin_w)
             })
             .unzip3();
-        Ok(TMWVectors { t, m, w: Some(w) })
+        Ok(TmwVectors { t, m, w: Some(w) })
     }
 
     #[inline]

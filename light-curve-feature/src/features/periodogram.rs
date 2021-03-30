@@ -255,10 +255,10 @@ where
         (freq, power)
     }
 
-    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
+    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmwVectors<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let (freq, power) = self.freq_power(ts);
-        Ok(TMWVectors {
+        Ok(TmwVectors {
             t: freq,
             m: power,
             w: None,

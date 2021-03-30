@@ -1,5 +1,5 @@
 use crate::fit::data::Data;
-use crate::fit::nls::{MatrixF64, NLSProblem, Value, VectorF64};
+use crate::fit::nls::{MatrixF64, NlsProblem, Value, VectorF64};
 
 use std::rc::Rc;
 
@@ -42,7 +42,7 @@ where
         }
     };
 
-    let mut problem = NLSProblem::from_f_df(ts.t.len(), x0.len(), f, df);
+    let mut problem = NlsProblem::from_f_df(ts.t.len(), x0.len(), f, df);
     let result = problem.solve(VectorF64::from_slice(x0).unwrap());
 
     CurveFitResult {
