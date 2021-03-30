@@ -10,7 +10,7 @@ use thiserror::Error;
 #[derive(Error, std::fmt::Debug)]
 #[error("{0}")]
 enum MainError {
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
     ParseFloatError(#[from] std::num::ParseFloatError),
     PngEncodingError(#[from] png::EncodingError),
     NotEnoughColumns(&'static str),
@@ -86,9 +86,9 @@ pub enum DmDtNorm {
     Max,
 }
 
-type TME2 = (Vec<f32>, Vec<f32>, Option<Vec<f32>>);
+type Tme2 = (Vec<f32>, Vec<f32>, Option<Vec<f32>>);
 
-fn read_input(input: &Option<PathBuf>, errors: bool) -> Result<TME2, MainError> {
+fn read_input(input: &Option<PathBuf>, errors: bool) -> Result<Tme2, MainError> {
     let mut t = vec![];
     let mut m = vec![];
     let mut err2 = if errors { Some(vec![]) } else { None };
