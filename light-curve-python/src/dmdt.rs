@@ -506,7 +506,7 @@ py_dmdt_batches!(
                 *ref_lc = (&lc.0, &lc.1);
             }
         }
-        Ok(dmdt_batches.dmdt.points_many(lcs, Some(true))?)
+        dmdt_batches.dmdt.points_many(lcs, Some(true))
     },
     GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>)>,
     DmDtPointsBatchesF32,
@@ -546,7 +546,7 @@ py_dmdt_batches!(
                 *ref_lc = (&lc.0, &lc.1, &lc.2);
             }
         }
-        Ok(dmdt_batches.dmdt.gausses_many(lcs, Some(true))?)
+        dmdt_batches.dmdt.gausses_many(lcs, Some(true))
     },
     GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>, ndarray::Array1<f32>)>,
     DmDtGaussesBatchesF32,
