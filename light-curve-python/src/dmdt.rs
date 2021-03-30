@@ -618,6 +618,8 @@ py_dmdt_batches!(
 ///     Produces dmdt-maps from a list of light curves
 /// gausses_many(lcs, sorted=None)
 ///     Produces smeared dmdt-maps from a list of light curves
+/// count_lgdt_many(t_, sorted=None)
+///     Number of observations in each lg(dt) for a list of arrays
 /// points_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
 ///     Gives a reusable iterable which yields dmdt-maps
 /// gausses_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
