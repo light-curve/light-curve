@@ -88,6 +88,26 @@ where
             .mapv(|x| x.value_as::<T>().unwrap()))
     }
 
+    fn count_lgdt_many(&self, t_: Vec<&[T]>, sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
+        let lgdt_size = self.dmdt.lgdt_grid.len();
+        let mut result = ndarray::Array2::zeros((t_.len(), lgdt_size));
+
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(self.n_jobs)
+            .build()
+            .unwrap()
+            .install(|| {
+                ndarray::Zip::from(result.outer_iter_mut())
+                    .and(t_.into_producer())
+                    .into_par_iter()
+                    .try_for_each::<_, Res<_>>(|(mut count, t)| {
+                        count.assign(&self.count_lgdt(t, sorted)?);
+                        Ok(())
+                    })
+            })?;
+        Ok(result)
+    }
+
     fn points(&self, t: &[T], m: &[T], sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
         check_sorted(t, sorted)?;
 
@@ -592,6 +612,8 @@ py_dmdt_batches!(
 ///     Produces dmdt-maps from light curve
 /// gausses(t, m, sigma, sorted=None)
 ///     Produces smeared dmdt-map from noisy light curve
+/// count_lgdt(t, sorted=None)
+///     Total number of observations per each lg(dt) interval
 /// points_many(lcs, sorted=None)
 ///     Produces dmdt-maps from a list of light curves
 /// gausses_many(lcs, sorted=None)
@@ -727,7 +749,11 @@ impl DmDt {
         self.dmdt_f64.dmdt.dm_grid.get_end()
     }
 
-    /// Number of observations per each lg(dt) interval
+    /// Total number of observations per each lg(dt) interval
+    ///
+    /// Output takes into account all observation pairs within
+    /// [min_lgdt; max_lgdt), even if they are not in
+    /// [-max_abs_dm; max_abs_dm)
     ///
     /// Parameters
     /// ----------
@@ -750,6 +776,75 @@ impl DmDt {
                 .dmdt_f64
                 .count_lgdt(&ArrWrapper::new(t, true), sorted)
                 .map(|a| a.into_pyarray(py).into_py(py)),
+        }
+    }
+
+    /// Total number of observations per each lg(dt) interval
+    ///
+    /// Output takes into account all observation pairs within
+    /// [min_lgdt; max_lgdt), even if they are not in
+    /// [-max_abs_dm; max_abs_dm)
+    ///
+    /// Parameters
+    /// ----------
+    /// t_ : 1d-ndarray of float
+    ///     List of arrays, each represents time moments, must be sorted
+    /// sorted : bool or None, optional
+    ///     `True` guarantees that `t` is sorted
+    ///
+    /// Returns
+    /// 1d-array of float
+    ///
+    #[args(t_, sorted = "None")]
+    fn count_lgdt_many(
+        &self,
+        py: Python,
+        t_: Vec<GenericFloatArray1>,
+        sorted: Option<bool>,
+    ) -> Res<PyObject> {
+        if t_.is_empty() {
+            Err(Exception::ValueError("t_ is empty".to_owned()))
+        } else {
+            match t_[0] {
+                GenericFloatArray1::Float32(_) => {
+                    let wrapped_t_ = t_
+                        .iter()
+                        .enumerate()
+                        .map(|(i, t)| match t {
+                            GenericFloatArray1::Float32(t) => Ok(ArrWrapper::new(t, true)),
+                            _ => Err(Exception::TypeError(format!(
+                                "t_[{}] has mismatched dtype with the t_[0] which is float32",
+                                i
+                            ))),
+                        })
+                        .collect::<Res<Vec<_>>>()?;
+                    let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
+                    Ok(self
+                        .dmdt_f32
+                        .count_lgdt_many(typed_t_, sorted)?
+                        .into_pyarray(py)
+                        .into_py(py))
+                }
+                GenericFloatArray1::Float64(_) => {
+                    let wrapped_t_ = t_
+                        .iter()
+                        .enumerate()
+                        .map(|(i, t)| match t {
+                            GenericFloatArray1::Float64(t) => Ok(ArrWrapper::new(t, true)),
+                            _ => Err(Exception::TypeError(format!(
+                                "t_[{}] has mismatched dtype with the t_[0] which is float64",
+                                i
+                            ))),
+                        })
+                        .collect::<Res<Vec<_>>>()?;
+                    let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
+                    Ok(self
+                        .dmdt_f64
+                        .count_lgdt_many(typed_t_, sorted)?
+                        .into_pyarray(py)
+                        .into_py(py))
+                }
+            }
         }
     }
 
