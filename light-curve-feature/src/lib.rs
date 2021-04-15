@@ -11,7 +11,7 @@
 //! let time = [0.0, 1.0, 2.0, 3.0, 4.0];
 //! let magn = [-1.0, 2.0, 1.0, 3.0, 4.5];
 //! let weights = [5.0, 10.0, 2.0, 10.0, 5.0]; // inversed squared magnitude errors
-//! let mut ts = TimeSeries::new(&time[..], &magn[..], Some(&wheits[..]));
+//! let mut ts = TimeSeries::new(&time[..], &magn[..], Some(&weights[..]));
 //! // Get results and print
 //! let result = fe.eval(&mut ts)?;
 //! let names = fe.get_names();
