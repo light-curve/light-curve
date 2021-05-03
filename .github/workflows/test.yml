@@ -9,10 +9,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install FFTW
+    - name: Install FFTW and GSL
       run: |
         sudo apt-get update
-        sudo apt-get install libfftw3-dev
+        sudo apt-get install libfftw3-dev libgsl-dev
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
@@ -20,7 +20,22 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --all-targets --all-features --workspace --exclude light-curve-python
+        args: --workspace --all-targets --exclude light-curve-python
+    - name: Build light-curve-feature gsl+fftw-source
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-source
+    - name: Build light-curve-feature gsl+fftw-system
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-system
+    - name: Build light-curve-feature gsl+fftw-mkl
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-mkl
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
@@ -35,7 +50,8 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --workspace --exclude light-curve-python --all-targets --all-features -- -D warnings
+        args: --workspace --exclude light-curve-python --all-targets -- -D warnings
+
 
   python:
 
@@ -76,9 +92,9 @@ jobs:
     - name: Build package with static FFTW
       run: maturin build
     - name: Build package with dynamic FFTW
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic"
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,nonlinear-fit"
     - name: Build package with dynamic MKL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic"
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic,nonlinear-fit"
     - name: Check Rust formatting
       uses: actions-rs/cargo@v1
       with:
@@ -88,7 +104,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --all-targets --all-features -- -D warnings
+        args: --all-targets -- -D warnings
     - name: Check Python formatting
       run: black .
     - name: Run Python tests

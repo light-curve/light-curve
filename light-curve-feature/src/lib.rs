@@ -29,7 +29,7 @@ mod macros;
 pub mod antifeatures;
 
 mod evaluator;
-pub use evaluator::{FeatureEvaluator, VecFE};
+pub use evaluator::{FeatureEvaluator, VecFe};
 
 mod error;
 pub use error::EvaluatorError;

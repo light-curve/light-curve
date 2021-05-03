@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-feature"
-version = "0.2.0"
+version = "0.2.2"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/hombit/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
@@ -15,26 +15,32 @@ default = ["fftw-source"]
 fftw-system = ["fftw/system"]
 fftw-source = ["fftw/source"]
 fftw-mkl = ["fftw/intel-mkl"]
+gsl = ["GSL/v2_1", "hyperdual"]
 
 [dependencies]
 conv = "^0.3.3"
 dyn-clonable = "^0.9.0"
-fftw = { version = "^0.6.2", default-features = false }
+fftw = { version = "0.7.0", default-features = false }
+GSL = { version = "~4.0.0", default-features = false, optional = true }
+hyperdual = { version = "~0.3.6", optional = true }
 itertools = "^0.10.0"
 lazy_static = "^1.4.0"
 libm = "~0.2.1"
 light-curve-common = "0.1.0"
-num-complex = "^0.2"
+num-complex = "^0.3"
 num-traits = "^0.2"
 thiserror = "^1.0"
+thread_local = "^1.1"
 unzip3 = "^1.0"
 
 [dev-dependencies]
+light-curve-feature = { path = ".", default-features = false, features = ["gsl"] }
 rand = "^0.7"
 rand_distr = "^0.2"
 criterion = "^0.3"
-rustfft = "^5.0"
 chfft = "^0.3.4"
+realfft= "^1.1"
+rustfft = "^5.0"
 
 [[bench]]
 name = "benchmark"
@@ -47,4 +53,4 @@ rustdoc-args = [
     "katex-header.html",
 ]
 no-default-features = true
-features = ["fftw-system"]
+features = ["fftw-system", "gsl"]

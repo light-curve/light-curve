@@ -18,7 +18,7 @@ pub struct EvaluatorInfo {
 
 /// The trait each feature should implement
 #[clonable]
-pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone + Debug {
+pub trait FeatureEvaluator<T: Float>: Send + Clone + Debug {
     /// Should return the vector of feature values or `EvaluatorError`
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
 
@@ -80,7 +80,7 @@ pub trait FeatureEvaluator<T: Float>: Send + Sync + Clone + Debug {
     }
 }
 
-pub type VecFE<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
+pub type VecFe<T> = Vec<Box<dyn FeatureEvaluator<T>>>;
 
 pub fn get_nonzero_m_std<T: Float>(ts: &mut TimeSeries<T>) -> Result<T, EvaluatorError> {
     let std = ts.m.get_std();
@@ -109,7 +109,7 @@ pub fn get_nonzero_reduced_chi2<T: Float>(ts: &mut TimeSeries<T>) -> Result<T, E
     }
 }
 
-pub struct TMWVectors<T> {
+pub struct TmwVectors<T> {
     pub t: Vec<T>,
     pub m: Vec<T>,
     pub w: Option<Vec<T>>,

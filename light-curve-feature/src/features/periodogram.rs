@@ -3,7 +3,6 @@ use crate::extractor::FeatureExtractor;
 use crate::periodogram;
 use crate::periodogram::{AverageNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerFft};
 use crate::statistics::Statistics;
-
 use std::iter;
 
 fn number_ending(i: usize) -> &'static str {
@@ -135,7 +134,7 @@ pub struct Periodogram<T: Float> {
     feature_extractor: FeatureExtractor<T>,
     feature_names: Vec<String>,
     feature_descriptions: Vec<String>,
-    periodogram_algorithm: fn() -> Box<dyn PeriodogramPower<T>>,
+    periodogram_algorithm: Box<dyn PeriodogramPower<T>>,
 }
 
 impl<T> Periodogram<T>
@@ -180,7 +179,7 @@ where
             feature_extractor: feat_extr!(peaks),
             feature_names: peak_names,
             feature_descriptions: peak_descriptions,
-            periodogram_algorithm: || Box::new(PeriodogramPowerFft),
+            periodogram_algorithm: Box::new(PeriodogramPowerFft::new()),
         }
     }
 
@@ -229,19 +228,15 @@ where
 
     pub fn set_periodogram_algorithm(
         &mut self,
-        periodogram_power: fn() -> Box<dyn PeriodogramPower<T>>,
+        periodogram_power: Box<dyn PeriodogramPower<T>>,
     ) -> &mut Self {
         self.periodogram_algorithm = periodogram_power;
         self
     }
 
-    pub fn init_thread_local_fft_plan(n: &[usize]) {
-        periodogram::Periodogram::<T>::init_thread_local_fft_plans(n);
-    }
-
     fn periodogram(&self, ts: &mut TimeSeries<T>) -> periodogram::Periodogram<T> {
         periodogram::Periodogram::from_t(
-            (self.periodogram_algorithm)(),
+            self.periodogram_algorithm.clone(),
             ts.t.sample,
             self.resolution,
             self.max_freq_factor,
@@ -260,10 +255,10 @@ where
         (freq, power)
     }
 
-    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TMWVectors<T>, EvaluatorError> {
+    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmwVectors<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let (freq, power) = self.freq_power(ts);
-        Ok(TMWVectors {
+        Ok(TmwVectors {
             t: freq,
             m: power,
             w: None,
@@ -302,20 +297,20 @@ mod tests {
 
     eval_info_test!(periodogram_info_1, {
         let mut periodogram = Periodogram::default();
-        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
+        periodogram.set_periodogram_algorithm(Box::new(PeriodogramPowerDirect {}));
         periodogram
     });
 
     eval_info_test!(periodogram_info_2, {
         let mut periodogram = Periodogram::new(5);
-        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
+        periodogram.set_periodogram_algorithm(Box::new(PeriodogramPowerDirect {}));
         periodogram
     });
 
     eval_info_test!(periodogram_info_3, {
         let mut periodogram = Periodogram::default();
         periodogram.add_feature(Box::new(Amplitude::default()));
-        periodogram.set_periodogram_algorithm(|| Box::new(PeriodogramPowerDirect {}));
+        periodogram.set_periodogram_algorithm(Box::new(PeriodogramPowerDirect {}));
         periodogram
     });
 
@@ -446,7 +441,7 @@ mod tests {
             .set_nyquist(Box::new(QuantileNyquistFreq { quantile: 0.05 }))
             .set_freq_resolution(10.0)
             .set_max_freq_factor(1.0)
-            .set_periodogram_algorithm(|| Box::new(PeriodogramPowerFft));
+            .set_periodogram_algorithm(Box::new(PeriodogramPowerFft::new()));
         let fe = FeatureExtractor::new(vec![Box::new(periodogram)]);
         let period1 = 0.01;
         let period2 = 1.0;
