@@ -1,7 +1,7 @@
 import numpy as np
 
 from ._base import BaseFeature
-from ..lstsq import least_squares
+from ._lstsq import least_squares
 
 
 class LinearFit(BaseFeature):
