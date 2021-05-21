@@ -15,7 +15,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: light-curve-python
+        working-directory: python
 
     steps:
     - uses: actions/checkout@v2
@@ -45,7 +45,7 @@ jobs:
       run: tox -p -q
     - name: Publish Linux packages
       if: ${{ matrix.os == 'ubuntu-20.04' }}
-      run: docker run --rm -v $(pwd):/io konstin2/maturin publish -i python3.6 python3.7 python3.8 python3.9 -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+      run: docker run --rm -v $(pwd):/io konstin2/maturin publish -i python3.6 python3.7 python3.8 python3.9 -u __token__ -p ${{ secrets.PYPI_TOKEN_LIGHT_CURVE }}
     - name: Publish macOS packages
       if: ${{ matrix.os != 'ubuntu-20.04' }}
-      run: maturin publish --no-sdist -i python3.6 python3.7 python3.8 python3.9 -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+      run: maturin publish --no-sdist -i python3.6 python3.7 python3.8 python3.9 -u __token__ -p ${{ secrets.PYPI_TOKEN_LIGHT_CURVE }}
