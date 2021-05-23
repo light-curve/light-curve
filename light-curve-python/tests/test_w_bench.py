@@ -63,9 +63,7 @@ class _FeetsTest:
     feets_skip_test = False
 
     def setup_method(self):
-        self.feets_extractor = feets.FeatureSpace(
-            only=[self.feets_feature], data=["time", "magnitude", "error"]
-        )
+        self.feets_extractor = feets.FeatureSpace(only=[self.feets_feature], data=["time", "magnitude", "error"])
 
     def feets(self, t, m, sigma):
         _, result = self.feets_extractor.extract(t, m, sigma)
@@ -73,10 +71,7 @@ class _FeetsTest:
 
     def test_close_to_feets(self):
         if self.feets_skip_test:
-            pytest.skip(
-                "feets is expected to be different from light_curve, reason: "
-                + self.feets_skip_test
-            )
+            pytest.skip("feets is expected to be different from light_curve, reason: " + self.feets_skip_test)
         t, m, sigma = self.generate_data()
         assert_allclose(
             self.feature(t, m, sigma)[:1],
@@ -148,9 +143,7 @@ if hasattr(lc, "BazinFit"):
                 # We give really good parameters estimation!
                 p0=self._params(),
             )
-            reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (
-                t.size - params.size
-            )
+            reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (t.size - params.size)
             return_value = tuple(params) + (reduced_chi2,)
             return return_value
 
@@ -241,9 +234,7 @@ class _TestMagnitudePercentageRatio(_FeatureTest, _FeetsTest):
 
     def setup_method(self):
         super().setup_method()
-        self.feature = lc.MagnitudePercentageRatio(
-            self.quantile_numerator, self.quantile_denumerator
-        )
+        self.feature = lc.MagnitudePercentageRatio(self.quantile_numerator, self.quantile_denumerator)
 
 
 class TestMagnitudePercentageRatio40(_TestMagnitudePercentageRatio):
@@ -395,9 +386,7 @@ class TestAllNaive(_FeatureTest, _NaiveTest):
         self.feature = lc.Extractor(*features)
 
     def naive(self, t, m, sigma):
-        return np.concatenate(
-            [np.atleast_1d(f(t, m, sigma)) for f in self.naive_features]
-        )
+        return np.concatenate([np.atleast_1d(f(t, m, sigma)) for f in self.naive_features])
 
 
 class TestAllFeets(_FeatureTest, _FeetsTest):
@@ -412,6 +401,4 @@ class TestAllFeets(_FeatureTest, _FeetsTest):
             features.append(cls.feature)
             feets_features.append(cls.feets_feature)
         self.feature = lc.Extractor(*features)
-        self.feets_extractor = feets.FeatureSpace(
-            only=feets_features, data=["time", "magnitude", "error"]
-        )
+        self.feets_extractor = feets.FeatureSpace(only=feets_features, data=["time", "magnitude", "error"])
