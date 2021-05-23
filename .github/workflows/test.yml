@@ -94,7 +94,7 @@ jobs:
     - name: Build package with dynamic FFTW
       run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,nonlinear-fit"
     - name: Build package with dynamic MKL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic,nonlinear-fit"
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,nonlinear-fit"
     - name: Check Rust formatting
       uses: actions-rs/cargo@v1
       with:
