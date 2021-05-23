@@ -9,8 +9,32 @@ import light_curve.light_curve_ext as lc_ext
 import light_curve.light_curve_py as lc_py
 
 
-class _RustTest:
+class _Test:
+    # Feature name must be updated in child classes
+    name = None
+    # Argument tuple for the feature constructor
+    args = ()
+
     py_feature = None
+
+    # Specify method for a naive implementation
+    naive = None
+
+    # Specify `feets` feature name
+    feets_feature = None
+    feets_extractor = None
+    # Specify a `str` with a reason why skip this test
+    feets_skip_test = False
+
+    def setup_method(self):
+        self.rust = getattr(lc_ext, self.name)(*self.args)
+        try:
+            self.py_feature = getattr(lc_py, self.name)(*self.args)
+        except AttributeError:
+            pass
+
+        if self.feets_feature is not None:
+            self.feets_extractor = feets.FeatureSpace(only=[self.feets_feature], data=["time", "magnitude", "error"])
 
     # Default values of `assert_allclose`
     rtol = 1e-7
@@ -38,7 +62,7 @@ class _RustTest:
 
     def test_close_to_lc_py(self):
         if self.py_feature is None:
-            pytest.skip("No matched light_curve_py class for current feature")
+            pytest.skip("No matched light_curve_py class for the feature")
         t, m, sigma = self.generate_data()
         assert_allclose(self.rust(t, m, sigma), self.py_feature(t, m, sigma), rtol=self.rtol, atol=self.atol)
 
@@ -50,63 +74,61 @@ class _RustTest:
 
     def test_benchmark_lc_py(self, benchmark):
         if self.py_feature is None:
-            pytest.skip("No matched light_curve_py class for current feature")
+            pytest.skip("No matched light_curve_py class for the feature")
 
         t, m, sigma = self.generate_data()
 
         benchmark.group = str(type(self).__name__)
         benchmark(self.py_feature, t, m, sigma, sorted=True)
 
-
-class _NaiveTest:
-    naive = None
-
     def test_close_to_naive(self):
+        if self.naive is None:
+            pytest.skip("No naive implementation for the feature")
+
         t, m, sigma = self.generate_data()
         assert_allclose(self.rust(t, m, sigma), self.naive(t, m, sigma), rtol=self.rtol, atol=self.atol)
 
     def test_benchmark_naive(self, benchmark):
+        if self.naive is None:
+            pytest.skip("No naive implementation for the feature")
+
         t, m, sigma = self.generate_data()
 
         benchmark.group = type(self).__name__
         benchmark(self.naive, t, m, sigma)
-
-
-class _FeetsTest:
-    feets_feature = None
-    feets_skip_test = False
-
-    def setup_method(self):
-        self.feets_extractor = feets.FeatureSpace(only=[self.feets_feature], data=["time", "magnitude", "error"])
 
     def feets(self, t, m, sigma):
         _, result = self.feets_extractor.extract(t, m, sigma)
         return result
 
     def test_close_to_feets(self):
+        if self.feets_extractor is None:
+            pytest.skip("No feets feature provided")
         if self.feets_skip_test:
             pytest.skip("feets is expected to be different from light_curve, reason: " + self.feets_skip_test)
+
         t, m, sigma = self.generate_data()
         assert_allclose(self.rust(t, m, sigma)[:1], self.feets(t, m, sigma)[:1], rtol=self.rtol, atol=self.atol)
 
     def test_benchmark_feets(self, benchmark):
+        if self.feets_extractor is None:
+            pytest.skip("No feets feature provided")
+
         t, m, sigma = self.generate_data()
 
         benchmark.group = type(self).__name__
         benchmark(self.feets, t, m, sigma)
 
 
-class TestAmplitude(_RustTest, _NaiveTest):
-    rust = lc_ext.Amplitude()
-    py_feature = lc_py.Amplitude()
+class TestAmplitude(_Test):
+    name = "Amplitude"
 
     def naive(self, t, m, sigma):
         return 0.5 * (np.max(m) - np.min(m))
 
 
-class TestAndersonDarlingNormal(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.AndersonDarlingNormal()
-    py_feature = lc_py.AndersonDarlingNormal()
+class TestAndersonDarlingNormal(_Test):
+    name = "AndersonDarlingNormal"
 
     feets_feature = "AndersonDarling"
     feets_skip_test = "feets uses biased statistics"
@@ -117,8 +139,8 @@ class TestAndersonDarlingNormal(_RustTest, _NaiveTest, _FeetsTest):
 
 if hasattr(lc_ext, "BazinFit"):
 
-    class TestBazinFit(_RustTest, _NaiveTest):
-        rust = lc_ext.BazinFit()
+    class TestBazinFit(_Test):
+        name = "BazinFit"
         rtol = 1e-4  # Precision used in the feature implementation
 
         @staticmethod
@@ -159,11 +181,11 @@ if hasattr(lc_ext, "BazinFit"):
             return return_value
 
 
-class TestBeyond1Std(_RustTest, _NaiveTest, _FeetsTest):
+class TestBeyond1Std(_Test):
     nstd = 1.0
 
-    rust = lc_ext.BeyondNStd(nstd)
-    py_feature = lc_py.BeyondNStd(nstd)
+    name = "BeyondNStd"
+    args = (nstd,)
 
     feets_feature = "Beyond1Std"
     feets_skip_test = "feets uses biased statistics"
@@ -174,25 +196,22 @@ class TestBeyond1Std(_RustTest, _NaiveTest, _FeetsTest):
         return np.count_nonzero(np.abs(m - mean) > interval) / m.size
 
 
-class TestCusum(_RustTest, _FeetsTest):
-    rust = lc_ext.Cusum()
-    py_feature = lc_py.Cusum()
+class TestCusum(_Test):
+    name = "Cusum"
 
     feets_feature = "Rcs"
     feets_skip_test = "feets uses biased statistics"
 
 
-class TestEta(_RustTest, _NaiveTest):
-    rust = lc_ext.Eta()
-    py_feature = lc_py.Eta()
+class TestEta(_Test):
+    name = "Eta"
 
     def naive(self, t, m, sigma):
         return np.sum(np.square(m[1:] - m[:-1])) / (np.var(m, ddof=0) * m.size)
 
 
-class TestEtaE(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.EtaE()
-    py_feature = lc_py.EtaE()
+class TestEtaE(_Test):
+    name = "EtaE"
 
     feets_feature = "Eta_e"
     feets_skip_test = "feets fixed EtaE from the original paper in different way"
@@ -205,27 +224,25 @@ class TestEtaE(_RustTest, _NaiveTest, _FeetsTest):
         )
 
 
-class TestExcessVariance(_RustTest, _NaiveTest):
-    rust = lc_ext.ExcessVariance()
-    py_feature = lc_py.ExcessVariance()
+class TestExcessVariance(_Test):
+    name = "ExcessVariance"
 
     def naive(self, t, m, sigma):
         return (np.var(m, ddof=1) - np.mean(sigma ** 2)) / np.mean(m) ** 2
 
 
-class TestInterPercentileRange(_RustTest, _FeetsTest):
+class TestInterPercentileRange(_Test):
     quantile = 0.25
 
-    rust = lc_ext.InterPercentileRange(quantile)
-    py_feature = lc_py.InterPercentileRange(quantile)
+    name = "InterPercentileRange"
+    args = (quantile,)
 
     feets_feature = "Q31"
     feets_skip_test = "feets uses different quantile type"
 
 
-class TestKurtosis(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.Kurtosis()
-    py_feature = lc_py.Kurtosis()
+class TestKurtosis(_Test):
+    name = "Kurtosis"
 
     feets_feature = "SmallKurtosis"
     feets_skip_test = "feets uses equation for unbiased kurtosis, but put biased standard deviation there"
@@ -234,9 +251,8 @@ class TestKurtosis(_RustTest, _NaiveTest, _FeetsTest):
         return stats.kurtosis(m, fisher=True, bias=False)
 
 
-class TestLinearTrend(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.LinearTrend()
-    py_feature = lc_py.LinearTrend()
+class TestLinearTrend(_Test):
+    name = "LinearTrend"
 
     feets_feature = "LinearTrend"
 
@@ -245,42 +261,26 @@ class TestLinearTrend(_RustTest, _NaiveTest, _FeetsTest):
         return np.array([slope, np.sqrt(slope_sigma2)])
 
 
-class _TestMagnitudePercentageRatio(_RustTest, _FeetsTest):
-    quantile_numerator = -1
-    quantile_denumerator = -1
-
-    feets_skip_test = "feets uses different quantile type"
-
-    def setup_method(self):
-        super().setup_method()
-        self.rust = lc_ext.MagnitudePercentageRatio(self.quantile_numerator, self.quantile_denumerator)
-        self.py_feature = lc_py.MagnitudePercentageRatio(self.quantile_numerator, self.quantile_denumerator)
-
-
-class TestMagnitudePercentageRatio40(_TestMagnitudePercentageRatio):
-    quantile_numerator = 0.4
-    quantile_denumerator = 0.05
-
-    feets_feature = "FluxPercentileRatioMid20"
+def generate_test_magnitude_percentile_ratio(quantile_numerator, quantile_denumerator, feets_feature):
+    return type(
+        f"TestMagnitudePercentageRatio{int(quantile_numerator * 100):d}",
+        (_Test,),
+        dict(
+            quantile_numerator=quantile_numerator,
+            quantile_denumerator=quantile_denumerator,
+            name="MagnitudePercentageRatio",
+            feets_skip_test="feets uses different quantile type",
+        ),
+    )
 
 
-class TestMagnitudePercentageRatio25(_TestMagnitudePercentageRatio):
-    quantile_numerator = 0.25
-    quantile_denumerator = 0.05
-
-    feets_feature = "FluxPercentileRatioMid50"
+generate_test_magnitude_percentile_ratio(0.40, 0.05, "FluxPercentileRatioMid20")
+generate_test_magnitude_percentile_ratio(0.25, 0.05, "FluxPercentileRatioMid50")
+generate_test_magnitude_percentile_ratio(0.10, 0.05, "FluxPercentileRatioMid80")
 
 
-class TestMagnitudePercentageRatio10(_TestMagnitudePercentageRatio):
-    quantile_numerator = 0.10
-    quantile_denumerator = 0.05
-
-    feets_feature = "FluxPercentileRatioMid80"
-
-
-class TestMaximumSlope(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.MaximumSlope()
-    py_feature = lc_py.MaximumSlope()
+class TestMaximumSlope(_Test):
+    name = "MaximumSlope"
 
     feets_feature = "MaxSlope"
 
@@ -288,9 +288,8 @@ class TestMaximumSlope(_RustTest, _NaiveTest, _FeetsTest):
         return np.max(np.abs((m[1:] - m[:-1]) / (t[1:] - t[:-1])))
 
 
-class TestMean(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.Mean()
-    py_feature = lc_py.Mean()
+class TestMean(_Test):
+    name = "Mean"
 
     feets_feature = "Mean"
 
@@ -298,9 +297,8 @@ class TestMean(_RustTest, _NaiveTest, _FeetsTest):
         return np.mean(m)
 
 
-class TestMeanVariance(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.MeanVariance()
-    py_feature = lc_py.MeanVariance()
+class TestMeanVariance(_Test):
+    name = "MeanVariance"
 
     feets_feature = "Meanvariance"
     feets_skip_test = "feets uses biased statistics"
@@ -309,35 +307,32 @@ class TestMeanVariance(_RustTest, _NaiveTest, _FeetsTest):
         return np.std(m, ddof=1) / np.mean(m)
 
 
-class TestMedian(_RustTest, _NaiveTest):
-    rust = lc_ext.Median()
-    py_feature = lc_py.Median()
+class TestMedian(_Test):
+    name = "Median"
 
     def naive(self, t, m, sigma):
         return np.median(m)
 
 
-class TestMedianAbsoluteDeviation(_RustTest, _FeetsTest):
-    rust = lc_ext.MedianAbsoluteDeviation()
-    py_feature = lc_py.MedianAbsoluteDeviation()
+class TestMedianAbsoluteDeviation(_Test):
+    name = "MedianAbsoluteDeviation"
 
     feets_feature = "MedianAbsDev"
 
 
-class TestMedianBufferRangePercentage(_RustTest, _FeetsTest):
+class TestMedianBufferRangePercentage(_Test):
     # feets says it uses 0.1 of amplitude (a half range between max and min),
     # but factually it uses 0.1 of full range between max and min
     quantile = 0.2
 
-    rust = lc_ext.MedianBufferRangePercentage(quantile)
-    py_feature = lc_py.MedianBufferRangePercentage(quantile)
+    name = "MedianBufferRangePercentage"
+    args = (quantile,)
 
     feets_feature = "MedianBRP"
 
 
-class TestPercentAmplitude(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.PercentAmplitude()
-    py_feature = lc_py.PercentAmplitude()
+class TestPercentAmplitude(_Test):
+    name = "PercentAmplitude"
 
     feets_feature = "PercentAmplitude"
     feets_skip_test = "feets divides value by median"
@@ -347,28 +342,26 @@ class TestPercentAmplitude(_RustTest, _NaiveTest, _FeetsTest):
         return max(np.max(m) - median, median - np.min(m))
 
 
-class TestPercentDifferenceMagnitudePercentile(_RustTest, _FeetsTest):
+class TestPercentDifferenceMagnitudePercentile(_Test):
     quantile = 0.05
 
-    rust = lc_ext.PercentDifferenceMagnitudePercentile(quantile)
-    py_feature = lc_py.PercentDifferenceMagnitudePercentile(quantile)
+    name = "PercentDifferenceMagnitudePercentile"
+    args = (quantile,)
 
     feets_feature = "PercentDifferenceFluxPercentile"
     feets_skip_test = "feets uses different quantile type"
 
 
-class TestReducedChi2(_RustTest, _NaiveTest):
-    rust = lc_ext.ReducedChi2()
-    py_feature = lc_py.ReducedChi2()
+class TestReducedChi2(_Test):
+    name = "ReducedChi2"
 
     def naive(self, t, m, sigma):
         w = 1.0 / np.square(sigma)
         return np.sum(np.square(m - np.average(m, weights=w)) * w) / (m.size - 1)
 
 
-class TestSkew(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.Skew()
-    py_feature = lc_py.Skew()
+class TestSkew(_Test):
+    name = "Skew"
 
     feets_feature = "Skew"
     feets_skip_test = "feets uses biased statistics"
@@ -377,9 +370,8 @@ class TestSkew(_RustTest, _NaiveTest, _FeetsTest):
         return stats.skew(m, bias=False)
 
 
-class TestStandardDeviation(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.StandardDeviation()
-    py_feature = lc_py.StandardDeviation()
+class TestStandardDeviation(_Test):
+    name = "StandardDeviation"
 
     feets_feature = "Std"
     feets_skip_test = "feets uses biased statistics"
@@ -388,9 +380,8 @@ class TestStandardDeviation(_RustTest, _NaiveTest, _FeetsTest):
         return np.std(m, ddof=1)
 
 
-class TestStetsonK(_RustTest, _NaiveTest, _FeetsTest):
-    rust = lc_ext.StetsonK()
-    py_feature = lc_py.StetsonK()
+class TestStetsonK(_Test):
+    name = "StetsonK"
 
     feets_feature = "StetsonK"
 
@@ -399,22 +390,38 @@ class TestStetsonK(_RustTest, _NaiveTest, _FeetsTest):
         return np.sum(np.abs(x)) / np.sqrt(np.sum(np.square(x)) * m.size)
 
 
-class TestWeightedMean(_RustTest, _NaiveTest):
-    rust = lc_ext.WeightedMean()
-    py_feature = lc_py.WeightedMean()
+class TestWeightedMean(_Test):
+    name = "WeightedMean"
 
     def naive(self, t, m, sigma):
         return np.average(m, weights=1.0 / sigma ** 2)
 
 
-class TestAllNaive(_RustTest, _NaiveTest):
+class TestAllPy(_Test):
+    def setup_method(self):
+        features = []
+        py_features = []
+        for cls in _Test.__subclasses__():
+            if cls.name is None:
+                continue
+
+            try:
+                py_features.append(getattr(lc_py, cls.name)(*cls.args))
+            except AttributeError:
+                continue
+            features.append(getattr(lc_ext, cls.name)(*cls.args))
+        self.rust = lc_ext.Extractor(*features)
+        self.py_feature = lc_py.Extractor(py_features)
+
+
+class TestAllNaive(_Test):
     def setup_method(self):
         features = []
         self.naive_features = []
-        for cls in _NaiveTest.__subclasses__():
-            if cls.naive is None or not hasattr(cls, "rust"):
+        for cls in _Test.__subclasses__():
+            if cls.naive is None or cls.name is None:
                 continue
-            features.append(cls.rust)
+            features.append(getattr(lc_ext, cls.name)(*cls.args))
             self.naive_features.append(cls().naive)
         self.rust = lc_ext.Extractor(*features)
 
@@ -422,16 +429,16 @@ class TestAllNaive(_RustTest, _NaiveTest):
         return np.concatenate([np.atleast_1d(f(t, m, sigma)) for f in self.naive_features])
 
 
-class TestAllFeets(_RustTest, _FeetsTest):
+class TestAllFeets(_Test):
     feets_skip_test = "skip for TestAllFeets"
 
     def setup_method(self):
         features = []
         feets_features = []
-        for cls in _FeetsTest.__subclasses__():
-            if cls.feets_feature is None or not hasattr(cls, "rust"):
+        for cls in _Test.__subclasses__():
+            if cls.feets_feature is None or cls.name is None:
                 continue
-            features.append(cls.rust)
+            features.append(getattr(lc_ext, cls.name)(*cls.args))
             feets_features.append(cls.feets_feature)
         self.rust = lc_ext.Extractor(*features)
         self.feets_extractor = feets.FeatureSpace(only=feets_features, data=["time", "magnitude", "error"])
