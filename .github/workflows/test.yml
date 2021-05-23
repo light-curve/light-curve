@@ -106,6 +106,6 @@ jobs:
         command: clippy
         args: --all-targets -- -D warnings
     - name: Check Python formatting
-      run: black .
+      run: black --check .
     - name: Run Python tests
       run: tox -p -q
