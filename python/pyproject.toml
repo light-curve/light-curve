@@ -9,7 +9,7 @@ include = '\.py$'
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra --import-mode=append --benchmark-min-time=0.1 --benchmark-max-time=5.0 --benchmark-disable"
+addopts = "-ra --import-mode=append --benchmark-min-time=0.1 --benchmark-max-time=5.0 --benchmark-sort=mean --benchmark-disable"
 testpaths = [
     "tests/",
 ]
