@@ -59,7 +59,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: python
+        working-directory: python/light-curve
 
     steps:
     - uses: actions/checkout@v2

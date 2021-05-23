@@ -5,7 +5,7 @@ members = [
     "light-curve-dmdt",
     "light-curve-feature",
     "light-curve-interpol",
-    "python",
+    "python/light-curve",
 ]
 
 [profile.release]
