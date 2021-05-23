@@ -49,7 +49,10 @@ def test_dmdt_count_lgdt_many_one(lc):
     assert_array_equal(actual[0], desired)
 
 
-@pytest.mark.parametrize("lcs", [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]])
+@pytest.mark.parametrize(
+    "lcs",
+    [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]],
+)
 def test_dmdt_count_lgdt_many(lcs):
     dmdt = DmDt(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
 
@@ -91,7 +94,10 @@ def test_dmdt_points_many_one(lc, norm):
 
 @pytest.mark.parametrize(
     "lcs",
-    [[sine_lc(101, False), sine_lc(11, False)], [random_lc(101, False), random_lc(101, False), random_lc(11, False)]],
+    [
+        [sine_lc(101, False), sine_lc(11, False)],
+        [random_lc(101, False), random_lc(101, False), random_lc(11, False)],
+    ],
 )
 @pytest.mark.parametrize("norm", [[], ["lgdt"], ["max"], ["lgdt", "max"]])
 def test_dmdt_points_many(lcs, norm):
@@ -107,7 +113,15 @@ def test_dmdt_points_many(lcs, norm):
 @pytest.mark.parametrize("norm", [[], ["lgdt"], ["max"], ["lgdt", "max"]])
 @pytest.mark.parametrize("approx_erf", [True, False])
 def test_dmdt_gausses_many_one(lc, norm, approx_erf):
-    dmdt = DmDt(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=norm, approx_erf=approx_erf)
+    dmdt = DmDt(
+        min_lgdt=-1,
+        max_lgdt=1,
+        max_abs_dm=2,
+        lgdt_size=32,
+        dm_size=32,
+        norm=norm,
+        approx_erf=approx_erf,
+    )
 
     desired = dmdt.gausses(*lc)
     assert np.any(desired != 0)
@@ -117,11 +131,22 @@ def test_dmdt_gausses_many_one(lc, norm, approx_erf):
     assert_array_equal(actual[0], desired)
 
 
-@pytest.mark.parametrize("lcs", [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]])
+@pytest.mark.parametrize(
+    "lcs",
+    [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]],
+)
 @pytest.mark.parametrize("norm", [[], ["lgdt"], ["max"], ["lgdt", "max"]])
 @pytest.mark.parametrize("approx_erf", [True, False])
 def test_dmdt_gausses_many(lcs, norm, approx_erf):
-    dmdt = DmDt(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=norm, approx_erf=approx_erf)
+    dmdt = DmDt(
+        min_lgdt=-1,
+        max_lgdt=1,
+        max_abs_dm=2,
+        lgdt_size=32,
+        dm_size=32,
+        norm=norm,
+        approx_erf=approx_erf,
+    )
 
     desired = [dmdt.gausses(*lc) for lc in lcs]
     actual = dmdt.gausses_many(lcs)

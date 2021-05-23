@@ -44,7 +44,12 @@ class _NaiveTest:
 
     def test_close_to_naive(self):
         t, m, sigma = self.generate_data()
-        assert_allclose(self.feature(t, m, sigma), self.naive(t, m, sigma), rtol=self.rtol, atol=self.atol)
+        assert_allclose(
+            self.feature(t, m, sigma),
+            self.naive(t, m, sigma),
+            rtol=self.rtol,
+            atol=self.atol,
+        )
 
     def test_benchmark_naive(self, benchmark):
         t, m, sigma = self.generate_data()
@@ -68,7 +73,12 @@ class _FeetsTest:
         if self.feets_skip_test:
             pytest.skip("feets is expected to be different from light_curve, reason: " + self.feets_skip_test)
         t, m, sigma = self.generate_data()
-        assert_allclose(self.feature(t, m, sigma)[:1], self.feets(t, m, sigma)[:1], rtol=self.rtol, atol=self.atol)
+        assert_allclose(
+            self.feature(t, m, sigma)[:1],
+            self.feets(t, m, sigma)[:1],
+            rtol=self.rtol,
+            atol=self.atol,
+        )
 
     def test_benchmark_feets(self, benchmark):
         t, m, sigma = self.generate_data()
@@ -94,7 +104,8 @@ class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
-if hasattr(lc, 'BazinFit'):
+if hasattr(lc, "BazinFit"):
+
     class TestBazinFit(_FeatureTest, _NaiveTest):
         feature = lc.BazinFit()
         rtol = 1e-4  # Precision used in the feature implementation
