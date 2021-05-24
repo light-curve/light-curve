@@ -9,26 +9,16 @@ jobs:
   publish-linux:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: light-curve-python
-
-    container:
-      image: konstin2/maturin
-      options: "--entrypoint /bin/bash"
-
     steps:
-    - name: Install requirements
-      run: yum install -y openssl-devel npm
     - uses: actions/checkout@v2
-    - name: Install tox
-      run: pip install tox
-    - name: Build wheels
-      run: maturin build -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features mkl"
+    - name: Build docker image
+      run: docker build --no-cache --tag maturin -f .ci/Dockerfile.maturin .ci
+    - name: Build wheels for tests
+      run: docker run --rm -v $(realpath light-curve-python):/io maturin build --release -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features mkl"
     - name: Run Python tests
-      run: tox -p -q --installpkg ../target/wheels/*.whl
+      run: docker run --rm -v $(realpath light-curve-python):/io --entrypoint=/bin/bash maturin -c 'python3.6 -m pip install target/wheels/*cp36*.whl && python3.7 -m pip install target/wheels/*cp37*.whl && python3.8 -m pip install target/wheels/*cp38*.whl && python3.9 -m pip install target/wheels/*cp39*.whl && python3 -m tox -p --skip-pkg-install --sitepackages'
     - name: Publish packages
-      run: maturin publish -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features mkl" -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+      run: docker run --rm -v $(realpath light-curve-python):/io maturin publish -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features mkl" -u __token__ -p ${{ secrets.PYPI_TOKEN }}
 
 
   publish-macos:
