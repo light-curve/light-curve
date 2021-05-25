@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-python"
-version = "0.2.5"
+version = "0.2.6-beta.0"
 edition = "2018"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 description = "Feature extractor from noisy time series"
@@ -15,7 +15,7 @@ crate-type = ["cdylib"]
 default = ["fftw-static"]
 fftw-static = ["light-curve-feature/fftw-source"]
 fftw-dynamic = ["light-curve-feature/fftw-system"]
-mkl-dynamic = ["light-curve-feature/fftw-mkl"]
+mkl = ["light-curve-feature/fftw-mkl"]
 nonlinear-fit = ["light-curve-feature/gsl"]
 
 [dependencies]
