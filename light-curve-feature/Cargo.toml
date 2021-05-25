@@ -39,7 +39,7 @@ rand = "^0.7"
 rand_distr = "^0.2"
 criterion = "^0.3"
 chfft = "^0.3.4"
-realfft= "^1.1"
+realfft= "^2.0"
 rustfft = "^5.0"
 
 [[bench]]
