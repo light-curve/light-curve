@@ -234,7 +234,7 @@ impl<T> LgGrid<T>
 where
     T: Float,
 {
-    pub fn new(start: T, end: T, n: usize) -> Self {
+    pub fn from_start_end(start: T, end: T, n: usize) -> Self {
         assert!(end > start);
         assert!(start.is_positive());
         let lg_start = start.log10();
@@ -252,6 +252,10 @@ where
             cell_lg_size,
             borders,
         }
+    }
+
+    pub fn from_lg_start_end(lg_start: T, lg_end: T, n: usize) -> Self {
+        Self::from_start_end(T::powf(T::ten(), lg_start), T::powf(T::ten(), lg_end), n)
     }
 
     #[inline]
@@ -320,26 +324,44 @@ pub enum CellIndex {
 }
 
 #[derive(Clone, Debug)]
-pub struct DmDt<Glgdt, Gdm, T>
+pub struct DmDt<Gdt, Gdm, T>
 where
-    Glgdt: Grid<T>,
+    Gdt: Grid<T>,
     Gdm: Grid<T>,
     T: Copy,
 {
-    pub lgdt_grid: Glgdt,
+    pub dt_grid: Gdt,
     pub dm_grid: Gdm,
     _phantom_data: PhantomData<T>,
 }
 
-impl<Glgdt, Gdm, T> DmDt<Glgdt, Gdm, T>
+impl<T> DmDt<LgGrid<T>, LinearGrid<T>, T>
 where
-    Glgdt: Grid<T>,
+    T: Float,
+{
+    pub fn from_lgdt_dm(
+        min_lgdt: T,
+        max_lgdt: T,
+        lgdt_size: usize,
+        max_abs_dm: T,
+        dm_size: usize,
+    ) -> Self {
+        Self::from_grids(
+            LgGrid::from_lg_start_end(min_lgdt, max_lgdt, lgdt_size),
+            LinearGrid::new(-max_abs_dm, max_abs_dm, dm_size),
+        )
+    }
+}
+
+impl<Gdt, Gdm, T> DmDt<Gdt, Gdm, T>
+where
+    Gdt: Grid<T>,
     Gdm: Grid<T>,
     T: Float,
 {
-    pub fn new(lgdt_grid: Glgdt, dm_grid: Gdm) -> Self {
+    pub fn from_grids(dt_grid: Gdt, dm_grid: Gdm) -> Self {
         Self {
-            lgdt_grid,
+            dt_grid,
             dm_grid,
             _phantom_data: PhantomData,
         }
@@ -347,25 +369,25 @@ where
 
     /// N lg_dt by N dm
     pub fn shape(&self) -> (usize, usize) {
-        (self.lgdt_grid.cell_count(), self.dm_grid.cell_count())
+        (self.dt_grid.cell_count(), self.dm_grid.cell_count())
     }
 
     pub fn points(&self, t: &[T], m: &[T]) -> Array2<usize> {
         let mut a = Array2::zeros(self.shape());
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
             for (&x2, &y2) in t[i1 + 1..].iter().zip(m[i1 + 1..].iter()) {
-                let lgdt = T::log10(x2 - x1);
-                let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
+                let dt = x2 - x1;
+                let idx_dt = match self.dt_grid.idx(dt) {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => break,
-                    CellIndex::Value(idx_lgdt) => idx_lgdt,
+                    CellIndex::Value(idx_dt) => idx_dt,
                 };
                 let dm = y2 - y1;
                 let idx_dm = match self.dm_grid.idx(dm) {
                     CellIndex::Value(idx_dm) => idx_dm,
                     CellIndex::LowerMin | CellIndex::GreaterMax => continue,
                 };
-                a[(idx_lgdt, idx_dm)] += 1;
+                a[(idx_dt, idx_dm)] += 1;
             }
         }
         a
@@ -382,11 +404,11 @@ where
                 .zip(m[i1 + 1..].iter())
                 .zip(err2[i1 + 1..].iter())
             {
-                let lgdt = T::log10(x2 - x1);
-                let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
+                let dt = x2 - x1;
+                let idx_dt = match self.dt_grid.idx(dt) {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => break,
-                    CellIndex::Value(idx_lgdt) => idx_lgdt,
+                    CellIndex::Value(idx_dt) => idx_dt,
                 };
                 let dm = y2 - y1;
                 let dm_err = T::sqrt(d1 + d2);
@@ -406,7 +428,7 @@ where
                     CellIndex::Value(i) => usize::min(i + 1, self.dm_grid.cell_count()),
                 };
 
-                a.slice_mut(s![idx_lgdt, min_idx_dm..max_idx_dm])
+                a.slice_mut(s![idx_dt, min_idx_dm..max_idx_dm])
                     .iter_mut()
                     .zip(
                         self.dm_grid
@@ -423,17 +445,17 @@ where
         a
     }
 
-    pub fn lgdt_points(&self, t: &[T]) -> Array1<usize> {
-        let mut a = Array1::zeros(self.lgdt_grid.cell_count());
+    pub fn dt_points(&self, t: &[T]) -> Array1<usize> {
+        let mut a = Array1::zeros(self.dt_grid.cell_count());
         for (i1, &x1) in t.iter().enumerate() {
             for &x2 in t[i1 + 1..].iter() {
-                let lgdt = T::log10(x2 - x1);
-                let idx_lgdt = match self.lgdt_grid.idx(lgdt) {
+                let dt = x2 - x1;
+                let idx_dt = match self.dt_grid.idx(dt) {
                     CellIndex::LowerMin => continue,
                     CellIndex::GreaterMax => break,
-                    CellIndex::Value(idx_lgdt) => idx_lgdt,
+                    CellIndex::Value(idx_dt) => idx_dt,
                 };
-                a[idx_lgdt] += 1;
+                a[idx_dt] += 1;
             }
         }
         a

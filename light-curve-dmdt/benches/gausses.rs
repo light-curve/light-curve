@@ -7,13 +7,12 @@ pub fn bench_gausses<T>(c: &mut Criterion)
 where
     T: ErfFloat + ValueFrom<f32>,
 {
-    let dmdt = DmDt::new(
-        LinearGrid::new(T::zero(), 2.0_f32.value_as::<T>().unwrap(), 32),
-        LinearGrid::new(
-            (-1.25_f32).value_as::<T>().unwrap(),
-            1.25_f32.value_as::<T>().unwrap(),
-            32,
-        ),
+    let dmdt = DmDt::from_lgdt_dm(
+        T::zero(),
+        2.0_f32.value_as::<T>().unwrap(),
+        32,
+        1.25_f32.value_as::<T>().unwrap(),
+        32,
     );
 
     let t = Array1::linspace(T::zero(), 100.0_f32.value_as::<T>().unwrap(), 101);

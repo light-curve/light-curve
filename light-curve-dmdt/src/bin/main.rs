@@ -1,6 +1,6 @@
 use clap::{value_t, App, Arg, ArgMatches};
 use enumflags2::{bitflags, BitFlags};
-use light_curve_dmdt::{to_png, DmDt, ErrorFunction, LinearGrid};
+use light_curve_dmdt::{to_png, DmDt, ErrorFunction};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
@@ -21,9 +21,12 @@ fn main() -> Result<(), MainError> {
 
     let (t, m, err2) = read_input(&config.input, config.smearing)?;
 
-    let dmdt = DmDt::new(
-        LinearGrid::new(config.min_lgdt, config.max_lgdt, config.n_dt),
-        LinearGrid::new(-config.max_abs_dm, config.max_abs_dm, config.n_dm),
+    let dmdt = DmDt::from_lgdt_dm(
+        config.min_lgdt,
+        config.max_lgdt,
+        config.n_dt,
+        config.max_abs_dm,
+        config.n_dm,
     );
 
     let map_float_or_u8 = if config.smearing {
@@ -45,7 +48,7 @@ fn main() -> Result<(), MainError> {
         Array2FloatOrU8::U8(map_u8) => map_u8,
         Array2FloatOrU8::Float(mut map_float) => {
             if config.norm.contains(DmDtNorm::LgDt) {
-                let lgdt = dmdt.lgdt_points(&t);
+                let lgdt = dmdt.dt_points(&t);
                 let lgdt_no_zeros = lgdt.mapv(|x| if x == 0 { 1.0 } else { x as f32 });
                 map_float /= &lgdt_no_zeros.into_shape((map_float.nrows(), 1)).unwrap();
             }
