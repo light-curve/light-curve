@@ -1,20 +1,20 @@
 use conv::*;
 use criterion::{black_box, Criterion};
-use light_curve_dmdt::{DmDt, ErfFloat, ErrorFunction, Grid};
+use light_curve_dmdt::{DmDt, ErfFloat, ErrorFunction, LinearGrid};
 use ndarray::Array1;
 
 pub fn bench_gausses<T>(c: &mut Criterion)
 where
     T: ErfFloat + ValueFrom<f32>,
 {
-    let dmdt = DmDt {
-        lgdt_grid: Grid::new(T::zero(), 2.0_f32.value_as::<T>().unwrap(), 32),
-        dm_grid: Grid::new(
+    let dmdt = DmDt::new(
+        LinearGrid::new(T::zero(), 2.0_f32.value_as::<T>().unwrap(), 32),
+        LinearGrid::new(
             (-1.25_f32).value_as::<T>().unwrap(),
             1.25_f32.value_as::<T>().unwrap(),
             32,
         ),
-    };
+    );
 
     let t = Array1::linspace(T::zero(), 100.0_f32.value_as::<T>().unwrap(), 101);
     let m = t.mapv(T::sin);
