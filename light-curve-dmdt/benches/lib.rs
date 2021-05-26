@@ -1,12 +1,16 @@
 #[macro_use]
 extern crate criterion;
 
+mod cond_prob;
+use cond_prob::bench_cond_prob;
+
 mod erf;
 use erf::{bench_erf, bench_erfinv};
 
 mod gausses;
 use gausses::bench_gausses;
 
+criterion_group!(benches_cond_prob, bench_cond_prob);
 criterion_group!(
     benches_erf,
     bench_erf<f32>,
@@ -15,4 +19,4 @@ criterion_group!(
     bench_erfinv<f64>
 );
 criterion_group!(benches_gausses, bench_gausses<f32>, bench_gausses<f64>);
-criterion_main!(benches_erf, benches_gausses);
+criterion_main!(benches_cond_prob, benches_erf, benches_gausses);

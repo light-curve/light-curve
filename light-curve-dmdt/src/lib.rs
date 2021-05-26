@@ -393,6 +393,50 @@ where
         a
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn update_gausses_helper(
+        &self,
+        a: &mut Array2<T>,
+        idx_dt: usize,
+        y1: T,
+        y2: T,
+        d1: T,
+        d2: T,
+        erf: &ErrorFunction,
+    ) where
+        T: ErfFloat,
+    {
+        let dm = y2 - y1;
+        let dm_err = T::sqrt(d1 + d2);
+
+        let min_idx_dm = match self.dm_grid.idx(dm + erf.min_dx_nonzero_normal_cdf(dm_err)) {
+            CellIndex::LowerMin => 0,
+            CellIndex::GreaterMax => return,
+            CellIndex::Value(min_idx_dm) => min_idx_dm,
+        };
+        let max_idx_dm = match self
+            .dm_grid
+            .idx(dm + erf.max_dx_nonunity_normal_cdf(dm_err))
+        {
+            CellIndex::LowerMin => return,
+            CellIndex::GreaterMax => self.dm_grid.cell_count(),
+            CellIndex::Value(i) => usize::min(i + 1, self.dm_grid.cell_count()),
+        };
+
+        a.slice_mut(s![idx_dt, min_idx_dm..max_idx_dm])
+            .iter_mut()
+            .zip(
+                self.dm_grid
+                    .get_borders()
+                    .slice(s![min_idx_dm..max_idx_dm + 1])
+                    .iter()
+                    .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_err))
+                    .tuple_windows()
+                    .map(|(a, b)| b - a),
+            )
+            .for_each(|(cell, value)| *cell += value);
+    }
+
     pub fn gausses(&self, t: &[T], m: &[T], err2: &[T], erf: &ErrorFunction) -> Array2<T>
     where
         T: ErfFloat,
@@ -410,36 +454,7 @@ where
                     CellIndex::GreaterMax => break,
                     CellIndex::Value(idx_dt) => idx_dt,
                 };
-                let dm = y2 - y1;
-                let dm_err = T::sqrt(d1 + d2);
-
-                let min_idx_dm = match self.dm_grid.idx(dm + erf.min_dx_nonzero_normal_cdf(dm_err))
-                {
-                    CellIndex::LowerMin => 0,
-                    CellIndex::GreaterMax => continue,
-                    CellIndex::Value(min_idx_dm) => min_idx_dm,
-                };
-                let max_idx_dm = match self
-                    .dm_grid
-                    .idx(dm + erf.max_dx_nonunity_normal_cdf(dm_err))
-                {
-                    CellIndex::LowerMin => continue,
-                    CellIndex::GreaterMax => self.dm_grid.cell_count(),
-                    CellIndex::Value(i) => usize::min(i + 1, self.dm_grid.cell_count()),
-                };
-
-                a.slice_mut(s![idx_dt, min_idx_dm..max_idx_dm])
-                    .iter_mut()
-                    .zip(
-                        self.dm_grid
-                            .get_borders()
-                            .slice(s![min_idx_dm..max_idx_dm + 1])
-                            .iter()
-                            .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_err))
-                            .tuple_windows()
-                            .map(|(a, b)| b - a),
-                    )
-                    .for_each(|(cell, value)| *cell += value);
+                self.update_gausses_helper(&mut a, idx_dt, y1, y2, d1, d2, erf);
             }
         }
         a
@@ -460,6 +475,41 @@ where
         }
         a
     }
+
+    pub fn cond_prob(&self, t: &[T], m: &[T], err2: &[T], erf: &ErrorFunction) -> Array2<T>
+    where
+        T: ErfFloat,
+    {
+        let mut a: Array2<T> = Array2::zeros(self.shape());
+        let mut dt_points: Array1<u64> = Array1::zeros(self.dt_grid.cell_count());
+        for (i1, ((&x1, &y1), &d1)) in t.iter().zip(m.iter()).zip(err2.iter()).enumerate() {
+            for ((&x2, &y2), &d2) in t[i1 + 1..]
+                .iter()
+                .zip(m[i1 + 1..].iter())
+                .zip(err2[i1 + 1..].iter())
+            {
+                let dt = x2 - x1;
+                let idx_dt = match self.dt_grid.idx(dt) {
+                    CellIndex::LowerMin => continue,
+                    CellIndex::GreaterMax => break,
+                    CellIndex::Value(idx_dt) => idx_dt,
+                };
+
+                dt_points[idx_dt] += 1;
+
+                self.update_gausses_helper(&mut a, idx_dt, y1, y2, d1, d2, erf);
+            }
+        }
+        ndarray::Zip::from(a.rows_mut())
+            .and(&dt_points)
+            .for_each(|mut row, &count| {
+                if count == 0 {
+                    return;
+                }
+                row /= count.value_as::<T>().unwrap();
+            });
+        a
+    }
 }
 
 pub fn to_png<W>(w: W, a: &Array2<u8>) -> Result<(), png::EncodingError>
@@ -475,6 +525,88 @@ where
     encoder.set_color(png::ColorType::Grayscale);
     encoder.set_depth(png::BitDepth::Eight);
     let mut writer = encoder.write_header()?;
-    writer.write_image_data(transposed.as_slice_memory_order().unwrap())?;
+    writer.write_image_data(transposed.as_slice().unwrap())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+    use ndarray::Axis;
+
+    #[test]
+    fn dt_points_vs_points() {
+        let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 3.0_f32, 32);
+        let t = Array1::linspace(0.0, 100.0, 101);
+        // dm is within map borders
+        let m = t.mapv(f32::sin);
+
+        let points = dmdt.points(t.as_slice().unwrap(), m.as_slice().unwrap());
+        let dt_points = dmdt.dt_points(t.as_slice().unwrap());
+
+        assert_eq!(points.sum_axis(Axis(1)), dt_points,);
+    }
+
+    #[test]
+    fn dt_points_vs_gausses() {
+        let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 3.0_f32, 32);
+        let t = Array1::linspace(0.0, 100.0, 101);
+        // dm is within map borders
+        let m = t.mapv(f32::sin);
+        // err is ~0.03
+        let err2 = Array1::from_elem(101, 0.001_f32);
+
+        let gausses = dmdt.gausses(
+            t.as_slice().unwrap(),
+            m.as_slice().unwrap(),
+            err2.as_slice().unwrap(),
+            &ErrorFunction::Exact,
+        );
+        let sum_gausses = gausses.sum_axis(Axis(1));
+        let dt_points = dmdt.dt_points(t.as_slice().unwrap()).mapv(|x| x as f32);
+
+        assert_abs_diff_eq!(
+            sum_gausses.as_slice().unwrap(),
+            dt_points.as_slice().unwrap(),
+            epsilon = 1e-4,
+        );
+    }
+
+    #[test]
+    fn cond_prob() {
+        let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 1.25_f32, 32);
+        let erf = ErrorFunction::Eps1Over1e3;
+
+        let t = Array1::linspace(0.0, 100.0, 101);
+        let m = t.mapv(f32::sin);
+        // err is ~0.03
+        let err2 = Array1::from_elem(101, 0.001);
+
+        let from_gausses_dt_points = {
+            let mut map = dmdt.gausses(
+                t.as_slice().unwrap(),
+                m.as_slice().unwrap(),
+                err2.as_slice_memory_order().unwrap(),
+                &erf,
+            );
+            let dt_points = dmdt.dt_points(t.as_slice().unwrap());
+            let dt_non_zero_points = dt_points.mapv(|x| if x == 0 { 1.0 } else { x as f32 });
+            map /= &dt_non_zero_points.into_shape((map.nrows(), 1)).unwrap();
+            map
+        };
+
+        let from_cond_prob = dmdt.cond_prob(
+            t.as_slice().unwrap(),
+            m.as_slice().unwrap(),
+            err2.as_slice().unwrap(),
+            &erf,
+        );
+
+        assert_abs_diff_eq!(
+            from_gausses_dt_points.as_slice().unwrap(),
+            from_cond_prob.as_slice().unwrap(),
+            epsilon = std::f32::EPSILON,
+        );
+    }
 }

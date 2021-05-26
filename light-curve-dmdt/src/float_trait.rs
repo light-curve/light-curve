@@ -4,7 +4,9 @@ pub trait Float:
     ndarray::NdFloat
     + num_traits::FloatConst
     + num_traits::Signed
+    + num_traits::Float
     + ValueFrom<usize>
+    + ValueFrom<u64>
     + ApproxInto<usize, RoundToZero>
 {
     fn half() -> Self;
