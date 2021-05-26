@@ -1,6 +1,6 @@
 use clap::{value_t, App, Arg, ArgMatches};
 use enumflags2::{bitflags, BitFlags};
-use light_curve_dmdt::{to_png, DmDt, ErrorFunction, Grid};
+use light_curve_dmdt::{to_png, DmDt, ErrorFunction, LinearGrid};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
@@ -21,10 +21,10 @@ fn main() -> Result<(), MainError> {
 
     let (t, m, err2) = read_input(&config.input, config.smearing)?;
 
-    let dmdt = DmDt {
-        lgdt_grid: Grid::new(config.min_lgdt, config.max_lgdt, config.n_dt),
-        dm_grid: Grid::new(-config.max_abs_dm, config.max_abs_dm, config.n_dm),
-    };
+    let dmdt = DmDt::new(
+        LinearGrid::new(config.min_lgdt, config.max_lgdt, config.n_dt),
+        LinearGrid::new(-config.max_abs_dm, config.max_abs_dm, config.n_dm),
+    );
 
     let map_float_or_u8 = if config.smearing {
         let error_func = match config.approx_smearing {
