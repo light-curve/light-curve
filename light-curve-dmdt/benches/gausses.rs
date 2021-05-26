@@ -1,6 +1,6 @@
 use conv::*;
 use criterion::{black_box, Criterion};
-use light_curve_dmdt::{DmDt, ErfFloat, ErrorFunction, LinearGrid};
+use light_curve_dmdt::{DmDt, ErfFloat, ErrorFunction};
 use ndarray::Array1;
 
 pub fn bench_gausses<T>(c: &mut Criterion)
