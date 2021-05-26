@@ -393,7 +393,6 @@ where
         a
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn update_gausses_helper<Erf>(
         &self,
         a: &mut Array2<T>,
