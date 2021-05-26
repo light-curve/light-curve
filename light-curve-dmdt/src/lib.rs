@@ -6,7 +6,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 
 mod erf;
-pub use erf::{ErfFloat, ErrorFunction};
+pub use erf::{Eps1Over1e3Erf, ErfFloat, ErrorFunction, ExactErf};
 
 mod float_trait;
 pub use float_trait::Float;
@@ -394,7 +394,7 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn update_gausses_helper(
+    fn update_gausses_helper<Erf>(
         &self,
         a: &mut Array2<T>,
         idx_dt: usize,
@@ -402,21 +402,24 @@ where
         y2: T,
         d1: T,
         d2: T,
-        erf: &ErrorFunction,
     ) where
         T: ErfFloat,
+        Erf: ErrorFunction<T>,
     {
         let dm = y2 - y1;
         let dm_err = T::sqrt(d1 + d2);
 
-        let min_idx_dm = match self.dm_grid.idx(dm + erf.min_dx_nonzero_normal_cdf(dm_err)) {
+        let min_idx_dm = match self
+            .dm_grid
+            .idx(dm + Erf::min_dx_nonzero_normal_cdf(dm_err))
+        {
             CellIndex::LowerMin => 0,
             CellIndex::GreaterMax => return,
             CellIndex::Value(min_idx_dm) => min_idx_dm,
         };
         let max_idx_dm = match self
             .dm_grid
-            .idx(dm + erf.max_dx_nonunity_normal_cdf(dm_err))
+            .idx(dm + Erf::max_dx_nonunity_normal_cdf(dm_err))
         {
             CellIndex::LowerMin => return,
             CellIndex::GreaterMax => self.dm_grid.cell_count(),
@@ -430,16 +433,17 @@ where
                     .get_borders()
                     .slice(s![min_idx_dm..max_idx_dm + 1])
                     .iter()
-                    .map(|&dm_border| erf.normal_cdf(dm_border, dm, dm_err))
+                    .map(|&dm_border| Erf::normal_cdf(dm_border, dm, dm_err))
                     .tuple_windows()
                     .map(|(a, b)| b - a),
             )
             .for_each(|(cell, value)| *cell += value);
     }
 
-    pub fn gausses(&self, t: &[T], m: &[T], err2: &[T], erf: &ErrorFunction) -> Array2<T>
+    pub fn gausses<Erf>(&self, t: &[T], m: &[T], err2: &[T]) -> Array2<T>
     where
         T: ErfFloat,
+        Erf: ErrorFunction<T>,
     {
         let mut a = Array2::zeros(self.shape());
         for (i1, ((&x1, &y1), &d1)) in t.iter().zip(m.iter()).zip(err2.iter()).enumerate() {
@@ -454,7 +458,7 @@ where
                     CellIndex::GreaterMax => break,
                     CellIndex::Value(idx_dt) => idx_dt,
                 };
-                self.update_gausses_helper(&mut a, idx_dt, y1, y2, d1, d2, erf);
+                self.update_gausses_helper::<Erf>(&mut a, idx_dt, y1, y2, d1, d2);
             }
         }
         a
@@ -476,9 +480,10 @@ where
         a
     }
 
-    pub fn cond_prob(&self, t: &[T], m: &[T], err2: &[T], erf: &ErrorFunction) -> Array2<T>
+    pub fn cond_prob<Erf>(&self, t: &[T], m: &[T], err2: &[T]) -> Array2<T>
     where
         T: ErfFloat,
+        Erf: ErrorFunction<T>,
     {
         let mut a: Array2<T> = Array2::zeros(self.shape());
         let mut dt_points: Array1<u64> = Array1::zeros(self.dt_grid.cell_count());
@@ -497,7 +502,7 @@ where
 
                 dt_points[idx_dt] += 1;
 
-                self.update_gausses_helper(&mut a, idx_dt, y1, y2, d1, d2, erf);
+                self.update_gausses_helper::<Erf>(&mut a, idx_dt, y1, y2, d1, d2);
             }
         }
         ndarray::Zip::from(a.rows_mut())
@@ -532,6 +537,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::erf::{Eps1Over1e3Erf, ExactErf};
     use approx::assert_abs_diff_eq;
     use ndarray::Axis;
 
@@ -557,11 +563,10 @@ mod test {
         // err is ~0.03
         let err2 = Array1::from_elem(101, 0.001_f32);
 
-        let gausses = dmdt.gausses(
+        let gausses = dmdt.gausses::<ExactErf>(
             t.as_slice().unwrap(),
             m.as_slice().unwrap(),
             err2.as_slice().unwrap(),
-            &ErrorFunction::Exact,
         );
         let sum_gausses = gausses.sum_axis(Axis(1));
         let dt_points = dmdt.dt_points(t.as_slice().unwrap()).mapv(|x| x as f32);
@@ -576,7 +581,6 @@ mod test {
     #[test]
     fn cond_prob() {
         let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 1.25_f32, 32);
-        let erf = ErrorFunction::Eps1Over1e3;
 
         let t = Array1::linspace(0.0, 100.0, 101);
         let m = t.mapv(f32::sin);
@@ -584,11 +588,10 @@ mod test {
         let err2 = Array1::from_elem(101, 0.001);
 
         let from_gausses_dt_points = {
-            let mut map = dmdt.gausses(
+            let mut map = dmdt.gausses::<Eps1Over1e3Erf>(
                 t.as_slice().unwrap(),
                 m.as_slice().unwrap(),
                 err2.as_slice_memory_order().unwrap(),
-                &erf,
             );
             let dt_points = dmdt.dt_points(t.as_slice().unwrap());
             let dt_non_zero_points = dt_points.mapv(|x| if x == 0 { 1.0 } else { x as f32 });
@@ -596,11 +599,10 @@ mod test {
             map
         };
 
-        let from_cond_prob = dmdt.cond_prob(
+        let from_cond_prob = dmdt.cond_prob::<Eps1Over1e3Erf>(
             t.as_slice().unwrap(),
             m.as_slice().unwrap(),
             err2.as_slice().unwrap(),
-            &erf,
         );
 
         assert_abs_diff_eq!(

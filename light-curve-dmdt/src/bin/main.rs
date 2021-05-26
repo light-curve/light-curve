@@ -1,6 +1,6 @@
 use clap::{value_t, App, Arg, ArgMatches};
 use enumflags2::{bitflags, BitFlags};
-use light_curve_dmdt::{to_png, DmDt, ErrorFunction};
+use light_curve_dmdt::{to_png, DmDt, Eps1Over1e3Erf, ExactErf};
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
@@ -30,11 +30,10 @@ fn main() -> Result<(), MainError> {
     );
 
     let map_float_or_u8 = if config.smearing {
-        let error_func = match config.approx_smearing {
-            true => ErrorFunction::Eps1Over1e3,
-            false => ErrorFunction::Exact,
+        let map_float = match config.approx_smearing {
+            true => dmdt.gausses::<Eps1Over1e3Erf>(&t, &m, &err2.unwrap()),
+            false => dmdt.gausses::<ExactErf>(&t, &m, &err2.unwrap()),
         };
-        let map_float = dmdt.gausses(&t, &m, &err2.unwrap(), &error_func);
         Array2FloatOrU8::Float(map_float)
     } else {
         let map_usize = dmdt.points(&t, &m);
