@@ -518,9 +518,9 @@ where
                 self.update_gausses_helper::<Erf>(&mut a, idx_dt, y1, y2, d1, d2);
             }
         }
-        ndarray::Zip::from(a.rows_mut())
+        ndarray::Zip::from(a.genrows_mut())
             .and(&dt_points)
-            .for_each(|mut row, &count| {
+            .apply(|mut row, &count| {
                 if count == 0 {
                     return;
                 }
