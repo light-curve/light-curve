@@ -4,6 +4,7 @@ use ndarray::{s, Array1, Array2, ScalarOperand};
 use std::fmt::Debug;
 use std::io::Write;
 use std::marker::PhantomData;
+use thiserror::Error;
 
 mod erf;
 pub use erf::{Eps1Over1e3Erf, ErfFloat, ErrorFunction, ExactErf};
@@ -94,6 +95,14 @@ where
     a.iter().tuple_windows().all(|(a, b)| a < b)
 }
 
+#[derive(Error, Debug)]
+pub enum ArrayGridError {
+    #[error("given grid is empty")]
+    ArrayIsEmpty,
+    #[error("given grid is not ascending")]
+    ArrayIsNotAscending,
+}
+
 #[derive(Clone, Debug)]
 pub struct ArrayGrid<T>
 where
@@ -107,10 +116,14 @@ where
     Array1<T>: Clone + Debug,
     T: Float,
 {
-    pub fn new(borders: Array1<T>) -> Self {
-        assert!(!borders.is_empty());
-        assert!(is_sorted(borders.as_slice().unwrap()));
-        Self { borders }
+    pub fn new(borders: Array1<T>) -> Result<Self, ArrayGridError> {
+        if borders.is_empty() {
+            return Err(ArrayGridError::ArrayIsEmpty);
+        }
+        if !is_sorted(borders.as_slice().unwrap()) {
+            return Err(ArrayGridError::ArrayIsNotAscending);
+        }
+        Ok(Self { borders })
     }
 }
 
