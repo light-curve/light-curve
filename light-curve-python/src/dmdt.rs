@@ -1,7 +1,7 @@
 use crate::arr_wrapper::ArrWrapper;
 use crate::errors::{Exception, Res};
 use crate::sorted::check_sorted;
-use conv::ConvUtil;
+use conv::{ApproxInto};
 use enumflags2::{bitflags, BitFlags};
 use light_curve_dmdt as lcdmdt;
 use ndarray::IntoNdProducer;
@@ -17,6 +17,7 @@ use std::ops::{DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use unzip3::Unzip3;
+use light_curve_dmdt::Grid;
 
 #[derive(FromPyObject)]
 enum GenericFloatArray1<'a> {
@@ -42,11 +43,17 @@ enum NormFlag {
     Max,
 }
 
+#[derive(Copy, Clone, Debug)]
+enum ErrorFunction {
+    Exact,
+    Eps1Over1e3,
+}
+
 #[derive(Clone)]
-struct GenericDmDt<T> {
-    dmdt: lcdmdt::DmDt<T>,
+struct GenericDmDt<T> where T: lcdmdt::Float {
+    dmdt: lcdmdt::DmDt<lcdmdt::LgGrid<T>, lcdmdt::LinearGrid<T>, T>,
     norm: BitFlags<NormFlag>,
-    error_func: lcdmdt::ErrorFunction,
+    error_func: ErrorFunction,
     n_jobs: usize,
 }
 
@@ -62,15 +69,15 @@ where
 
     fn normalize(&self, a: &mut ndarray::Array2<T>, t: &[T]) {
         if self.norm.contains(NormFlag::LgDt) {
-            let lgdt = self.dmdt.lgdt_points(&t);
-            let lgdt_no_zeros = lgdt.mapv(|x| {
+            let dt = self.dmdt.dt_points(&t);
+            let dt_no_zeros = dt.mapv(|x| {
                 if x == 0 {
                     T::one()
                 } else {
-                    x.value_as::<T>().unwrap()
+                    x.approx_into().unwrap()
                 }
             });
-            *a /= &lgdt_no_zeros.into_shape((a.nrows(), 1)).unwrap();
+            *a /= &dt_no_zeros.into_shape((a.nrows(), 1)).unwrap();
         }
         if self.norm.contains(NormFlag::Max) {
             let max = *a.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
@@ -80,17 +87,17 @@ where
         }
     }
 
-    fn count_lgdt(&self, t: &[T], sorted: Option<bool>) -> Res<ndarray::Array1<T>> {
+    fn count_dt(&self, t: &[T], sorted: Option<bool>) -> Res<ndarray::Array1<T>> {
         check_sorted(t, sorted)?;
         Ok(self
             .dmdt
-            .lgdt_points(t)
-            .mapv(|x| x.value_as::<T>().unwrap()))
+            .dt_points(t)
+            .mapv(|x| x.approx_into().unwrap()))
     }
 
-    fn count_lgdt_many(&self, t_: Vec<&[T]>, sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
-        let lgdt_size = self.dmdt.lgdt_grid.len();
-        let mut result = ndarray::Array2::zeros((t_.len(), lgdt_size));
+    fn count_dt_many(&self, t_: Vec<&[T]>, sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
+        let dt_size = self.dmdt.dt_grid.cell_count();
+        let mut result = ndarray::Array2::zeros((t_.len(), dt_size));
 
         rayon::ThreadPoolBuilder::new()
             .num_threads(self.n_jobs)
@@ -101,7 +108,7 @@ where
                     .and(t_.into_producer())
                     .into_par_iter()
                     .try_for_each::<_, Res<_>>(|(mut count, t)| {
-                        count.assign(&self.count_lgdt(t, sorted)?);
+                        count.assign(&self.count_dt(t, sorted)?);
                         Ok(())
                     })
             })?;
@@ -111,7 +118,7 @@ where
     fn points(&self, t: &[T], m: &[T], sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
         check_sorted(t, sorted)?;
 
-        let mut result = self.dmdt.points(t, m).mapv(|x| x.value_as::<T>().unwrap());
+        let mut result = self.dmdt.points(t, m).mapv(|x| x.approx_into().unwrap());
         self.normalize(&mut result, &t);
         Ok(result)
     }
@@ -164,7 +171,7 @@ where
                     let mut a = self
                         .dmdt
                         .points(t_lc, m_lc)
-                        .mapv(|x| x.value_as::<T>().unwrap());
+                        .mapv(|x| x.approx_into().unwrap());
                     self.normalize(&mut a, t_lc);
 
                     let (nrows, ncols) = (a.nrows(), a.ncols());
@@ -185,7 +192,10 @@ where
     ) -> Res<ndarray::Array2<T>> {
         check_sorted(t, sorted)?;
 
-        let mut result = self.dmdt.gausses(&t, &m, err2, &self.error_func);
+        let mut result = match self.error_func {
+            ErrorFunction::Exact => self.dmdt.gausses::<lcdmdt::ExactErf>(&t, &m, err2),
+            ErrorFunction::Eps1Over1e3 => self.dmdt.gausses::<lcdmdt::Eps1Over1e3Erf>(&t, &m, err2),
+        };
         self.normalize(&mut result, &t);
         Ok(result)
     }
@@ -242,7 +252,10 @@ where
                     let m_lc = &m[first..last];
                     let err2_lc: Vec<_> = sigma[first..last].iter().map(|x| x.powi(2)).collect();
 
-                    let mut a = self.dmdt.gausses(t_lc, m_lc, &err2_lc, &self.error_func);
+                    let mut a = match self.error_func {
+                        ErrorFunction::Exact => self.dmdt.gausses::<lcdmdt::ExactErf>(t_lc, m_lc, &err2_lc),
+                        ErrorFunction::Eps1Over1e3 => self.dmdt.gausses::<lcdmdt::Eps1Over1e3Erf>(t_lc, m_lc, &err2_lc),
+                    };
                     self.normalize(&mut a, t_lc);
 
                     let (nrows, ncols) = (a.nrows(), a.ncols());
@@ -255,7 +268,7 @@ where
     }
 }
 
-struct GenericDmDtBatches<T, LC> {
+struct GenericDmDtBatches<T, LC> where T: lcdmdt::Float {
     dmdt: GenericDmDt<T>,
     lcs: Vec<LC>,
     batch_size: usize,
@@ -265,7 +278,7 @@ struct GenericDmDtBatches<T, LC> {
     rng: Mutex<Xoshiro256PlusPlus>,
 }
 
-impl<T, LC> GenericDmDtBatches<T, LC> {
+impl<T, LC> GenericDmDtBatches<T, LC> where T: lcdmdt::Float {
     fn new(
         dmdt: GenericDmDt<T>,
         lcs: Vec<LC>,
@@ -659,14 +672,8 @@ impl DmDt {
         n_jobs: i64,
         approx_erf: bool,
     ) -> Res<Self> {
-        let dmdt_f32 = lcdmdt::DmDt {
-            lgdt_grid: lcdmdt::Grid::new(min_lgdt as f32, max_lgdt as f32, lgdt_size),
-            dm_grid: lcdmdt::Grid::new(-max_abs_dm as f32, max_abs_dm as f32, dm_size),
-        };
-        let dmdt_f64 = lcdmdt::DmDt {
-            lgdt_grid: lcdmdt::Grid::new(min_lgdt, max_lgdt, lgdt_size),
-            dm_grid: lcdmdt::Grid::new(-max_abs_dm, max_abs_dm, dm_size),
-        };
+        let dmdt_f32 = lcdmdt::DmDt::from_lgdt_dm_limits (min_lgdt as f32, max_lgdt as f32, lgdt_size, max_abs_dm as f32, dm_size);
+        let dmdt_f64 = lcdmdt::DmDt::from_lgdt_dm_limits (min_lgdt, max_lgdt, lgdt_size, max_abs_dm, dm_size);
         let norm = norm
             .iter()
             .map(|&s| match s {
@@ -679,8 +686,8 @@ impl DmDt {
             })
             .collect::<Res<BitFlags<NormFlag>>>()?;
         let error_func = match approx_erf {
-            true => lcdmdt::ErrorFunction::Eps1Over1e3,
-            false => lcdmdt::ErrorFunction::Exact,
+            true => ErrorFunction::Eps1Over1e3,
+            false => ErrorFunction::Exact,
         };
         let n_jobs = if n_jobs <= 0 {
             num_cpus::get()
@@ -727,13 +734,23 @@ impl DmDt {
     }
 
     #[getter]
+    fn min_dt(&self) -> f64 {
+        self.dmdt_f64.dmdt.dt_grid.get_start()
+    }
+
+    #[getter]
+    fn max_dt(&self) -> f64 {
+        self.dmdt_f64.dmdt.dt_grid.get_end()
+    }
+
+    #[getter]
     fn min_lgdt(&self) -> f64 {
-        self.dmdt_f64.dmdt.lgdt_grid.get_start()
+        self.dmdt_f64.dmdt.dt_grid.get_lg_start()
     }
 
     #[getter]
     fn max_lgdt(&self) -> f64 {
-        self.dmdt_f64.dmdt.lgdt_grid.get_end()
+        self.dmdt_f64.dmdt.dt_grid.get_lg_end()
     }
 
     #[getter]
@@ -772,11 +789,11 @@ impl DmDt {
         match t {
             GenericFloatArray1::Float32(t) => self
                 .dmdt_f32
-                .count_lgdt(&ArrWrapper::new(t, true), sorted)
+                .count_dt(&ArrWrapper::new(t, true), sorted)
                 .map(|a| a.into_pyarray(py).into_py(py)),
             GenericFloatArray1::Float64(t) => self
                 .dmdt_f64
-                .count_lgdt(&ArrWrapper::new(t, true), sorted)
+                .count_dt(&ArrWrapper::new(t, true), sorted)
                 .map(|a| a.into_pyarray(py).into_py(py)),
         }
     }
@@ -823,7 +840,7 @@ impl DmDt {
                     let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
                     Ok(self
                         .dmdt_f32
-                        .count_lgdt_many(typed_t_, sorted)?
+                        .count_dt_many(typed_t_, sorted)?
                         .into_pyarray(py)
                         .into_py(py))
                 }
@@ -842,7 +859,7 @@ impl DmDt {
                     let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
                     Ok(self
                         .dmdt_f64
-                        .count_lgdt_many(typed_t_, sorted)?
+                        .count_dt_many(typed_t_, sorted)?
                         .into_pyarray(py)
                         .into_py(py))
                 }
