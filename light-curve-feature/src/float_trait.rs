@@ -1,4 +1,4 @@
-use crate::periodogram::FloatSupportedByFft;
+use crate::periodogram::FftwFloat;
 use conv::prelude::*;
 use num_traits::{float::Float as NumFloat, float::FloatConst};
 use std::cmp::PartialOrd;
@@ -7,7 +7,8 @@ use std::iter::Sum;
 use std::ops::{AddAssign, DivAssign, MulAssign};
 
 pub trait Float:
-    NumFloat
+    'static
+    + NumFloat
     + FloatConst
     + PartialOrd
     + Sum
@@ -17,6 +18,7 @@ pub trait Float:
     + ApproxFrom<usize>
     + ApproxFrom<f64>
     + ApproxInto<usize, RoundToNearest>
+    + ApproxInto<f64>
     + Clone
     + Copy
     + Send
@@ -27,8 +29,7 @@ pub trait Float:
     + Display
     + Debug
     + LowerExp
-    + FloatSupportedByFft
-    + 'static
+    + FftwFloat
 {
     fn half() -> Self;
     fn two() -> Self;

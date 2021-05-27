@@ -1,35 +1,82 @@
 pub use fftw::array::{AlignedAllocable, AlignedVec};
 use fftw::error::Result;
-pub use fftw::plan::{Plan, R2CPlan};
-use fftw::plan::{Plan32, Plan64, PlanSpec};
+pub use fftw::plan::{Plan, Plan32, Plan64, R2CPlan};
 use fftw::types::Flag;
 use num_complex::Complex;
 use std::collections::HashMap;
+use std::fmt;
 
-pub trait FftwFloat: AlignedAllocable {
-    type Plan: PlanSpec;
+pub trait FftwComplex<T>: AlignedAllocable + Send
+where
+    T: AlignedAllocable + Send,
+{
+    fn get_re(&self) -> T;
+    fn get_im(&self) -> T;
+}
+
+impl FftwComplex<f32> for Complex<f32> {
+    #[inline]
+    fn get_re(&self) -> f32 {
+        self.re
+    }
+
+    #[inline]
+    fn get_im(&self) -> f32 {
+        self.im
+    }
+}
+
+impl FftwComplex<f64> for Complex<f64> {
+    #[inline]
+    fn get_re(&self) -> f64 {
+        self.re
+    }
+
+    #[inline]
+    fn get_im(&self) -> f64 {
+        self.im
+    }
+}
+
+pub trait FftwFloat: AlignedAllocable + Send {
+    type FftwComplex: FftwComplex<Self>;
+    type FftwPlan: R2CPlan<Real = Self, Complex = Self::FftwComplex> + Send;
 }
 
 impl FftwFloat for f32 {
-    type Plan = Plan32;
+    type FftwComplex = Complex<f32>;
+    type FftwPlan = Plan<f32, Complex<f32>, Plan32>;
 }
 
 impl FftwFloat for f64 {
-    type Plan = Plan64;
+    type FftwComplex = Complex<f64>;
+    type FftwPlan = Plan<f64, Complex<f64>, Plan64>;
 }
 
 pub struct Fft<T>
 where
     T: FftwFloat,
 {
-    plans: HashMap<usize, Plan<T, Complex<T>, T::Plan>>,
+    plans: HashMap<usize, T::FftwPlan>,
+}
+
+impl<T> fmt::Debug for Fft<T>
+where
+    T: FftwFloat,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}<{}>",
+            std::any::type_name::<Self>(),
+            std::any::type_name::<T>()
+        )
+    }
 }
 
 impl<T> Fft<T>
 where
     T: FftwFloat,
-    Complex<T>: AlignedAllocable,
-    Plan<T, Complex<T>, T::Plan>: R2CPlan<Real = T, Complex = Complex<T>>,
 {
     pub fn new() -> Self {
         Self {
@@ -48,17 +95,16 @@ where
         flag
     }
 
-    pub fn get_plan(&mut self, n: usize) -> &mut Plan<T, Complex<T>, T::Plan> {
+    pub fn get_plan(&mut self, n: usize) -> &mut T::FftwPlan {
         self.plans
             .entry(n)
             .or_insert_with(|| R2CPlan::aligned(&[n], Self::flags(n)).unwrap())
     }
 
-    pub fn fft(&mut self, mut x: AlignedVec<T>) -> Result<AlignedVec<Complex<T>>> {
+    pub fn fft(&mut self, x: &mut AlignedVec<T>, y: &mut AlignedVec<T::FftwComplex>) -> Result<()> {
         let n = x.len();
-        let mut y = AlignedVec::new(n / 2 + 1);
-        self.get_plan(n).r2c(&mut x, &mut y)?;
-        Ok(y)
+        self.get_plan(n).r2c(x, y)?;
+        Ok(())
     }
 }
 
@@ -80,12 +126,14 @@ mod tests {
         }
 
         let mut fft = Fft::new();
-        let y = fft.fft(x).unwrap();
 
-        assert_eq!(y[0].re, 1024.0_f64);
-        assert_eq!(y[0].im, 0.0_f64);
+        let mut y: AlignedVec<Complex<f64>> = AlignedVec::new(N / 2 + 1);
+        fft.fft(&mut x, &mut y).unwrap();
 
-        let (re, im): (Vec<_>, Vec<_>) = y.iter().map(|c| (c.re, c.im)).unzip();
+        assert_eq!(y[0].get_re(), 1024.0_f64);
+        assert_eq!(y[0].get_im(), 0.0_f64);
+
+        let (re, im): (Vec<_>, Vec<_>) = y.iter().map(|c| (c.get_re(), c.get_im())).unzip();
         all_close(&re[1..], &[0.0; 512], 1e-12);
         all_close(&im[1..], &[0.0; 512], 1e-12);
     }
@@ -100,9 +148,11 @@ mod tests {
         }
 
         let mut fft = Fft::new();
-        let y = fft.fft(x).unwrap();
+        let mut y = AlignedVec::new(N / 2 + 1);
+        fft.fft(&mut x, &mut y).unwrap();
 
-        let (actual_re, actual_im): (Vec<_>, Vec<_>) = y.iter().map(|c| (c.re, c.im)).unzip();
+        let (actual_re, actual_im): (Vec<_>, Vec<_>) =
+            y.iter().map(|c| (c.get_re(), c.get_im())).unzip();
 
         // np.fft.fft(np.sin(2 * np.pi * 0.27 * np.arange(32)))[:17]
         let desired_re = [

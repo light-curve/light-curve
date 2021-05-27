@@ -7,14 +7,14 @@ use crate::time_series::TimeSeries;
 #[derive(Clone, Debug)]
 pub struct FeatureExtractor<T: Float> {
     info: EvaluatorInfo,
-    features: VecFE<T>,
+    features: VecFe<T>,
 }
 
 impl<T> FeatureExtractor<T>
 where
     T: Float,
 {
-    pub fn new(features: VecFE<T>) -> Self {
+    pub fn new(features: VecFe<T>) -> Self {
         let info = EvaluatorInfo {
             size: features.iter().map(|x| x.size_hint()).sum(),
             min_ts_length: features
@@ -31,7 +31,7 @@ where
     }
 
     /// Copy of the feature vector
-    pub fn clone_features(&self) -> VecFE<T> {
+    pub fn clone_features(&self) -> VecFe<T> {
         self.features.clone()
     }
 

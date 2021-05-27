@@ -3,9 +3,7 @@ use crate::time_series::TimeSeries;
 use conv::ConvAsUtil;
 
 mod fft;
-
-mod fft_thread_local;
-pub use fft_thread_local::FloatSupportedByFft;
+pub use fft::FftwFloat;
 
 mod freq;
 pub use freq::FreqGrid;
@@ -62,12 +60,6 @@ where
     ) -> &mut Self {
         self.periodogram_power = periodogram_power;
         self
-    }
-
-    pub fn init_thread_local_fft_plans(n: &[usize]) {
-        for size in n {
-            T::init_fft_plan(size.next_power_of_two());
-        }
     }
 
     #[allow(clippy::borrowed_box)] // https://github.com/rust-lang/rust-clippy/issues/4305
@@ -181,7 +173,7 @@ mod tests {
         )
         .power(&mut ts);
         let fft = Periodogram::from_t(
-            Box::new(PeriodogramPowerFft),
+            Box::new(PeriodogramPowerFft::new()),
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
@@ -217,7 +209,7 @@ mod tests {
         )
         .power(&mut ts);
         let fft = Periodogram::from_t(
-            Box::new(PeriodogramPowerFft),
+            Box::new(PeriodogramPowerFft::new()),
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
@@ -266,7 +258,7 @@ mod tests {
         )
         .power(&mut ts);
         let fft = Periodogram::from_t(
-            Box::new(PeriodogramPowerFft),
+            Box::new(PeriodogramPowerFft::new()),
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,

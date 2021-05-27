@@ -1,26 +1,13 @@
-/*
-use crate::error::EvaluatorError;
-use crate::evaluator::*;
-use crate::extractor::FeatureExtractor;
-use crate::fit::fit_straight_line;
-use crate::float_trait::Float;
-use crate::lnerfc::ln_erfc;
-use crate::periodogram;
-
-use crate::statistics::Statistics;
-use crate::time_series::TimeSeries;
-
-use conv::prelude::*;
-use itertools::Itertools;
-use lazy_static::lazy_static;
-use std::iter;
-use unzip3::Unzip3;
-*/
 mod amplitude;
 pub use amplitude::Amplitude;
 
 mod anderson_darling_normal;
 pub use anderson_darling_normal::AndersonDarlingNormal;
+
+#[cfg(feature = "gsl")]
+mod bazin_fit;
+#[cfg(feature = "gsl")]
+pub use bazin_fit::BazinFit;
 
 mod beyond_n_std;
 pub use beyond_n_std::BeyondNStd;

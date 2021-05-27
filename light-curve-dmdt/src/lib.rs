@@ -1,6 +1,7 @@
 use conv::*;
 use itertools::Itertools;
 use ndarray::{s, Array1, Array2, ScalarOperand};
+use std::fmt::Debug;
 use std::io::Write;
 
 mod erf;
@@ -59,6 +60,7 @@ impl Normalisable for f64 {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Grid<T> {
     start: T, // coordinate of the left border of the leftmost cell
     end: T,   // coordinate of the right border of the rightmost cell
@@ -91,6 +93,22 @@ where
         self.n
     }
 
+    pub fn get_start(&self) -> T {
+        self.start
+    }
+
+    pub fn get_end(&self) -> T {
+        self.end
+    }
+
+    pub fn get_cell_size(&self) -> T {
+        self.cell_size
+    }
+
+    pub fn get_borders(&self) -> &Array1<T> {
+        &self.borders
+    }
+
     fn idx(&self, x: T) -> CellIndex {
         if x < self.start {
             return CellIndex::LowerMin;
@@ -116,6 +134,7 @@ enum CellIndex {
     Value(usize),
 }
 
+#[derive(Clone, Debug)]
 pub struct DmDt<T> {
     pub lgdt_grid: Grid<T>,
     pub dm_grid: Grid<T>,

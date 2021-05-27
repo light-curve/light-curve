@@ -2,7 +2,7 @@ pub use crate::extractor::FeatureExtractor;
 pub use crate::float_trait::Float;
 pub use light_curve_common::{all_close, linspace};
 pub use rand::prelude::*;
-use rand_distr::StandardNormal;
+pub use rand_distr::StandardNormal;
 
 #[macro_export]
 macro_rules! feature_test {
@@ -54,8 +54,16 @@ macro_rules! eval_info_test {
 
             let eval: Box<dyn FeatureEvaluator<f64>> = Box::new($eval);
             let size_hint = eval.size_hint();
-            assert_eq!(eval.get_names().len(), size_hint);
-            assert_eq!(eval.get_descriptions().len(), size_hint);
+            assert_eq!(
+                eval.get_names().len(),
+                size_hint,
+                "names vector has a wrong size"
+            );
+            assert_eq!(
+                eval.get_descriptions().len(),
+                size_hint,
+                "description vector has a wrong size"
+            );
             let check_size =
                 |v: &Vec<f64>| assert_eq!(size_hint, v.len(), "size_hint() returns wrong value");
 
