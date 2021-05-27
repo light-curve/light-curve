@@ -14,7 +14,7 @@ pub use float_trait::Float;
 
 pub trait Normalisable:
     ApproxInto<u8, DefaultApprox>
-    + ValueFrom<usize>
+    + ValueFrom<u64>
     + num_traits::Num
     + num_traits::NumOps
     + PartialOrd
@@ -25,7 +25,7 @@ pub trait Normalisable:
     fn max_u8() -> Self;
 }
 
-impl Normalisable for usize {
+impl Normalisable for u64 {
     fn clamp(self, min: Self, max: Self) -> Self {
         match self {
             _ if self < min => min,
@@ -386,7 +386,7 @@ where
         (self.dt_grid.cell_count(), self.dm_grid.cell_count())
     }
 
-    pub fn points(&self, t: &[T], m: &[T]) -> Array2<usize> {
+    pub fn points(&self, t: &[T], m: &[T]) -> Array2<u64> {
         let mut a = Array2::zeros(self.shape());
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
             for (&x2, &y2) in t[i1 + 1..].iter().zip(m[i1 + 1..].iter()) {
@@ -477,7 +477,7 @@ where
         a
     }
 
-    pub fn dt_points(&self, t: &[T]) -> Array1<usize> {
+    pub fn dt_points(&self, t: &[T]) -> Array1<u64> {
         let mut a = Array1::zeros(self.dt_grid.cell_count());
         for (i1, &x1) in t.iter().enumerate() {
             for &x2 in t[i1 + 1..].iter() {
