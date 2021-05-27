@@ -339,7 +339,8 @@ impl<T> DmDt<LgGrid<T>, LinearGrid<T>, T>
 where
     T: Float,
 {
-    pub fn from_lgdt_dm(
+    /// lg dt (10**min_lgdt, 10**max_lgdt) - linear dm (-max_abs_dm, max_abs_dm)
+    pub fn from_lgdt_dm_limits(
         min_lgdt: T,
         max_lgdt: T,
         lgdt_size: usize,
@@ -367,7 +368,7 @@ where
         }
     }
 
-    /// N lg_dt by N dm
+    /// N dt by N dm
     pub fn shape(&self) -> (usize, usize) {
         (self.dt_grid.cell_count(), self.dm_grid.cell_count())
     }
@@ -542,7 +543,7 @@ mod test {
 
     #[test]
     fn dt_points_vs_points() {
-        let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 3.0_f32, 32);
+        let dmdt = DmDt::from_lgdt_dm_limits(0.0_f32, 2.0_f32, 32, 3.0_f32, 32);
         let t = Array1::linspace(0.0, 100.0, 101);
         // dm is within map borders
         let m = t.mapv(f32::sin);
@@ -555,7 +556,7 @@ mod test {
 
     #[test]
     fn dt_points_vs_gausses() {
-        let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 3.0_f32, 32);
+        let dmdt = DmDt::from_lgdt_dm_limits(0.0_f32, 2.0_f32, 32, 3.0_f32, 32);
         let t = Array1::linspace(0.0, 100.0, 101);
         // dm is within map borders
         let m = t.mapv(f32::sin);
@@ -579,7 +580,7 @@ mod test {
 
     #[test]
     fn cond_prob() {
-        let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 1.25_f32, 32);
+        let dmdt = DmDt::from_lgdt_dm_limits(0.0_f32, 2.0_f32, 32, 1.25_f32, 32);
 
         let t = Array1::linspace(0.0, 100.0, 101);
         let m = t.mapv(f32::sin);

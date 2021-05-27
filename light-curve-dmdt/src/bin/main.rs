@@ -21,7 +21,7 @@ fn main() -> Result<(), MainError> {
 
     let (t, m, err2) = read_input(&config.input, config.smearing)?;
 
-    let dmdt = DmDt::from_lgdt_dm(
+    let dmdt = DmDt::from_lgdt_dm_limits(
         config.min_lgdt,
         config.max_lgdt,
         config.n_dt,
