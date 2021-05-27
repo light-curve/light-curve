@@ -3,7 +3,7 @@ use light_curve_dmdt::{DmDt, Eps1Over1e3Erf};
 use ndarray::Array1;
 
 pub fn bench_cond_prob(c: &mut Criterion) {
-    let dmdt = DmDt::from_lgdt_dm(0.0_f32, 2.0_f32, 32, 1.25_f32, 32);
+    let dmdt = DmDt::from_lgdt_dm_limits(0.0_f32, 2.0_f32, 32, 1.25_f32, 32);
 
     let t = Array1::linspace(0.0, 100.0, 101);
     let m = t.mapv(f32::sin);

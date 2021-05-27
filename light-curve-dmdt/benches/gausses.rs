@@ -7,7 +7,7 @@ pub fn bench_gausses<T>(c: &mut Criterion)
 where
     T: ErfFloat + ValueFrom<f32>,
 {
-    let dmdt = DmDt::from_lgdt_dm(
+    let dmdt = DmDt::from_lgdt_dm_limits(
         T::zero(),
         2.0_f32.value_as::<T>().unwrap(),
         32,
