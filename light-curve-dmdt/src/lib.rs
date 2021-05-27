@@ -510,7 +510,7 @@ where
                 if count == 0 {
                     return;
                 }
-                row /= count.value_as::<T>().unwrap();
+                row /= T::approx_from(count).unwrap();
             });
         a
     }

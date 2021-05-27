@@ -6,8 +6,8 @@ pub trait Float:
     + num_traits::Signed
     + num_traits::Float
     + ValueFrom<usize>
-    + ValueFrom<u64>
     + ApproxInto<usize, RoundToZero>
+    + ApproxFrom<u64>
 {
     fn half() -> Self;
     fn ten() -> Self;
