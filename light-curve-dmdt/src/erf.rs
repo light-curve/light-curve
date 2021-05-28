@@ -2,7 +2,7 @@ use crate::float_trait::Float;
 use conv::*;
 use std::fmt::Debug;
 
-pub trait ErrorFunction<T>
+pub trait ErrorFunction<T>: Clone + Debug
 where
     T: ErfFloat,
 {
