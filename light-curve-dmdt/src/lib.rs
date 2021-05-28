@@ -1,4 +1,5 @@
 use conv::*;
+use dyn_clonable::*;
 use itertools::Itertools;
 use ndarray::{s, Array1, Array2, ScalarOperand};
 use std::fmt::Debug;
@@ -62,6 +63,7 @@ impl Normalisable for f64 {
     }
 }
 
+#[clonable]
 pub trait Grid<T>: Clone + Debug
 where
     T: Copy,
