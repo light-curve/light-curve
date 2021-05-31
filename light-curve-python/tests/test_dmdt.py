@@ -36,6 +36,7 @@ def test_dmdt_count_dt_three_obs():
 
     assert_array_equal(actual, desired)
 
+
 def test_log_linear_grids():
     lc = random_lc(101)
 
@@ -51,13 +52,19 @@ def test_log_linear_grids():
     dt_grid = np.logspace(min_lgdt, max_lgdt, lgdt_size + 1)
     dm_grid = np.linspace(-max_abs_dm, max_abs_dm, dm_size + 1)
 
-    dmdt_from_borders = DmDt.from_borders(min_lgdt=min_lgdt, max_lgdt=max_lgdt, max_abs_dm=max_abs_dm,
-                                          lgdt_size=lgdt_size, dm_size=dm_size)
-    dmdt_auto = DmDt(dt=dt_grid, dm=dm_grid, dt_type='auto', dm_type='auto')
-    dmdt_log_linear = DmDt(dt=dt_grid, dm=dm_grid, dt_type='log', dm_type='linear')
-    dmdt_asis = DmDt(dt=dt_grid, dm=dm_grid, dt_type='asis', dm_type='asis')
+    dmdt_from_borders = DmDt.from_borders(
+        min_lgdt=min_lgdt, max_lgdt=max_lgdt, max_abs_dm=max_abs_dm, lgdt_size=lgdt_size, dm_size=dm_size
+    )
+    dmdt_auto = DmDt(dt=dt_grid, dm=dm_grid, dt_type="auto", dm_type="auto")
+    dmdt_log_linear = DmDt(dt=dt_grid, dm=dm_grid, dt_type="log", dm_type="linear")
+    dmdt_asis = DmDt(dt=dt_grid, dm=dm_grid, dt_type="asis", dm_type="asis")
 
-    for dmdt in (dmdt_from_borders, dmdt_auto, dmdt_log_linear, dmdt_asis,):
+    for dmdt in (
+        dmdt_from_borders,
+        dmdt_auto,
+        dmdt_log_linear,
+        dmdt_asis,
+    ):
         assert_allclose(dmdt.min_dt, min_dt)
         assert_allclose(dmdt.max_dt, max_dt)
         assert_allclose(dmdt.min_dm, -max_abs_dm)
@@ -67,10 +74,13 @@ def test_log_linear_grids():
 
     points = dmdt_from_borders.points(lc[0], lc[1])
     gausses = dmdt_from_borders.gausses(*lc)
-    for dmdt in (dmdt_auto, dmdt_log_linear, dmdt_asis,):
+    for dmdt in (
+        dmdt_auto,
+        dmdt_log_linear,
+        dmdt_asis,
+    ):
         assert_allclose(dmdt.points(lc[0], lc[1]), points)
         assert_allclose(dmdt.gausses(*lc), gausses)
-
 
 
 @pytest.mark.parametrize("lc", [sine_lc(101), random_lc(101)])
