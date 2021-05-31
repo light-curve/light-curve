@@ -1,11 +1,11 @@
 use crate::arr_wrapper::ArrWrapper;
 use crate::errors::{Exception, Res};
 use crate::sorted::check_sorted;
-use conv::{ApproxInto};
+use conv::{ApproxFrom, ApproxInto, ConvAsUtil};
 use enumflags2::{bitflags, BitFlags};
 use light_curve_dmdt as lcdmdt;
 use ndarray::IntoNdProducer;
-use numpy::{Element, IntoPyArray, PyArray1};
+use numpy::{Element, IntoPyArray, PyArray1, ToPyArray};
 use pyo3::class::iter::PyIterProtocol;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -17,7 +17,6 @@ use std::ops::{DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use unzip3::Unzip3;
-use light_curve_dmdt::Grid;
 
 #[derive(FromPyObject)]
 enum GenericFloatArray1<'a> {
@@ -50,8 +49,11 @@ enum ErrorFunction {
 }
 
 #[derive(Clone)]
-struct GenericDmDt<T> where T: lcdmdt::Float {
-    dmdt: lcdmdt::DmDt<lcdmdt::LgGrid<T>, lcdmdt::LinearGrid<T>, T>,
+struct GenericDmDt<T>
+where
+    T: lcdmdt::Float,
+{
+    dmdt: lcdmdt::DmDt<T>,
     norm: BitFlags<NormFlag>,
     error_func: ErrorFunction,
     n_jobs: usize,
@@ -89,10 +91,7 @@ where
 
     fn count_dt(&self, t: &[T], sorted: Option<bool>) -> Res<ndarray::Array1<T>> {
         check_sorted(t, sorted)?;
-        Ok(self
-            .dmdt
-            .dt_points(t)
-            .mapv(|x| x.approx_into().unwrap()))
+        Ok(self.dmdt.dt_points(t).mapv(|x| x.approx_into().unwrap()))
     }
 
     fn count_dt_many(&self, t_: Vec<&[T]>, sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
@@ -253,8 +252,12 @@ where
                     let err2_lc: Vec<_> = sigma[first..last].iter().map(|x| x.powi(2)).collect();
 
                     let mut a = match self.error_func {
-                        ErrorFunction::Exact => self.dmdt.gausses::<lcdmdt::ExactErf>(t_lc, m_lc, &err2_lc),
-                        ErrorFunction::Eps1Over1e3 => self.dmdt.gausses::<lcdmdt::Eps1Over1e3Erf>(t_lc, m_lc, &err2_lc),
+                        ErrorFunction::Exact => {
+                            self.dmdt.gausses::<lcdmdt::ExactErf>(t_lc, m_lc, &err2_lc)
+                        }
+                        ErrorFunction::Eps1Over1e3 => self
+                            .dmdt
+                            .gausses::<lcdmdt::Eps1Over1e3Erf>(t_lc, m_lc, &err2_lc),
                     };
                     self.normalize(&mut a, t_lc);
 
@@ -268,7 +271,10 @@ where
     }
 }
 
-struct GenericDmDtBatches<T, LC> where T: lcdmdt::Float {
+struct GenericDmDtBatches<T, LC>
+where
+    T: lcdmdt::Float,
+{
     dmdt: GenericDmDt<T>,
     lcs: Vec<LC>,
     batch_size: usize,
@@ -278,7 +284,10 @@ struct GenericDmDtBatches<T, LC> where T: lcdmdt::Float {
     rng: Mutex<Xoshiro256PlusPlus>,
 }
 
-impl<T, LC> GenericDmDtBatches<T, LC> where T: lcdmdt::Float {
+impl<T, LC> GenericDmDtBatches<T, LC>
+where
+    T: lcdmdt::Float,
+{
     fn new(
         dmdt: GenericDmDt<T>,
         lcs: Vec<LC>,
@@ -571,36 +580,40 @@ py_dmdt_batches!(
     f64,
 );
 
-/// dm-lg(dt) map producer
+/// dm-dt map producer
 ///
-/// Each pair of observations is mapped to dm-lg(dt) plane bringing unity
+/// Each pair of observations is mapped to dm-dt plane bringing unity
 /// value. dmdt-map is a rectangle on this plane consisted of
-/// `lgdt_size` x `dm_size` cells, and limited by `[min_lgdt; max_lgdt)` and
-/// `[-max_abs_dm; max_abs_dm)` intervals. `.points*()` methods assigns unity
+/// `dt_size` x `dm_size` cells, and limited by `[min_dt; max_dt)` and
+/// `[min_dm; max_dm)` intervals. `.points*()` methods assigns unity
 /// value of each observation to a single cell, while `.gausses*()` methods
-/// smears this unity value over all cells with given lg(t2 - t1) value using
+/// smears this unity value over all cells with given dt value using
 /// normal distribution `N(m2 - m1, sigma1^2 + sigma2^2)`, where
-/// `(t1, m1, sigma1)` and `(t2, m2, sigma2)` is a pair of observations
+/// `(t1, m1, sigma1)` and `(t2, m2, sigma2)` are a pair of observations
 /// including uncertainties. Optionally after the map is built, normalisation
-/// is performed ("norm" parameter): "lgdt" means divide each lg(dt) = const
+/// is performed ("norm" parameter): "dt" means divide each dt = const
 /// column by the total number of all observations corresponded to given dt;
 /// "max" means divide all values by the maximum value; both options can be
-/// combined, then "max" is performed after "lgdt".
+/// combined, then "max" is performed after "dt".
 ///
 /// Parameters
 /// ----------
-/// min_lgdt : float
-///     Left border of lg(dt) interval
-/// max_lgdt : float
-///     Right border of lg(dt) interval
-/// max_abs_dm : float
-///     Absolute values of dm interval borders
-/// lgdt_size : int
-///     Number of lg(dt) cells
-/// dm_size : int
-///     Number of dm cells
+/// dt : np.array of float64
+///     Ascending array of dt grid edges
+/// dm : np.array of float64
+///     Ascending array of dm grid edges
+/// dt_type : str, optional
+///     Type of `dt` grid, one of:
+///     - 'auto' (default) means check if grid is linear or logarithmic one,
+///       which allows some speed-up
+///     - 'linear' says to build a linear grid from the first and last values
+///       of `dt`, using the same number of edges
+///     - 'log' is the same as 'linear' but for building logarithmic grid
+///     - 'asis' means using the given array as a grid
+/// dm_type : str, optional
+///     Type of `dm` grid, see `dt_type` for details
 /// norm : list of str, opional
-///     Types of normalisation, cab be any combination of "lgdt" and "max",
+///     Types of normalisation, cab be any combination of "dt" and "max",
 ///     default is an empty list `[]` which means no normalisation
 /// n_jobs : int, optional
 ///     Number of parallel threads to run in bulk transformation methods such
@@ -614,25 +627,32 @@ py_dmdt_batches!(
 /// ----------
 /// n_jobs : int
 /// shape : (int, int)
-///     Shape of a single dmdt map, `(lgdt_size, dm_size)`
-/// min_lgdt : float
-/// max_lgdt : float
-/// max_abs_dm : float
+///     Shape of a single dmdt map, `(dt_size, dm_size)`
+/// dt_grid : np.array of float64
+/// min_dt : float
+/// max_dt : float
+/// dm_grid : np.array of float64
+/// min_dm : float
+/// max_dm : float
 ///
 /// Methods
 /// -------
+/// from_borders(min_lgdt, max_lgdt, max_abs_dm, lgdt_size, dm_size, **kwargs)
+///     Construct `DmDt` with logarithmic dt grid [10^min_lgdt, 10^max_lgdt)
+///     and linear dm grid [-max_abs_dm, max_abs_dm), `kwargs` are passed to
+///     `__new__()`
 /// points(t, m, sorted=None)
 ///     Produces dmdt-maps from light curve
 /// gausses(t, m, sigma, sorted=None)
 ///     Produces smeared dmdt-map from noisy light curve
-/// count_lgdt(t, sorted=None)
-///     Total number of observations per each lg(dt) interval
+/// count_dt(t, sorted=None)
+///     Total number of observations per each dt interval
 /// points_many(lcs, sorted=None)
 ///     Produces dmdt-maps from a list of light curves
 /// gausses_many(lcs, sorted=None)
 ///     Produces smeared dmdt-maps from a list of light curves
-/// count_lgdt_many(t_, sorted=None)
-///     Number of observations in each lg(dt) for a list of arrays
+/// count_dt_many(t_, sorted=None)
+///     Number of observations in each dt for a list of arrays
 /// points_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
 ///     Gives a reusable iterable which yields dmdt-maps
 /// gausses_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
@@ -648,39 +668,91 @@ pub struct DmDt {
     dmdt_f32: GenericDmDt<f32>,
 }
 
-#[pymethods]
+#[derive(Clone, Copy)]
+enum GridType {
+    Linear,
+    Log,
+    Generic,
+}
+
 impl DmDt {
-    #[allow(clippy::too_many_arguments)]
-    #[new]
-    #[args(
-    min_lgdt,
-    max_lgdt,
-    max_abs_dm,
-    lgdt_size,
-    dm_size,
-    norm = "vec![]",
-    n_jobs = -1,
-    approx_erf = "false"
-    )]
-    fn __new__(
-        min_lgdt: f64,
-        max_lgdt: f64,
-        max_abs_dm: f64,
-        lgdt_size: usize,
-        dm_size: usize,
+    fn grid_type(a: &ndarray::ArrayView1<f64>) -> Res<GridType> {
+        const EPS: f64 = 1000.0 * f64::EPSILON;
+
+        if !ndarray::Zip::from(a.slice(ndarray::s![..-1]))
+            .and(a.slice(ndarray::s![1..]))
+            .all(|&x, &y| x < y)
+        {
+            return Err(Exception::ValueError(
+                "dmdt grid must be in ascending order".to_owned(),
+            ));
+        }
+
+        let a1 = *a
+            .get(1)
+            .ok_or_else(|| Exception::IndexError("index 1 is out of bounds".to_owned()))?;
+        let a0 = *a.get(0).unwrap();
+
+        {
+            let step = a1 - a0;
+            if ndarray::Zip::from(a.slice(ndarray::s![1..-1]))
+                .and(a.slice(ndarray::s![2..]))
+                .all(|&x, &y| f64::abs((step - y + x) / step) < EPS)
+            {
+                return Ok(GridType::Linear);
+            }
+        }
+        {
+            let ln_step = f64::ln(a1 / a0);
+            if ndarray::Zip::from(a.slice(ndarray::s![1..-1]))
+                .and(a.slice(ndarray::s![2..]))
+                .all(|&x, &y| f64::abs((ln_step - f64::ln(y / x)) / ln_step) < EPS)
+            {
+                return Ok(GridType::Log);
+            }
+        }
+        return Ok(GridType::Generic);
+    }
+
+    fn array_to_grid<T>(
+        x: &ndarray::ArrayView1<f64>,
+        grid_type: GridType,
+    ) -> Res<Box<dyn lcdmdt::Grid<T>>>
+    where
+        T: lcdmdt::Float + ApproxFrom<f64>,
+    {
+        Ok(match grid_type {
+            GridType::Linear => Box::new(lcdmdt::LinearGrid::new(
+                (*x.get(0).unwrap()).approx().unwrap(),
+                (*x.get(x.len() - 1).unwrap()).approx().unwrap(),
+                x.len() - 1,
+            )),
+            GridType::Log => Box::new(lcdmdt::LgGrid::from_start_end(
+                (*x.get(0).unwrap()).approx().unwrap(),
+                (*x.get(x.len() - 1).unwrap()).approx().unwrap(),
+                x.len() - 1,
+            )),
+            GridType::Generic => Box::new(
+                lcdmdt::ArrayGrid::new(x.mapv(|x| x.approx().unwrap()))
+                    .map_err(|err| Exception::ValueError(err.to_string()))?,
+            ),
+        })
+    }
+
+    fn from_dmdts(
+        dmdt_f32: lcdmdt::DmDt<f32>,
+        dmdt_f64: lcdmdt::DmDt<f64>,
         norm: Vec<&str>,
         n_jobs: i64,
         approx_erf: bool,
     ) -> Res<Self> {
-        let dmdt_f32 = lcdmdt::DmDt::from_lgdt_dm_limits (min_lgdt as f32, max_lgdt as f32, lgdt_size, max_abs_dm as f32, dm_size);
-        let dmdt_f64 = lcdmdt::DmDt::from_lgdt_dm_limits (min_lgdt, max_lgdt, lgdt_size, max_abs_dm, dm_size);
         let norm = norm
             .iter()
             .map(|&s| match s {
-                "lgdt" => Ok(NormFlag::LgDt),
+                "dt" => Ok(NormFlag::LgDt),
                 "max" => Ok(NormFlag::Max),
                 _ => Err(Exception::ValueError(format!(
-                    "normalisation name {:?} is unknown, known names are: \"lgdt\", \"norm\"",
+                    "normalisation name {:?} is unknown, known names are: \"dt\", \"norm\"",
                     s
                 ))),
             })
@@ -709,6 +781,104 @@ impl DmDt {
             },
         })
     }
+}
+
+#[pymethods]
+impl DmDt {
+    #[allow(clippy::too_many_arguments)]
+    #[new]
+    #[args(
+        dt,
+        dm,
+        dt_type = "\"auto\"",
+        dm_type = "\"auto\"",
+        norm = "vec![]",
+        n_jobs = -1,
+        approx_erf = "false"
+    )]
+    fn __new__(
+        dt: &PyArray1<f64>,
+        dm: &PyArray1<f64>,
+        dm_type: &str,
+        dt_type: &str,
+        norm: Vec<&str>,
+        n_jobs: i64,
+        approx_erf: bool,
+    ) -> Res<Self> {
+        let dt = dt.readonly();
+        let dt = dt.as_array();
+        let dm = dm.readonly();
+        let dm = dm.as_array();
+
+        let grid_type_dt = match dt_type {
+            "auto" => Self::grid_type(&dt)?,
+            "linear" => GridType::Linear,
+            "log" => GridType::Log,
+            "asis" => GridType::Generic,
+            _ => {
+                return Err(Exception::ValueError(
+                    "dt_type must be 'auto', 'linear', 'log' or 'asis'".to_owned(),
+                ))
+            }
+        };
+        let grid_type_dm = match dm_type {
+            "auto" => Self::grid_type(&dm)?,
+            "linear" => GridType::Linear,
+            "log" => GridType::Log,
+            "asis" => GridType::Generic,
+            _ => {
+                return Err(Exception::ValueError(
+                    "dm_type must be 'auto', 'linear', 'log' or 'asis'".to_owned(),
+                ))
+            }
+        };
+
+        let dmdt_f32: lcdmdt::DmDt<f32> = lcdmdt::DmDt {
+            dt_grid: Self::array_to_grid(&dt, grid_type_dt)?,
+            dm_grid: Self::array_to_grid(&dm, grid_type_dm)?,
+        };
+        let dmdt_f64: lcdmdt::DmDt<f64> = lcdmdt::DmDt {
+            dt_grid: Self::array_to_grid(&dt, grid_type_dt)?,
+            dm_grid: Self::array_to_grid(&dm, grid_type_dm)?,
+        };
+
+        Self::from_dmdts(dmdt_f32, dmdt_f64, norm, n_jobs, approx_erf)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[staticmethod]
+    #[args(
+        min_lgdt,
+        max_lgdt,
+        max_abs_dm,
+        lgdt_size,
+        dm_size,
+        norm = "vec![]",
+        n_jobs = -1,
+        approx_erf = "false"
+    )]
+    fn from_borders(
+        min_lgdt: f64,
+        max_lgdt: f64,
+        max_abs_dm: f64,
+        lgdt_size: usize,
+        dm_size: usize,
+        norm: Vec<&str>,
+        n_jobs: i64,
+        approx_erf: bool,
+    ) -> Res<Self> {
+        let dmdt_f32 = lcdmdt::DmDt::from_lgdt_dm_limits(
+            min_lgdt as f32,
+            max_lgdt as f32,
+            lgdt_size,
+            max_abs_dm as f32,
+            dm_size,
+        );
+        let dmdt_f64 =
+            lcdmdt::DmDt::from_lgdt_dm_limits(min_lgdt, max_lgdt, lgdt_size, max_abs_dm, dm_size);
+
+        Self::from_dmdts(dmdt_f32, dmdt_f64, norm, n_jobs, approx_erf)
+    }
 
     #[getter]
     fn get_n_jobs(&self) -> usize {
@@ -730,7 +900,12 @@ impl DmDt {
 
     #[getter]
     fn shape(&self) -> (usize, usize) {
-        self.dmdt_f32.dmdt.shape()
+        self.dmdt_f64.dmdt.shape()
+    }
+
+    #[getter]
+    fn dt_grid<'py>(&self, py: Python<'py>) -> &'py PyArray1<f64> {
+        self.dmdt_f64.dmdt.dt_grid.get_borders().to_pyarray(py)
     }
 
     #[getter]
@@ -744,13 +919,8 @@ impl DmDt {
     }
 
     #[getter]
-    fn min_lgdt(&self) -> f64 {
-        self.dmdt_f64.dmdt.dt_grid.get_lg_start()
-    }
-
-    #[getter]
-    fn max_lgdt(&self) -> f64 {
-        self.dmdt_f64.dmdt.dt_grid.get_lg_end()
+    fn dm_grid<'py>(&self, py: Python<'py>) -> &'py PyArray1<f64> {
+        self.dmdt_f64.dmdt.dm_grid.get_borders().to_pyarray(py)
     }
 
     #[getter]
@@ -763,16 +933,10 @@ impl DmDt {
         self.dmdt_f64.dmdt.dm_grid.get_end()
     }
 
-    #[getter]
-    fn max_abs_dm(&self) -> f64 {
-        self.dmdt_f64.dmdt.dm_grid.get_end()
-    }
-
-    /// Total number of observations per each lg(dt) interval
+    /// Total number of observations per each dt interval
     ///
     /// Output takes into account all observation pairs within
-    /// [min_lgdt; max_lgdt), even if they are not in
-    /// [-max_abs_dm; max_abs_dm)
+    /// [min_dt; max_dt), even if they are not in [min_dm; max_dm)
     ///
     /// Parameters
     /// ----------
@@ -785,7 +949,7 @@ impl DmDt {
     /// 1d-array of float
     ///
     #[args(t, sorted = "None")]
-    fn count_lgdt(&self, py: Python, t: GenericFloatArray1, sorted: Option<bool>) -> Res<PyObject> {
+    fn count_dt(&self, py: Python, t: GenericFloatArray1, sorted: Option<bool>) -> Res<PyObject> {
         match t {
             GenericFloatArray1::Float32(t) => self
                 .dmdt_f32
@@ -798,11 +962,10 @@ impl DmDt {
         }
     }
 
-    /// Total number of observations per each lg(dt) interval
+    /// Total number of observations per each dt interval
     ///
     /// Output takes into account all observation pairs within
-    /// [min_lgdt; max_lgdt), even if they are not in
-    /// [-max_abs_dm; max_abs_dm)
+    /// [min_dt; max_dt), even if they are not in [min_dm; max_dm)
     ///
     /// Parameters
     /// ----------
@@ -815,7 +978,7 @@ impl DmDt {
     /// 1d-array of float
     ///
     #[args(t_, sorted = "None")]
-    fn count_lgdt_many(
+    fn count_dt_many(
         &self,
         py: Python,
         t_: Vec<GenericFloatArray1>,
