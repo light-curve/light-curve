@@ -1,10 +1,13 @@
+#[cfg(test)]
+#[macro_use]
+extern crate static_assertions;
+
 use conv::*;
 use dyn_clonable::*;
 use itertools::Itertools;
 use ndarray::{s, Array1, Array2, ScalarOperand};
 use std::fmt::Debug;
 use std::io::Write;
-use std::marker::PhantomData;
 use thiserror::Error;
 
 mod erf;
@@ -64,7 +67,7 @@ impl Normalisable for f64 {
 }
 
 #[clonable]
-pub trait Grid<T>: Clone + Debug
+pub trait Grid<T>: Clone + Debug + Send + Sync
 where
     T: Copy,
 {
@@ -339,21 +342,29 @@ pub enum CellIndex {
 }
 
 #[derive(Clone, Debug)]
-pub struct DmDt<Gdt, Gdm, T>
+pub struct DmDt<T>
 where
-    Gdt: Grid<T>,
-    Gdm: Grid<T>,
     T: Copy,
 {
-    pub dt_grid: Gdt,
-    pub dm_grid: Gdm,
-    _phantom_data: PhantomData<T>,
+    pub dt_grid: Box<dyn Grid<T>>,
+    pub dm_grid: Box<dyn Grid<T>>,
 }
 
-impl<T> DmDt<LgGrid<T>, LinearGrid<T>, T>
+impl<T> DmDt<T>
 where
     T: Float,
 {
+    pub fn from_grids<Gdt, Gdm>(dt_grid: Gdt, dm_grid: Gdm) -> Self
+    where
+        Gdt: Grid<T> + 'static,
+        Gdm: Grid<T> + 'static,
+    {
+        Self {
+            dt_grid: Box::new(dt_grid),
+            dm_grid: Box::new(dm_grid),
+        }
+    }
+
     /// lg dt (10**min_lgdt, 10**max_lgdt) - linear dm (-max_abs_dm, max_abs_dm)
     pub fn from_lgdt_dm_limits(
         min_lgdt: T,
@@ -366,21 +377,6 @@ where
             LgGrid::from_lg_start_end(min_lgdt, max_lgdt, lgdt_size),
             LinearGrid::new(-max_abs_dm, max_abs_dm, dm_size),
         )
-    }
-}
-
-impl<Gdt, Gdm, T> DmDt<Gdt, Gdm, T>
-where
-    Gdt: Grid<T>,
-    Gdm: Grid<T>,
-    T: Float,
-{
-    pub fn from_grids(dt_grid: Gdt, dm_grid: Gdm) -> Self {
-        Self {
-            dt_grid,
-            dm_grid,
-            _phantom_data: PhantomData,
-        }
     }
 
     /// N dt by N dm
@@ -555,6 +551,9 @@ mod test {
     use crate::erf::{Eps1Over1e3Erf, ExactErf};
     use approx::assert_abs_diff_eq;
     use ndarray::Axis;
+
+    assert_impl_all!(DmDt<f32>: Clone, Debug, Send, Sync);
+    assert_impl_all!(DmDt<f64>: Clone, Debug, Send, Sync);
 
     #[test]
     fn dt_points_vs_points() {
