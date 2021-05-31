@@ -676,6 +676,9 @@ enum GridType {
 }
 
 impl DmDt {
+    // clippy has false-positive report for 1..-1 ranges inside s!
+    // https://github.com/rust-lang/rust-clippy/issues/5808
+    #[allow(clippy::reversed_empty_ranges)]
     fn grid_type(a: &ndarray::ArrayView1<f64>) -> Res<GridType> {
         const EPS: f64 = 1000.0 * f64::EPSILON;
 
@@ -711,7 +714,7 @@ impl DmDt {
                 return Ok(GridType::Log);
             }
         }
-        return Ok(GridType::Generic);
+        Ok(GridType::Generic)
     }
 
     fn array_to_grid<T>(
