@@ -975,7 +975,7 @@ impl DmDt {
     ///
     /// Parameters
     /// ----------
-    /// t_ : 1d-ndarray of float
+    /// t_ : list of 1d-ndarray of float
     ///     List of arrays, each represents time moments, must be sorted
     /// sorted : bool or None, optional
     ///     `True` guarantees that `t` is sorted
