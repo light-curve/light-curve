@@ -38,7 +38,7 @@ enum DropNObsType {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum NormFlag {
-    LgDt,
+    Dt,
     Max,
 }
 
@@ -70,7 +70,7 @@ where
     }
 
     fn normalize(&self, a: &mut ndarray::Array2<T>, t: &[T]) {
-        if self.norm.contains(NormFlag::LgDt) {
+        if self.norm.contains(NormFlag::Dt) {
             let dt = self.dmdt.dt_points(&t);
             let dt_no_zeros = dt.mapv(|x| {
                 if x == 0 {
@@ -755,7 +755,7 @@ impl DmDt {
         let norm = norm
             .iter()
             .map(|&s| match s {
-                "dt" => Ok(NormFlag::LgDt),
+                "dt" => Ok(NormFlag::Dt),
                 "max" => Ok(NormFlag::Max),
                 _ => Err(Exception::ValueError(format!(
                     "normalisation name {:?} is unknown, known names are: \"dt\", \"norm\"",
