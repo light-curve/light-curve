@@ -31,3 +31,4 @@ from .features.percampl import *
 from .features.extractor import *
 from .features.plateau import *
 from .features.bins import *
+from .features.otsu import *
