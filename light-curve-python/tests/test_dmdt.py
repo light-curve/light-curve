@@ -1,5 +1,14 @@
 from itertools import product
-from contextlib import nullcontext
+
+try:
+    from contextlib import nullcontext
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def nullcontext(enter_result=None):
+        yield enter_result
+
 
 import numpy as np
 import pytest
