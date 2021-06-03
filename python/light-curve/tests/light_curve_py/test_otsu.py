@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 
-from light_curve_pure import Otsu
+from light_curve.light_curve_py import Otsu
 
 
 def test_otsu_1():
