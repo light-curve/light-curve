@@ -1,3 +1,6 @@
+from itertools import product
+from contextlib import nullcontext
+
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
@@ -5,19 +8,19 @@ from numpy.testing import assert_allclose, assert_array_equal
 from light_curve import DmDt
 
 
-def random_lc(n, sigma=True, rng=None):
+def random_lc(n, sigma=True, rng=None, dtype=np.float64):
     rng = np.random.default_rng(rng)
-    t = np.sort(rng.uniform(0, 10, n))
-    m = rng.normal(0, 1, n)
+    t = np.sort(np.asarray(rng.uniform(0, 10, n), dtype=dtype))
+    m = np.asarray(rng.normal(0, 1, n), dtype=dtype)
     lc = (t, m)
     if sigma:
-        sigma = rng.uniform(0.01, 0.1, n)
+        sigma = np.asarray(rng.uniform(0.01, 0.1, n), dtype=dtype)
         lc += (sigma,)
     return lc
 
 
-def sine_lc(n, sigma=True):
-    t = np.linspace(0, 10, n)
+def sine_lc(n, sigma=True, dtype=np.float64):
+    t = np.asarray(np.linspace(0, 10, n), dtype=dtype)
     m = np.sin(t)
     lc = (t, m)
     if sigma:
@@ -83,7 +86,7 @@ def test_log_linear_grids():
         assert_allclose(dmdt.gausses(*lc), gausses)
 
 
-@pytest.mark.parametrize("lc", [sine_lc(101), random_lc(101)])
+@pytest.mark.parametrize("lc", [sine_lc(101), random_lc(101), sine_lc(101, dtype=np.float32)])
 def test_dmdt_count_dt_many_one(lc):
     dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
 
@@ -97,7 +100,11 @@ def test_dmdt_count_dt_many_one(lc):
 
 @pytest.mark.parametrize(
     "lcs",
-    [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]],
+    [
+        [sine_lc(101), sine_lc(11)],
+        [random_lc(101), random_lc(101), random_lc(11)],
+        [sine_lc(101, dtype=np.float32), sine_lc(11, dtype=np.float32)],
+    ],
 )
 def test_dmdt_count_dt_many(lcs):
     dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
@@ -125,7 +132,7 @@ def test_dmdt_points_three_obs():
     assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("lc", [sine_lc(101, False), random_lc(101, False)])
+@pytest.mark.parametrize("lc", [sine_lc(101, False), random_lc(101, False), sine_lc(101, False, dtype=np.float32)])
 @pytest.mark.parametrize("norm", [[], ["dt"], ["max"], ["dt", "max"]])
 def test_dmdt_points_many_one(lc, norm):
     dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=norm)
@@ -143,6 +150,7 @@ def test_dmdt_points_many_one(lc, norm):
     [
         [sine_lc(101, False), sine_lc(11, False)],
         [random_lc(101, False), random_lc(101, False), random_lc(11, False)],
+        [sine_lc(101, False, dtype=np.float32), sine_lc(11, False, dtype=np.float32)],
     ],
 )
 @pytest.mark.parametrize("norm", [[], ["dt"], ["max"], ["dt", "max"]])
@@ -155,7 +163,7 @@ def test_dmdt_points_many(lcs, norm):
     assert_array_equal(actual, desired)
 
 
-@pytest.mark.parametrize("lc", [sine_lc(101), random_lc(101)])
+@pytest.mark.parametrize("lc", [sine_lc(101), random_lc(101), sine_lc(101, dtype=np.float32)])
 @pytest.mark.parametrize("norm", [[], ["dt"], ["max"], ["dt", "max"]])
 @pytest.mark.parametrize("approx_erf", [True, False])
 def test_dmdt_gausses_many_one(lc, norm, approx_erf):
@@ -179,7 +187,11 @@ def test_dmdt_gausses_many_one(lc, norm, approx_erf):
 
 @pytest.mark.parametrize(
     "lcs",
-    [[sine_lc(101), sine_lc(11)], [random_lc(101), random_lc(101), random_lc(11)]],
+    [
+        [sine_lc(101), sine_lc(11)],
+        [random_lc(101), random_lc(101), random_lc(11)],
+        [sine_lc(101, dtype=np.float32), sine_lc(11, dtype=np.float32)],
+    ],
 )
 @pytest.mark.parametrize("norm", [[], ["dt"], ["max"], ["dt", "max"]])
 @pytest.mark.parametrize("approx_erf", [True, False])
@@ -198,3 +210,68 @@ def test_dmdt_gausses_many(lcs, norm, approx_erf):
     actual = dmdt.gausses_many(lcs)
 
     assert_array_equal(actual, desired)
+
+
+@pytest.mark.parametrize("t_dtype,m_dtype", product(*[[np.float32, np.float64]] * 2))
+def test_dmdt_points_dtype(t_dtype, m_dtype):
+    t = np.linspace(0, 1, 11, dtype=t_dtype)
+    m = np.asarray(t, dtype=m_dtype)
+    dmdt = DmDt.from_borders(min_lgdt=0, max_lgdt=1, max_abs_dm=1, lgdt_size=2, dm_size=2, norm=[])
+    if t_dtype is m_dtype:
+        context = nullcontext()
+    else:
+        context = pytest.raises(TypeError)
+    with context:
+        dmdt.points(t, m)
+
+
+@pytest.mark.parametrize("t_dtype,m_dtype,sigma_dtype", product(*[[np.float32, np.float64]] * 3))
+def test_dmdt_gausses_dtype(t_dtype, m_dtype, sigma_dtype):
+    t = np.linspace(1, 2, 11, dtype=t_dtype)
+    m = np.asarray(t, dtype=m_dtype)
+    sigma = np.asarray(t, dtype=sigma_dtype)
+    dmdt = DmDt.from_borders(min_lgdt=0, max_lgdt=1, max_abs_dm=1, lgdt_size=2, dm_size=2, norm=[])
+    if t_dtype is m_dtype is sigma_dtype:
+        context = nullcontext()
+    else:
+        context = pytest.raises(TypeError)
+    with context:
+        dmdt.gausses(t, m, sigma)
+
+
+@pytest.mark.parametrize("t1_dtype,m1_dtype,t2_dtype,m2_dtype", product(*[[np.float32, np.float64]] * 4))
+def test_dmdt_points_many_dtype(t1_dtype, m1_dtype, t2_dtype, m2_dtype):
+    t1 = np.linspace(1, 2, 11, dtype=t1_dtype)
+    m1 = np.asarray(t1, dtype=m1_dtype)
+    t2 = np.asarray(t1, dtype=t2_dtype)
+    m2 = np.asarray(t1, dtype=m2_dtype)
+    lcs = [(t1, m1), (t2, m2)]
+    dmdt = DmDt.from_borders(min_lgdt=0, max_lgdt=1, max_abs_dm=1, lgdt_size=2, dm_size=2, norm=[])
+    if t1_dtype is m1_dtype is t2_dtype is m2_dtype:
+        context = nullcontext()
+    else:
+        context = pytest.raises(TypeError)
+    with context:
+        dmdt.points_many(lcs)
+        dmdt.points_batches(lcs)
+
+
+@pytest.mark.parametrize(
+    "t1_dtype,m1_dtype,sigma1_dtype,t2_dtype,m2_dtype,sigma2_dtype", product(*[[np.float32, np.float64]] * 6)
+)
+def test_dmdt_gausses_many_dtype(t1_dtype, m1_dtype, sigma1_dtype, t2_dtype, m2_dtype, sigma2_dtype):
+    t1 = np.linspace(1, 2, 11, dtype=t1_dtype)
+    m1 = np.asarray(t1, dtype=m1_dtype)
+    sigma1 = np.asarray(t1, dtype=sigma1_dtype)
+    t2 = np.asarray(t1, dtype=t2_dtype)
+    m2 = np.asarray(t1, dtype=m2_dtype)
+    sigma2 = np.asarray(t1, dtype=sigma2_dtype)
+    lcs = [(t1, m1, sigma1), (t2, m2, sigma2)]
+    dmdt = DmDt.from_borders(min_lgdt=0, max_lgdt=1, max_abs_dm=1, lgdt_size=2, dm_size=2, norm=[])
+    if t1_dtype is m1_dtype is sigma1_dtype is t2_dtype is m2_dtype is sigma2_dtype:
+        context = nullcontext()
+    else:
+        context = pytest.raises(TypeError)
+    with context:
+        dmdt.gausses_many(lcs)
+        dmdt.gausses_batches(lcs)

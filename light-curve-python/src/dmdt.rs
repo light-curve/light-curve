@@ -13,6 +13,7 @@ use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rayon::prelude::*;
 use std::cell::RefCell;
+use std::convert::{TryFrom, TryInto};
 use std::ops::{DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -24,6 +25,28 @@ enum GenericFloatArray1<'a> {
     Float32(&'a PyArray1<f32>),
     #[pyo3(transparent, annotation = "np.ndarray[float64]")]
     Float64(&'a PyArray1<f64>),
+}
+
+impl<'a> TryFrom<GenericFloatArray1<'a>> for &'a PyArray1<f32> {
+    type Error = ();
+
+    fn try_from(value: GenericFloatArray1<'a>) -> Result<Self, Self::Error> {
+        match value {
+            GenericFloatArray1::Float32(a) => Ok(a),
+            GenericFloatArray1::Float64(_) => Err(()),
+        }
+    }
+}
+
+impl<'a> TryFrom<GenericFloatArray1<'a>> for &'a PyArray1<f64> {
+    type Error = ();
+
+    fn try_from(value: GenericFloatArray1<'a>) -> Result<Self, Self::Error> {
+        match value {
+            GenericFloatArray1::Float32(_) => Err(()),
+            GenericFloatArray1::Float64(a) => Ok(a),
+        }
+    }
 }
 
 #[derive(FromPyObject, Copy, Clone, std::fmt::Debug)]
@@ -59,9 +82,10 @@ where
     n_jobs: usize,
 }
 
-impl<T> GenericDmDt<T>
+impl<'a, T> GenericDmDt<T>
 where
     T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
+    &'a PyArray1<T>: TryFrom<GenericFloatArray1<'a>>,
 {
     fn sigma_to_err2(sigma: &PyArray1<T>) -> ndarray::Array1<T> {
         let mut a = sigma.to_owned_array();
@@ -89,9 +113,39 @@ where
         }
     }
 
+    fn py_count_dt(&self, py: Python, t: &PyArray1<T>, sorted: Option<bool>) -> Res<PyObject> {
+        self.count_dt(&ArrWrapper::new(t, true), sorted)
+            .map(|a| a.into_pyarray(py).into_py(py))
+    }
+
     fn count_dt(&self, t: &[T], sorted: Option<bool>) -> Res<ndarray::Array1<T>> {
         check_sorted(t, sorted)?;
         Ok(self.dmdt.dt_points(t).mapv(|x| x.approx_into().unwrap()))
+    }
+
+    fn py_count_dt_many(
+        &self,
+        py: Python,
+        t_: Vec<GenericFloatArray1<'a>>,
+        sorted: Option<bool>,
+    ) -> Res<PyObject> {
+        let wrapped_t_ = t_
+            .into_iter()
+            .enumerate()
+            .map(|(i, t)| match t.try_into() {
+                Ok(t) => Ok(ArrWrapper::new(t, true)),
+                Err(_) => Err(Exception::TypeError(format!(
+                    "t_[{}] has mismatched dtype with the t_[0] which is {}",
+                    i,
+                    std::any::type_name::<T>()
+                ))),
+            })
+            .collect::<Res<Vec<_>>>()?;
+        let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
+        Ok(self
+            .count_dt_many(typed_t_, sorted)?
+            .into_pyarray(py)
+            .into_py(py))
     }
 
     fn count_dt_many(&self, t_: Vec<&[T]>, sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
@@ -114,12 +168,50 @@ where
         Ok(result)
     }
 
+    fn py_points(
+        &self,
+        py: Python,
+        t: &PyArray1<T>,
+        m: &PyArray1<T>,
+        sorted: Option<bool>,
+    ) -> Res<PyObject> {
+        Ok(self
+            .points(&ArrWrapper::new(t, true), &ArrWrapper::new(m, true), sorted)?
+            .into_pyarray(py)
+            .into_py(py))
+    }
+
     fn points(&self, t: &[T], m: &[T], sorted: Option<bool>) -> Res<ndarray::Array2<T>> {
         check_sorted(t, sorted)?;
 
         let mut result = self.dmdt.points(t, m).mapv(|x| x.approx_into().unwrap());
         self.normalize(&mut result, &t);
         Ok(result)
+    }
+
+    fn py_points_many(
+        &self,
+        py: Python,
+        lcs: Vec<(GenericFloatArray1<'a>, GenericFloatArray1<'a>)>,
+        sorted: Option<bool>,
+    ) -> Res<PyObject> {
+        let wrapped_lcs = lcs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (t, m))| match (t.try_into(), m.try_into()) {
+                (Ok(t), Ok(m)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true))),
+                _ => Err(Exception::TypeError(format!(
+                    "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                    i,
+                    std::any::type_name::<T>(),
+                ))),
+            })
+            .collect::<Res<Vec<_>>>()?;
+        let typed_lcs = wrapped_lcs.iter().map(|(t, m)| (&t[..], &m[..])).collect();
+        Ok(self
+            .points_many(typed_lcs, sorted)?
+            .into_pyarray(py)
+            .into_py(py))
     }
 
     fn points_many(&self, lcs: Vec<(&[T], &[T])>, sorted: Option<bool>) -> Res<ndarray::Array3<T>> {
@@ -140,6 +232,49 @@ where
                     })
             })?;
         Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn generic_dmdt_points_batches(
+        &self,
+        lcs: Vec<(GenericFloatArray1<'a>, GenericFloatArray1<'a>)>,
+        sorted: Option<bool>,
+        batch_size: usize,
+        yield_index: bool,
+        shuffle: bool,
+        drop_nobs: DropNObsType,
+        random_seed: Option<u64>,
+    ) -> Res<GenericDmDtBatches<T, TmLc<T>>> {
+        let typed_lcs = lcs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (t, m))| {
+                let t: Result<&'a PyArray1<T>, _> = t.try_into();
+                let m: Result<&'a PyArray1<T>, _> = m.try_into();
+                match (t, m) {
+                    (Ok(t), Ok(m)) => {
+                        let t = t.to_owned_array();
+                        check_sorted(t.as_slice().unwrap(), sorted)?;
+                        let m = m.to_owned_array();
+                        Ok((t, m))
+                    }
+                    _ => Err(Exception::TypeError(format!(
+                        "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                        i,
+                        std::any::type_name::<T>(),
+                    ))),
+                }
+            })
+            .collect::<Res<Vec<_>>>()?;
+        GenericDmDtBatches::new(
+            self.clone(),
+            typed_lcs,
+            batch_size,
+            yield_index,
+            shuffle,
+            drop_nobs,
+            random_seed,
+        )
     }
 
     fn points_from_columnar(
@@ -182,6 +317,26 @@ where
         Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
     }
 
+    fn py_gausses(
+        &self,
+        py: Python,
+        t: &PyArray1<T>,
+        m: &PyArray1<T>,
+        sigma: &PyArray1<T>,
+        sorted: Option<bool>,
+    ) -> Res<PyObject> {
+        let err2 = Self::sigma_to_err2(sigma);
+        Ok(self
+            .gausses(
+                &ArrWrapper::new(t, true),
+                &ArrWrapper::new(m, true),
+                err2.as_slice().unwrap(),
+                sorted,
+            )?
+            .into_pyarray(py)
+            .into_py(py))
+    }
+
     fn gausses(
         &self,
         t: &[T],
@@ -197,6 +352,44 @@ where
         };
         self.normalize(&mut result, &t);
         Ok(result)
+    }
+
+    fn py_gausses_many(
+        &self,
+        py: Python,
+        lcs: Vec<(
+            GenericFloatArray1<'a>,
+            GenericFloatArray1<'a>,
+            GenericFloatArray1<'a>,
+        )>,
+        sorted: Option<bool>,
+    ) -> Res<PyObject> {
+        let wrapped_lcs = lcs
+            .into_iter()
+            .enumerate()
+            .map(
+                |(i, (t, m, sigma))| match (t.try_into(), m.try_into(), sigma.try_into()) {
+                    (Ok(t), Ok(m), Ok(sigma)) => Ok((
+                        ArrWrapper::new(t, true),
+                        ArrWrapper::new(m, true),
+                        Self::sigma_to_err2(sigma),
+                    )),
+                    _ => Err(Exception::TypeError(format!(
+                        "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                        i,
+                        std::any::type_name::<T>()
+                    ))),
+                },
+            )
+            .collect::<Res<Vec<_>>>()?;
+        let typed_lcs = wrapped_lcs
+            .iter()
+            .map(|(t, m, err2)| (&t[..], &m[..], err2.as_slice().unwrap()))
+            .collect();
+        Ok(self
+            .gausses_many(typed_lcs, sorted)?
+            .into_pyarray(py)
+            .into_py(py))
     }
 
     fn gausses_many(
@@ -221,6 +414,55 @@ where
                     })
             })?;
         Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn generic_dmdt_gausses_batches(
+        &self,
+        lcs: Vec<(
+            GenericFloatArray1<'a>,
+            GenericFloatArray1<'a>,
+            GenericFloatArray1<'a>,
+        )>,
+        sorted: Option<bool>,
+        batch_size: usize,
+        yield_index: bool,
+        shuffle: bool,
+        drop_nobs: DropNObsType,
+        random_seed: Option<u64>,
+    ) -> Res<GenericDmDtBatches<T, Tmerr2Lc<T>>> {
+        let typed_lcs = lcs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (t, m, sigma))| {
+                let t: Result<&'a PyArray1<T>, _> = t.try_into();
+                let m: Result<&'a PyArray1<T>, _> = m.try_into();
+                let sigma: Result<&'a PyArray1<T>, _> = sigma.try_into();
+                match (t, m, sigma) {
+                    (Ok(t), Ok(m), Ok(sigma)) => {
+                        let t = t.to_owned_array();
+                        check_sorted(t.as_slice().unwrap(), sorted)?;
+                        let m = m.to_owned_array();
+                        let err2 = Self::sigma_to_err2(sigma);
+                        Ok((t, m, err2))
+                    }
+                    _ => Err(Exception::TypeError(format!(
+                        "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                        i,
+                        std::any::type_name::<T>(),
+                    ))),
+                }
+            })
+            .collect::<Res<Vec<_>>>()?;
+        GenericDmDtBatches::new(
+            self.clone(),
+            typed_lcs,
+            batch_size,
+            yield_index,
+            shuffle,
+            drop_nobs,
+            random_seed,
+        )
     }
 
     fn gausses_from_columnar(
@@ -501,6 +743,9 @@ macro_rules! py_dmdt_batches {
     };
 }
 
+type TmLc<T> = (ndarray::Array1<T>, ndarray::Array1<T>);
+type Tmerr2Lc<T> = (ndarray::Array1<T>, ndarray::Array1<T>, ndarray::Array1<T>);
+
 py_dmdt_batches!(
     |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
         let mut lcs: Vec<_> = indexes
@@ -508,8 +753,8 @@ py_dmdt_batches!(
             .map(|&i| {
                 let (t, m) = &dmdt_batches.lcs[i];
                 (
-                    t.as_slice_memory_order().unwrap(),
-                    m.as_slice_memory_order().unwrap(),
+                    t.as_slice().unwrap(),
+                    m.as_slice().unwrap(),
                 )
             })
             .collect();
@@ -530,11 +775,11 @@ py_dmdt_batches!(
         }
         dmdt_batches.dmdt.points_many(lcs, Some(true))
     },
-    GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>)>,
+    GenericDmDtBatches<f32, TmLc<f32>>,
     DmDtPointsBatchesF32,
     DmDtPointsIterF32,
     f32,
-    GenericDmDtBatches<f64, (ndarray::Array1<f64>, ndarray::Array1<f64>)>,
+    GenericDmDtBatches<f64, TmLc<f64>>,
     DmDtPointsBatchesF64,
     DmDtPointsIterF64,
     f64,
@@ -547,9 +792,9 @@ py_dmdt_batches!(
             .map(|&i| {
                 let (t, m, err2) = &dmdt_batches.lcs[i];
                 (
-                    t.as_slice_memory_order().unwrap(),
-                    m.as_slice_memory_order().unwrap(),
-                    err2.as_slice_memory_order().unwrap(),
+                    t.as_slice().unwrap(),
+                    m.as_slice().unwrap(),
+                    err2.as_slice().unwrap(),
                 )
             })
             .collect();
@@ -570,11 +815,11 @@ py_dmdt_batches!(
         }
         dmdt_batches.dmdt.gausses_many(lcs, Some(true))
     },
-    GenericDmDtBatches<f32, (ndarray::Array1<f32>, ndarray::Array1<f32>, ndarray::Array1<f32>)>,
+    GenericDmDtBatches<f32, Tmerr2Lc<f32>>,
     DmDtGaussesBatchesF32,
     DmDtGaussesIterF32,
     f32,
-    GenericDmDtBatches<f64, (ndarray::Array1<f64>, ndarray::Array1<f64>, ndarray::Array1<f64>)>,
+    GenericDmDtBatches<f64, Tmerr2Lc<f64>>,
     DmDtGaussesBatchesF64,
     DmDtGaussesIterF64,
     f64,
@@ -957,14 +1202,8 @@ impl DmDt {
     #[args(t, sorted = "None")]
     fn count_dt(&self, py: Python, t: GenericFloatArray1, sorted: Option<bool>) -> Res<PyObject> {
         match t {
-            GenericFloatArray1::Float32(t) => self
-                .dmdt_f32
-                .count_dt(&ArrWrapper::new(t, true), sorted)
-                .map(|a| a.into_pyarray(py).into_py(py)),
-            GenericFloatArray1::Float64(t) => self
-                .dmdt_f64
-                .count_dt(&ArrWrapper::new(t, true), sorted)
-                .map(|a| a.into_pyarray(py).into_py(py)),
+            GenericFloatArray1::Float32(t) => self.dmdt_f32.py_count_dt(py, t, sorted),
+            GenericFloatArray1::Float64(t) => self.dmdt_f64.py_count_dt(py, t, sorted),
         }
     }
 
@@ -994,44 +1233,8 @@ impl DmDt {
             Err(Exception::ValueError("t_ is empty".to_owned()))
         } else {
             match t_[0] {
-                GenericFloatArray1::Float32(_) => {
-                    let wrapped_t_ = t_
-                        .iter()
-                        .enumerate()
-                        .map(|(i, t)| match t {
-                            GenericFloatArray1::Float32(t) => Ok(ArrWrapper::new(t, true)),
-                            _ => Err(Exception::TypeError(format!(
-                                "t_[{}] has mismatched dtype with the t_[0] which is float32",
-                                i
-                            ))),
-                        })
-                        .collect::<Res<Vec<_>>>()?;
-                    let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
-                    Ok(self
-                        .dmdt_f32
-                        .count_dt_many(typed_t_, sorted)?
-                        .into_pyarray(py)
-                        .into_py(py))
-                }
-                GenericFloatArray1::Float64(_) => {
-                    let wrapped_t_ = t_
-                        .iter()
-                        .enumerate()
-                        .map(|(i, t)| match t {
-                            GenericFloatArray1::Float64(t) => Ok(ArrWrapper::new(t, true)),
-                            _ => Err(Exception::TypeError(format!(
-                                "t_[{}] has mismatched dtype with the t_[0] which is float64",
-                                i
-                            ))),
-                        })
-                        .collect::<Res<Vec<_>>>()?;
-                    let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
-                    Ok(self
-                        .dmdt_f64
-                        .count_dt_many(typed_t_, sorted)?
-                        .into_pyarray(py)
-                        .into_py(py))
-                }
+                GenericFloatArray1::Float32(_) => self.dmdt_f32.py_count_dt_many(py, t_, sorted),
+                GenericFloatArray1::Float64(_) => self.dmdt_f64.py_count_dt_many(py, t_, sorted),
             }
         }
     }
@@ -1060,16 +1263,12 @@ impl DmDt {
         sorted: Option<bool>,
     ) -> Res<PyObject> {
         match (t, m) {
-            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok(self
-                .dmdt_f32
-                .points(&ArrWrapper::new(t, true), &ArrWrapper::new(m, true), sorted)?
-                .into_pyarray(py)
-                .into_py(py)),
-            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok(self
-                .dmdt_f64
-                .points(&ArrWrapper::new(t, true), &ArrWrapper::new(m, true), sorted)?
-                .into_pyarray(py)
-                .into_py(py)),
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
+                self.dmdt_f32.py_points(py, t, m, sorted)
+            }
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
+                self.dmdt_f64.py_points(py, t, m, sorted)
+            }
             _ => Err(Exception::TypeError(
                 "t and m must have the same dtype".to_owned(),
             )),
@@ -1103,30 +1302,8 @@ impl DmDt {
             Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
-                GenericFloatArray1::Float32(_) => {
-                    let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true))),
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    let typed_lcs = wrapped_lcs.iter().map(|(t, m)| (&t[..], &m[..])).collect();
-                    Ok(self
-                        .dmdt_f32
-                        .points_many(typed_lcs, sorted)?
-                        .into_pyarray(py)
-                        .into_py(py))
-                }
-                GenericFloatArray1::Float64(_) => {
-                    let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true))),
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    let typed_lcs = wrapped_lcs.iter().map(|(t, m)| (&t[..], &m[..])).collect();
-                    Ok(self
-                        .dmdt_f64
-                        .points_many(typed_lcs, sorted)?
-                        .into_pyarray(py)
-                        .into_py(py))
-                }
+                GenericFloatArray1::Float32(_) => self.dmdt_f32.py_points_many(py, lcs, sorted),
+                GenericFloatArray1::Float64(_) => self.dmdt_f64.py_points_many(py, lcs, sorted),
             }
         }
     }
@@ -1193,54 +1370,32 @@ impl DmDt {
         if lcs.is_empty() {
             Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
-            match lcs[0].0 {
-                GenericFloatArray1::Float32(_) => {
-                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
-                            let t = t.to_owned_array();
-                            check_sorted(t.as_slice().unwrap(), sorted)?;
-                            let m = m.to_owned_array();
-                            Ok((t, m))
-                        },
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    Ok(DmDtPointsBatchesF32 {
-                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
-                            self.dmdt_f32.clone(),
-                            typed_lcs,
-                            batch_size,
-                            yield_index,
-                            shuffle,
-                            drop_nobs,
-                            random_seed,
-                        )?),
-                    }
-                    .into_py(py))
+            Ok(match lcs[0].0 {
+                GenericFloatArray1::Float32(_) => DmDtPointsBatchesF32 {
+                    dmdt_batches: Arc::new(self.dmdt_f32.generic_dmdt_points_batches(
+                        lcs,
+                        sorted,
+                        batch_size,
+                        yield_index,
+                        shuffle,
+                        drop_nobs,
+                        random_seed,
+                    )?),
                 }
-                GenericFloatArray1::Float64(_) => {
-                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
-                            let t = t.to_owned_array();
-                            check_sorted(t.as_slice().unwrap(), sorted)?;
-                            let m = m.to_owned_array();
-                            Ok((t, m))
-                        },
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    Ok(DmDtPointsBatchesF64 {
-                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
-                            self.dmdt_f64.clone(),
-                            typed_lcs,
-                            batch_size,
-                            yield_index,
-                            shuffle,
-                            drop_nobs,
-                            random_seed,
-                        )?),
-                    }
-                    .into_py(py))
+                .into_py(py),
+                GenericFloatArray1::Float64(_) => DmDtPointsBatchesF64 {
+                    dmdt_batches: Arc::new(self.dmdt_f64.generic_dmdt_points_batches(
+                        lcs,
+                        sorted,
+                        batch_size,
+                        yield_index,
+                        shuffle,
+                        drop_nobs,
+                        random_seed,
+                    )?),
                 }
-            }
+                .into_py(py),
+            })
         }
     }
 
@@ -1323,37 +1478,13 @@ impl DmDt {
                 GenericFloatArray1::Float32(t),
                 GenericFloatArray1::Float32(m),
                 GenericFloatArray1::Float32(sigma),
-            ) => {
-                let err2 = GenericDmDt::sigma_to_err2(sigma);
-                Ok(self
-                    .dmdt_f32
-                    .gausses(
-                        &ArrWrapper::new(t, true),
-                        &ArrWrapper::new(m, true),
-                        err2.as_slice_memory_order().unwrap(),
-                        sorted,
-                    )?
-                    .into_pyarray(py)
-                    .into_py(py))
-            }
+            ) => self.dmdt_f32.py_gausses(py, t, m, sigma, sorted),
             (
                 GenericFloatArray1::Float64(t),
                 GenericFloatArray1::Float64(m),
                 GenericFloatArray1::Float64(sigma),
-            ) => {
-                let err2 = GenericDmDt::sigma_to_err2(sigma);
-                Ok(self
-                    .dmdt_f64
-                    .gausses(
-                        &ArrWrapper::new(t, true),
-                        &ArrWrapper::new(m, true),
-                        err2.as_slice_memory_order().unwrap(),
-                        sorted,
-                    )?
-                    .into_pyarray(py)
-                    .into_py(py))
-            }
-            _ => Err(Exception::ValueError(
+            ) => self.dmdt_f64.py_gausses(py, t, m, sigma, sorted),
+            _ => Err(Exception::TypeError(
                 "t, m and sigma must have the same dtype".to_owned(),
             )),
         }
@@ -1386,36 +1517,8 @@ impl DmDt {
             Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
-                GenericFloatArray1::Float32(_) => {
-                    let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true), GenericDmDt::sigma_to_err2(sigma))),
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    let typed_lcs = wrapped_lcs
-                        .iter()
-                        .map(|(t, m, err2)| (&t[..], &m[..], err2.as_slice_memory_order().unwrap()))
-                        .collect();
-                    Ok(self
-                        .dmdt_f32
-                        .gausses_many(typed_lcs, sorted)?
-                        .into_pyarray(py)
-                        .into_py(py))
-                }
-                GenericFloatArray1::Float64(_) => {
-                    let wrapped_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true), GenericDmDt::sigma_to_err2(sigma))),
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    let typed_lcs = wrapped_lcs
-                        .iter()
-                        .map(|(t, m, err2)| (&t[..], &m[..], err2.as_slice_memory_order().unwrap()))
-                        .collect();
-                    Ok(self
-                        .dmdt_f64
-                        .gausses_many(typed_lcs, sorted)?
-                        .into_pyarray(py)
-                        .into_py(py))
-                }
+                GenericFloatArray1::Float32(_) => self.dmdt_f32.py_gausses_many(py, lcs, sorted),
+                GenericFloatArray1::Float64(_) => self.dmdt_f64.py_gausses_many(py, lcs, sorted),
             }
         }
     }
@@ -1479,54 +1582,30 @@ impl DmDt {
             Err(Exception::ValueError("lcs is empty".to_owned()))
         } else {
             match lcs[0].0 {
-                GenericFloatArray1::Float32(_) => {
-                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m), GenericFloatArray1::Float32(sigma)) => {
-                            let t = t.to_owned_array();
-                            check_sorted(t.as_slice().unwrap(), sorted)?;
-                            let m = m.to_owned_array();
-                            let err2 = GenericDmDt::sigma_to_err2(sigma);
-                            Ok((t, m, err2))
-                        },
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float32", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    Ok(DmDtGaussesBatchesF32 {
-                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
-                            self.dmdt_f32.clone(),
-                            typed_lcs,
-                            batch_size,
-                            yield_index,
-                            shuffle,
-                            drop_nobs,
-                            random_seed,
-                        )?),
-                    }
-                    .into_py(py))
+                GenericFloatArray1::Float32(_) => Ok(DmDtGaussesBatchesF32 {
+                    dmdt_batches: Arc::new(self.dmdt_f32.generic_dmdt_gausses_batches(
+                        lcs,
+                        sorted,
+                        batch_size,
+                        yield_index,
+                        shuffle,
+                        drop_nobs,
+                        random_seed,
+                    )?),
                 }
-                GenericFloatArray1::Float64(_) => {
-                    let typed_lcs = lcs.iter().enumerate().map(|(i, lc)| match lc {
-                        (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m), GenericFloatArray1::Float64(sigma)) => {
-                            let t = t.to_owned_array();
-                            check_sorted(t.as_slice().unwrap(), sorted)?;
-                            let m = m.to_owned_array();
-                            let err2 = GenericDmDt::sigma_to_err2(sigma);
-                            Ok((t, m, err2))
-                        },
-                        _ => Err(Exception::TypeError(format!("lcs[{}] elements have mismatched dtype with the lc[0][0] which is float64", i))),
-                    }).collect::<Res<Vec<_>>>()?;
-                    Ok(DmDtGaussesBatchesF64 {
-                        dmdt_batches: Arc::new(GenericDmDtBatches::new(
-                            self.dmdt_f64.clone(),
-                            typed_lcs,
-                            batch_size,
-                            yield_index,
-                            shuffle,
-                            drop_nobs,
-                            random_seed,
-                        )?),
-                    }
-                    .into_py(py))
+                .into_py(py)),
+                GenericFloatArray1::Float64(_) => Ok(DmDtGaussesBatchesF64 {
+                    dmdt_batches: Arc::new(self.dmdt_f64.generic_dmdt_gausses_batches(
+                        lcs,
+                        sorted,
+                        batch_size,
+                        yield_index,
+                        shuffle,
+                        drop_nobs,
+                        random_seed,
+                    )?),
                 }
+                .into_py(py)),
             }
         }
     }
