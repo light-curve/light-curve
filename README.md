@@ -7,11 +7,11 @@ The most of the code base is written on Rust and split into several crates.
 
 ### Structure
 
-- `./light-curve`**WIP** A crate which will be an umbrella for other Rust crates
+- `light-curve`**WIP** A crate which will be an umbrella for other Rust crates
 
-- `./light-curve-common` ![docs.rs badge](https://docs.rs/light-curve-common/badge.svg) Common tools for other crates
+- `light-curve-common` ![docs.rs badge](https://docs.rs/light-curve-common/badge.svg) Common tools for other crates
 
-- `./light-curve-dmdt` ![docs.rs badge](https://docs.rs/light-curve-dmdt/badge.svg) [dm-dt](https://arxiv.org/abs/1709.06257) mapper crate and executable
+- `light-curve-dmdt` ![docs.rs badge](https://docs.rs/light-curve-dmdt/badge.svg) [dm-dt](https://arxiv.org/abs/1709.06257) mapper crate and executable
 
 - `light-curve-feature` ![docs.rs badge](https://docs.rs/light-curve-feature/badge.svg) A collection of features to be extracted from light curves
 - `light-curve-interpol`**WIP** Light curve interpolation tools. Currently it includes linear interpolation only
