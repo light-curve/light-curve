@@ -107,7 +107,7 @@ where
         let n = 10;
         let x = randspace(n);
         let y = randvec(n);
-        let mut ts = TimeSeries::new(&x, &y, None);
+        let mut ts = TimeSeries::new_without_weight(&x, &y);
         let fe = FeatureExtractor::new(observation_count_vec);
         c.bench_function(
             format!("Multiple ObservationCount {}", type_name::<T>()).as_str(),
@@ -127,7 +127,7 @@ fn run<T: Float>(
     err: &[T],
 ) -> Result<Vec<T>, EvaluatorError> {
     let w: Vec<_> = err.iter().map(|&e| e.powi(-2)).collect();
-    let mut ts = TimeSeries::new(&x, &y, Some(&w));
+    let mut ts = TimeSeries::new(&x, &y, &w);
     fe.eval(&mut ts)
 }
 
