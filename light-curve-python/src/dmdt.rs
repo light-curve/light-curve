@@ -582,6 +582,9 @@ py_dmdt_batches!(
 
 /// dm-dt map producer
 ///
+/// THIS IS AN EXPERIMENTAL FEATURE
+/// INTERFACE COULD CHANGE WHEN PATCH VERSION IS CHANGED
+///
 /// Each pair of observations is mapped to dm-dt plane bringing unity
 /// value. dmdt-map is a rectangle on this plane consisted of
 /// `dt_size` x `dm_size` cells, and limited by `[min_dt; max_dt)` and
