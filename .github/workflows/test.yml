@@ -109,3 +109,16 @@ jobs:
       run: black --check .
     - name: Run Python tests
       run: tox -p -q
+
+
+  arm:
+
+    runs-on: [self-hosted, linux, ARM64]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: build all but python
+        run: cargo build --workspace --all-targets --exclude light-curve-python
+      - name: build python
+        run: maturin build
+        working-directory: light-curve-python
