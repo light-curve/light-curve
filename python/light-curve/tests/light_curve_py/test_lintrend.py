@@ -31,3 +31,14 @@ def test_lintrend_2():
     actual = feature(t, m, None)
     desired = (2.0, 0, 0)
     assert_allclose(actual, desired)
+
+
+def test_lintrend_3():  # check if sigma is used in least squares
+    m = np.linspace(20, 25, 15)
+    t = np.linspace(0, 10, 15)
+    sigma = np.linspace(0, 1, 15)
+
+    feature = LinearTrend()
+    actual = feature(t, m, None)
+    desired = feature(t, m, sigma)
+    assert_allclose(actual, desired)

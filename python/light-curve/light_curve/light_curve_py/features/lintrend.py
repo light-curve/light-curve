@@ -11,7 +11,7 @@ class LinearTrend(BaseFeature):
         if n == 2:
             return (m[1] - m[0]) / (t[1] - t[0]), 0, 0
 
-        slope, chi2 = least_squares(t, m, sigma)
+        slope, chi2 = least_squares(t, m, None)
 
         red_chi2 = chi2 / (n - 2)
         sxx = np.var(t, ddof=n - 1)
