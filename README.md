@@ -1,7 +1,7 @@
 # `light-curve`
-##### Irregular time series processing tools for Rust and Python
+## Irregular time series processing tools for Rust and Python
 
-The project is aimed to build high-performance tools for light curve analysis suitable to process alert and archivial data of current [ZTF](https://ztf.caltech.edu) and future [Vera Rubin Observatory LSST](https://lsst.org) photometric surveys.
+The project is aimed to build high-performance tools for light curve analysis suitable to process alert and archival data of current [ZTF](https://ztf.caltech.edu) and future [Vera Rubin Observatory LSST](https://lsst.org) photometric surveys.
 
 The most of the code base is written on Rust and split into several crates.
 
