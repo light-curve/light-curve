@@ -3,14 +3,12 @@ use light_curve_common::linspace;
 use light_curve_feature::periodogram::*;
 use light_curve_feature::time_series::TimeSeries;
 
-type BoxedPeriodogram = Box<dyn PeriodogramPower<f32>>;
-
 pub fn bench_periodogram(c: &mut Criterion) {
-    let ns_power_resolution: [(Vec<usize>, BoxedPeriodogram, f32); 2] = [
-        (vec![10, 100, 1000], Box::new(PeriodogramPowerDirect), 5.0),
+    let ns_power_resolution: [(Vec<usize>, PeriodogramPower<f32>, f32); 2] = [
+        (vec![10, 100, 1000], PeriodogramPowerDirect.into(), 5.0),
         (
             vec![10, 100, 1000, 10000, 1000000],
-            Box::new(PeriodogramPowerFft::new()),
+            PeriodogramPowerFft::new().into(),
             10.0,
         ),
     ];
