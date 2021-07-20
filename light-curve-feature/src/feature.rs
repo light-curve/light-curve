@@ -10,6 +10,7 @@ use std::fmt::Debug;
 
 #[enum_dispatch(FeatureEvaluator<T>)]
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum Feature<T>
 where
     T: Float,
