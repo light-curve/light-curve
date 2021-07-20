@@ -145,7 +145,7 @@ where
     properties: Box<EvaluatorProperties>,
     resolution: f32,
     max_freq_factor: f32,
-    nyquist: Box<dyn NyquistFreq<T>>,
+    nyquist: NyquistFreq,
     feature_extractor: FeatureExtractor<T, F>,
     periodogram_algorithm: PeriodogramPower<T>,
 }
@@ -194,7 +194,7 @@ where
             .into(),
             resolution: Self::default_resolution(),
             max_freq_factor: Self::default_max_freq_factor(),
-            nyquist: Box::new(AverageNyquistFreq),
+            nyquist: AverageNyquistFreq.into(),
             feature_extractor: FeatureExtractor::new(vec![peaks.into()]),
             periodogram_algorithm: PeriodogramPowerFft::new().into(),
         }
@@ -219,7 +219,7 @@ where
     }
 
     /// Define Nyquist frequency
-    pub fn set_nyquist(&mut self, nyquist: Box<dyn NyquistFreq<T>>) -> &mut Self {
+    pub fn set_nyquist(&mut self, nyquist: NyquistFreq) -> &mut Self {
         self.nyquist = nyquist;
         self
     }
@@ -257,7 +257,7 @@ where
             ts.t.as_slice(),
             self.resolution,
             self.max_freq_factor,
-            &self.nyquist,
+            self.nyquist.clone(),
         )
     }
 
@@ -452,7 +452,7 @@ mod tests {
     fn periodogram_different_time_scales() {
         let mut periodogram: Periodogram<_, Feature<_>> = Periodogram::new(2);
         periodogram
-            .set_nyquist(Box::new(QuantileNyquistFreq { quantile: 0.05 }))
+            .set_nyquist(QuantileNyquistFreq { quantile: 0.05 }.into())
             .set_freq_resolution(10.0)
             .set_max_freq_factor(1.0)
             .set_periodogram_algorithm(PeriodogramPowerFft::new().into());

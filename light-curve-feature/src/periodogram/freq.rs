@@ -1,7 +1,7 @@
 use crate::float_trait::Float;
 use crate::sorted_array::SortedArray;
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
-use dyn_clonable::*;
+use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use std::fmt::Debug;
 
@@ -9,9 +9,18 @@ use std::fmt::Debug;
 ///
 /// Nyquist frequency for unevenly time series is not well-defined. Here we define it as
 /// $\pi / \delta t$, where $\delta t$ is some typical interval between consequent observations
-#[clonable]
-pub trait NyquistFreq<T>: Send + Sync + Clone + Debug {
-    fn nyquist_freq(&self, t: &[T]) -> T;
+#[enum_dispatch]
+trait NyquistFreqTrait: Send + Sync + Clone + Debug {
+    fn nyquist_freq<T: Float>(&self, t: &[T]) -> T;
+}
+
+#[enum_dispatch(NyquistFreqTrait)]
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum NyquistFreq {
+    Average(AverageNyquistFreq),
+    Median(MedianNyquistFreq),
+    Quantile(QuantileNyquistFreq),
 }
 
 /// $\Delta t = \mathrm{duration} / (N - 1)$ is the mean time interval between observations
@@ -22,8 +31,8 @@ pub trait NyquistFreq<T>: Send + Sync + Clone + Debug {
 #[derive(Clone, Debug)]
 pub struct AverageNyquistFreq;
 
-impl<T: Float> NyquistFreq<T> for AverageNyquistFreq {
-    fn nyquist_freq(&self, t: &[T]) -> T {
+impl NyquistFreqTrait for AverageNyquistFreq {
+    fn nyquist_freq<T: Float>(&self, t: &[T]) -> T {
         let n = t.len();
         T::PI() * (n - 1).value_as().unwrap() / (t[n - 1] - t[0])
     }
@@ -37,8 +46,8 @@ fn diff<T: Float>(x: &[T]) -> Vec<T> {
 #[derive(Clone, Debug)]
 pub struct MedianNyquistFreq;
 
-impl<T: Float> NyquistFreq<T> for MedianNyquistFreq {
-    fn nyquist_freq(&self, t: &[T]) -> T {
+impl NyquistFreqTrait for MedianNyquistFreq {
+    fn nyquist_freq<T: Float>(&self, t: &[T]) -> T {
         let sorted_dt: SortedArray<_> = diff(t).into();
         let dt = sorted_dt.median();
         T::PI() / dt
@@ -51,8 +60,8 @@ pub struct QuantileNyquistFreq {
     pub quantile: f32,
 }
 
-impl<T: Float> NyquistFreq<T> for QuantileNyquistFreq {
-    fn nyquist_freq(&self, t: &[T]) -> T {
+impl NyquistFreqTrait for QuantileNyquistFreq {
+    fn nyquist_freq<T: Float>(&self, t: &[T]) -> T {
         let sorted_dt: SortedArray<_> = diff(t).into();
         let dt = sorted_dt.ppf(self.quantile);
         T::PI() / dt
@@ -69,13 +78,7 @@ impl<T> FreqGrid<T>
 where
     T: Float,
 {
-    #[allow(clippy::borrowed_box)] // https://github.com/rust-lang/rust-clippy/issues/4305
-    pub fn from_t(
-        t: &[T],
-        resolution: f32,
-        max_freq_factor: f32,
-        nyquist: &Box<dyn NyquistFreq<T>>,
-    ) -> Self {
+    pub fn from_t(t: &[T], resolution: f32, max_freq_factor: f32, nyquist: NyquistFreq) -> Self {
         assert!(resolution.is_sign_positive() && resolution.is_finite());
 
         let sizef = t.len().value_as::<T>().unwrap();
