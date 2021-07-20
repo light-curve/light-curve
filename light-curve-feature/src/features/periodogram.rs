@@ -147,7 +147,7 @@ where
     max_freq_factor: f32,
     nyquist: Box<dyn NyquistFreq<T>>,
     feature_extractor: FeatureExtractor<T, F>,
-    periodogram_algorithm: Box<dyn PeriodogramPower<T>>,
+    periodogram_algorithm: PeriodogramPower<T>,
 }
 
 impl<T, F> Periodogram<T, F>
@@ -196,7 +196,7 @@ where
             max_freq_factor: Self::default_max_freq_factor(),
             nyquist: Box::new(AverageNyquistFreq),
             feature_extractor: FeatureExtractor::new(vec![peaks.into()]),
-            periodogram_algorithm: Box::new(PeriodogramPowerFft::new()),
+            periodogram_algorithm: PeriodogramPowerFft::new().into(),
         }
     }
 
@@ -245,7 +245,7 @@ where
 
     pub fn set_periodogram_algorithm(
         &mut self,
-        periodogram_power: Box<dyn PeriodogramPower<T>>,
+        periodogram_power: PeriodogramPower<T>,
     ) -> &mut Self {
         self.periodogram_algorithm = periodogram_power;
         self
@@ -311,20 +311,20 @@ mod tests {
 
     eval_info_test!(periodogram_info_1, {
         let mut periodogram = Periodogram::default();
-        periodogram.set_periodogram_algorithm(Box::new(PeriodogramPowerDirect {}));
+        periodogram.set_periodogram_algorithm(PeriodogramPowerDirect.into());
         periodogram
     });
 
     eval_info_test!(periodogram_info_2, {
         let mut periodogram = Periodogram::new(5);
-        periodogram.set_periodogram_algorithm(Box::new(PeriodogramPowerDirect {}));
+        periodogram.set_periodogram_algorithm(PeriodogramPowerDirect.into());
         periodogram
     });
 
     eval_info_test!(periodogram_info_3, {
         let mut periodogram = Periodogram::default();
         periodogram.add_feature(Amplitude::default().into());
-        periodogram.set_periodogram_algorithm(Box::new(PeriodogramPowerDirect {}));
+        periodogram.set_periodogram_algorithm(PeriodogramPowerDirect.into());
         periodogram
     });
 
@@ -455,7 +455,7 @@ mod tests {
             .set_nyquist(Box::new(QuantileNyquistFreq { quantile: 0.05 }))
             .set_freq_resolution(10.0)
             .set_max_freq_factor(1.0)
-            .set_periodogram_algorithm(Box::new(PeriodogramPowerFft::new()));
+            .set_periodogram_algorithm(PeriodogramPowerFft::new().into());
         let period1 = 0.01;
         let period2 = 1.0;
         let n = 100;

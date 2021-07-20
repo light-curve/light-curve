@@ -1,7 +1,7 @@
 use crate::float_trait::Float;
 use crate::periodogram::fft::*;
 use crate::periodogram::freq::FreqGrid;
-use crate::periodogram::power::*;
+use crate::periodogram::power_trait::*;
 use crate::time_series::TimeSeries;
 
 use conv::{ConvAsUtil, RoundToNearest};
@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<T> PeriodogramPower<T> for PeriodogramPowerFft<T>
+impl<T> PeriodogramPowerTrait<T> for PeriodogramPowerFft<T>
 where
     T: Float,
 {
