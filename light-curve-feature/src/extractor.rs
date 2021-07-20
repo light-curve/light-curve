@@ -43,10 +43,6 @@ where
         }
     }
 
-    pub fn from_iter(features: impl IntoIterator<Item = F>) -> Self {
-        Self::new(features.into_iter().collect())
-    }
-
     /// Copy of the feature vector
     pub fn clone_features(&self) -> Vec<F> {
         self.features.clone()
