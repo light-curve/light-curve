@@ -48,7 +48,7 @@ where
         })
         .collect();
 
-    let beyond_n_std_vec: Vec<_> = (1..21)
+    let beyond_n_std_vec: Vec<_> = (1usize..21)
         .map(|i| {
             let f: Box<dyn FeatureEvaluator<_>> =
                 Box::new(BeyondNStd::new(i.value_as::<T>().unwrap() / T::ten()));
