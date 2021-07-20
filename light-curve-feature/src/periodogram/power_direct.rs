@@ -1,6 +1,6 @@
 use crate::float_trait::Float;
 use crate::periodogram::freq::FreqGrid;
-use crate::periodogram::power::*;
+use crate::periodogram::power_trait::*;
 use crate::periodogram::recurrent_sin_cos::*;
 use crate::time_series::TimeSeries;
 
@@ -11,10 +11,10 @@ use crate::time_series::TimeSeries;
 /// [PeriodogramPowerFft](crate::periodogram::PeriodogramPowerFft) instead
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct PeriodogramPowerDirect;
 
-impl<T> PeriodogramPower<T> for PeriodogramPowerDirect
+impl<T> PeriodogramPowerTrait<T> for PeriodogramPowerDirect
 where
     T: Float,
 {
