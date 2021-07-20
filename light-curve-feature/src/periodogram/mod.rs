@@ -73,7 +73,7 @@ where
         t: &[T],
         resolution: f32,
         max_freq_factor: f32,
-        nyquist: &Box<dyn NyquistFreq<T>>,
+        nyquist: NyquistFreq,
     ) -> Self {
         Self::new(
             periodogram_power,
@@ -168,14 +168,14 @@ mod tests {
         let t = linspace(0.0, (N - 1) as f64, N);
         let m: Vec<_> = t.iter().map(|&x| f64::sin(OMEGA * x)).collect();
         let mut ts = TimeSeries::new_without_weight(&t, &m);
-        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
+        let nyquist: NyquistFreq = AverageNyquistFreq.into();
 
         let direct = Periodogram::from_t(
             PeriodogramPowerDirect.into(),
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
-            &nyquist,
+            nyquist.clone(),
         )
         .power(&mut ts);
         let fft = Periodogram::from_t(
@@ -183,7 +183,7 @@ mod tests {
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
-            &nyquist,
+            nyquist,
         )
         .power(&mut ts);
         all_close(&fft[..direct.len() - 1], &direct[..direct.len() - 1], 1e-8);
@@ -204,14 +204,14 @@ mod tests {
             .map(|&x| f64::sin(OMEGA1 * x) + AMPLITUDE2 * f64::cos(OMEGA2 * x))
             .collect();
         let mut ts = TimeSeries::new_without_weight(&t, &m);
-        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
+        let nyquist: NyquistFreq = AverageNyquistFreq.into();
 
         let direct = Periodogram::from_t(
             PeriodogramPowerDirect.into(),
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
-            &nyquist,
+            nyquist.clone(),
         )
         .power(&mut ts);
         let fft = Periodogram::from_t(
@@ -219,7 +219,7 @@ mod tests {
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
-            &nyquist,
+            nyquist,
         )
         .power(&mut ts);
 
@@ -253,14 +253,14 @@ mod tests {
             })
             .collect();
         let mut ts = TimeSeries::new_without_weight(&t, &m);
-        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(MedianNyquistFreq);
+        let nyquist: NyquistFreq = MedianNyquistFreq.into();
 
         let direct = Periodogram::from_t(
             PeriodogramPowerDirect.into(),
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
-            &nyquist,
+            nyquist.clone(),
         )
         .power(&mut ts);
         let fft = Periodogram::from_t(
@@ -268,7 +268,7 @@ mod tests {
             &t,
             RESOLUTION,
             MAX_FREQ_FACTOR,
-            &nyquist,
+            nyquist,
         )
         .power(&mut ts);
 
