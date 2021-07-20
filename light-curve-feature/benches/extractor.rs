@@ -108,7 +108,7 @@ where
         let x = randspace(n);
         let y = randvec(n);
         let mut ts = TimeSeries::new(&x, &y, None);
-        let fe = FeatureExtractor::new(observation_count_vec.clone());
+        let fe = FeatureExtractor::new(observation_count_vec);
         c.bench_function(
             format!("Multiple ObservationCount {}", type_name::<T>()).as_str(),
             |b| {
