@@ -53,8 +53,8 @@ mod lnerfc;
 pub mod periodogram;
 pub use periodogram::recurrent_sin_cos::RecurrentSinCos;
 pub use periodogram::{
-    AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, PeriodogramPowerDirect,
-    PeriodogramPowerFft, PeriodogramPowerTrait, QuantileNyquistFreq,
+    AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerDirect,
+    PeriodogramPowerFft, QuantileNyquistFreq,
 };
 
 pub mod sorted_array;
