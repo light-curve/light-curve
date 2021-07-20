@@ -71,7 +71,7 @@ where
         )))
         .chain(std::iter::once((
             "multiple ObservationCount",
-            FeatureExtractor::new(observation_count_vec),
+            FeatureExtractor::new(observation_count_vec.clone()),
         )))
         .chain(std::iter::once((
             "multiple BeyondNStd",
@@ -101,6 +101,22 @@ where
                 },
             );
         }
+    }
+
+    {
+        let n = 10;
+        let x = randspace(n);
+        let y = randvec(n);
+        let mut ts = TimeSeries::new(&x, &y, None);
+        let fe = FeatureExtractor::new(observation_count_vec.clone());
+        c.bench_function(
+            format!("Multiple ObservationCount {}", type_name::<T>()).as_str(),
+            |b| {
+                b.iter(|| {
+                    fe.eval(black_box(&mut ts)).unwrap();
+                });
+            },
+        );
     }
 }
 
