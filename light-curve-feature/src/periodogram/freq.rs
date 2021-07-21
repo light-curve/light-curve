@@ -3,6 +3,7 @@ use crate::sorted_array::SortedArray;
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
+use serde::Serialize;
 use std::fmt::Debug;
 
 /// Derive Nyquist frequency from time series
@@ -10,12 +11,12 @@ use std::fmt::Debug;
 /// Nyquist frequency for unevenly time series is not well-defined. Here we define it as
 /// $\pi / \delta t$, where $\delta t$ is some typical interval between consequent observations
 #[enum_dispatch]
-trait NyquistFreqTrait: Send + Sync + Clone + Debug {
+trait NyquistFreqTrait: Send + Sync + Clone + Debug + Serialize {
     fn nyquist_freq<T: Float>(&self, t: &[T]) -> T;
 }
 
 #[enum_dispatch(NyquistFreqTrait)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 #[non_exhaustive]
 pub enum NyquistFreq {
     Average(AverageNyquistFreq),
@@ -28,7 +29,7 @@ pub enum NyquistFreq {
 /// The denominator is $(N-1)$ for compatibility with Nyquist frequency for uniform grid. Note that
 /// in literature definition of "average Nyquist" frequency usually differ and place $N$ to the
 /// denominator
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct AverageNyquistFreq;
 
 impl NyquistFreqTrait for AverageNyquistFreq {
@@ -43,7 +44,7 @@ fn diff<T: Float>(x: &[T]) -> Vec<T> {
 }
 
 /// $\Delta t$ is the median time interval between observations
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct MedianNyquistFreq;
 
 impl NyquistFreqTrait for MedianNyquistFreq {
@@ -55,7 +56,7 @@ impl NyquistFreqTrait for MedianNyquistFreq {
 }
 
 /// $\Delta t$ is the $q$th quantile of time intervals between subsequent observations
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct QuantileNyquistFreq {
     pub quantile: f32,
 }

@@ -1,6 +1,8 @@
 use crate::evaluator::*;
 
 use conv::ConvUtil;
+use serde::ser::SerializeStruct;
+use serde::Serializer;
 
 /// Fraction of observations beyond $n\\,\sigma\_m$ from the mean magnitude $\langle m \rangle$
 ///
@@ -112,12 +114,28 @@ where
     }
 }
 
+impl<T> Serialize for BeyondNStd<T>
+where
+    T: Float,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("BeyondNStd", 1)?;
+        state.serialize_field("nstd", &self.nstd)?;
+        state.end()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
     use crate::tests::*;
+
+    use serde_test::{assert_ser_tokens, Token};
 
     eval_info_test!(beyond_n_std_info, BeyondNStd::default());
 
@@ -131,4 +149,22 @@ mod tests {
         [0.2, 0.2, 0.0],
         [1.0_f32, 2.0, 3.0, 4.0, 100.0],
     );
+
+    #[test]
+    fn serialization() {
+        const NSTD: f64 = 3.14;
+        let beyond_n_std = BeyondNStd::new(NSTD);
+        assert_ser_tokens(
+            &beyond_n_std,
+            &[
+                Token::Struct {
+                    len: 1,
+                    name: "BeyondNStd",
+                },
+                Token::String("nstd"),
+                Token::F64(NSTD),
+                Token::StructEnd,
+            ],
+        )
+    }
 }

@@ -3,6 +3,7 @@ use crate::time_series::TimeSeries;
 
 use conv::ConvAsUtil;
 use enum_dispatch::enum_dispatch;
+use serde::Serialize;
 
 mod fft;
 pub use fft::FftwFloat;
@@ -23,7 +24,7 @@ pub use power_trait::PeriodogramPowerTrait;
 pub mod recurrent_sin_cos;
 
 #[enum_dispatch(PeriodogramPowerTrait<T>)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 #[non_exhaustive]
 pub enum PeriodogramPower<T: Float> {
     Fft(PeriodogramPowerFft<T>),

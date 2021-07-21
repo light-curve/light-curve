@@ -4,6 +4,10 @@ use crate::peak_indices::peak_indices_reverse_sorted;
 use crate::periodogram;
 use crate::periodogram::{AverageNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerFft};
 
+use serde::ser::SerializeStruct;
+use serde::Serializer;
+use std::convert::TryInto;
+use std::fmt::Debug;
 use std::iter;
 
 fn number_ending(i: usize) -> &'static str {
@@ -118,6 +122,17 @@ where
     }
 }
 
+impl Serialize for PeriodogramPeaks {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("PeriodogramPeaks", 1)?;
+        state.serialize_field("peaks", &self.peaks)?;
+        state.end()
+    }
+}
+
 // See http://doi.org/10.1088/0004-637X/733/1/10
 /// A number of features based on Lomb–Scargle periodogram
 ///
@@ -153,7 +168,8 @@ where
 impl<T, F> Periodogram<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T> + From<PeriodogramPeaks>,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
 {
     #[inline]
     pub fn default_peaks() -> usize {
@@ -285,7 +301,8 @@ where
 impl<T, F> Default for Periodogram<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T> + From<PeriodogramPeaks>,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
 {
     fn default() -> Self {
         Self::new(Self::default_peaks())
@@ -295,9 +312,37 @@ where
 impl<T, F> FeatureEvaluator<T> for Periodogram<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T> + From<PeriodogramPeaks>,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
 {
     transformer_eval!();
+}
+
+impl<T, F> Serialize for Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + TryInto<PeriodogramPeaks> + From<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let features = self.feature_extractor.get_features();
+        let periodogram_peaks: PeriodogramPeaks = features[0].clone().try_into().unwrap();
+        let rest_of_features = &features[1..];
+
+        let mut state = serializer.serialize_struct("Periodogram", 6)?;
+        state.serialize_field("resolution", &self.resolution)?;
+        state.serialize_field("max_freq_factor", &self.max_freq_factor)?;
+        state.serialize_field("nyquist", &self.nyquist)?;
+        // Write all features but peaks,
+        state.serialize_field("features", rest_of_features)?;
+        // and write peak number here
+        state.serialize_field("peaks", &periodogram_peaks.peaks)?;
+        state.serialize_field("periodogram_algorithm", &self.periodogram_algorithm)?;
+        state.end()
+    }
 }
 
 #[cfg(test)]

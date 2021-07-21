@@ -10,7 +10,7 @@ use crate::evaluator::*;
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct Mean {}
 
 lazy_info!(

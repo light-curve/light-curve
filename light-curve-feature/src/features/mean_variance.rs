@@ -9,7 +9,7 @@ use crate::evaluator::*;
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **2**
 /// - Number of features: **1**
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct MeanVariance {}
 
 lazy_info!(

@@ -4,6 +4,7 @@ use conv::prelude::*;
 use lazy_static::lazy_static;
 use ndarray::Array0;
 use num_traits::{float::Float as NumFloat, float::FloatConst, FromPrimitive};
+use serde::Serialize;
 use std::cmp::PartialOrd;
 use std::fmt::{Debug, Display, LowerExp};
 use std::iter::Sum;
@@ -43,6 +44,7 @@ pub trait Float:
     + Debug
     + LowerExp
     + FftwFloat
+    + Serialize
 {
     fn half() -> Self;
     fn two() -> Self;

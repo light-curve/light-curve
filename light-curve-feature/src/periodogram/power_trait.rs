@@ -3,11 +3,12 @@ use crate::periodogram::freq::FreqGrid;
 use crate::time_series::TimeSeries;
 
 use enum_dispatch::enum_dispatch;
+use serde::Serialize;
 use std::fmt::Debug;
 
 /// Periodogram execution algorithm
 #[enum_dispatch]
-pub trait PeriodogramPowerTrait<T>: Debug + Clone + Send
+pub trait PeriodogramPowerTrait<T>: Debug + Clone + Send + Serialize
 where
     T: Float,
 {

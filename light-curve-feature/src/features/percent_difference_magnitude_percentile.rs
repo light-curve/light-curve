@@ -1,5 +1,8 @@
 use crate::evaluator::*;
 
+use serde::ser::SerializeStruct;
+use serde::Serializer;
+
 /// Ratio of $p$th inter-percentile range to the median
 ///
 /// $$
@@ -93,12 +96,25 @@ where
     }
 }
 
+impl Serialize for PercentDifferenceMagnitudePercentile {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("PercentDifferenceMagnitudePercentile", 1)?;
+        state.serialize_field("quantile", &self.quantile)?;
+        state.end()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
     use crate::tests::*;
+
+    use serde_test::{assert_ser_tokens, Token};
 
     eval_info_test!(
         percent_difference_magnitude_percentile_info,
@@ -118,4 +134,23 @@ mod tests {
             10.0, 70.0, 80.0, 92.0, 97.0, 17.0
         ],
     );
+
+    #[test]
+    fn serialization() {
+        const QUANTILE: f32 = 0.017;
+        let percent_difference_magnitude_percentile =
+            PercentDifferenceMagnitudePercentile::new(QUANTILE);
+        assert_ser_tokens(
+            &percent_difference_magnitude_percentile,
+            &[
+                Token::Struct {
+                    len: 1,
+                    name: "PercentDifferenceMagnitudePercentile",
+                },
+                Token::String("quantile"),
+                Token::F32(QUANTILE),
+                Token::StructEnd,
+            ],
+        )
+    }
 }
