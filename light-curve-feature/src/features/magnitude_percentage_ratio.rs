@@ -1,5 +1,8 @@
 use crate::evaluator::*;
 
+use serde::ser::SerializeStruct;
+use serde::Serializer;
+
 /// Magnitude percentage ratio
 ///
 /// $$
@@ -113,12 +116,26 @@ where
     }
 }
 
+impl Serialize for MagnitudePercentageRatio {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("MagnitudePercentageRatio", 2)?;
+        state.serialize_field("quantile_numerator", &self.quantile_numerator)?;
+        state.serialize_field("quantile_denominator", &self.quantile_denominator)?;
+        state.end()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
     use crate::tests::*;
+
+    use serde_test::{assert_ser_tokens, Token};
 
     eval_info_test!(
         magnitude_percentage_ratio_info,
@@ -146,5 +163,27 @@ mod tests {
         let x = [0.0; 10];
         let mut ts = TimeSeries::new_without_weight(&x, &x);
         assert_eq!(eval.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
+    }
+
+    #[test]
+    fn serialization() {
+        const QUANTILE_NUMERATOR: f32 = 0.256;
+        const QUANTILE_DENOMINATOR: f32 = 0.128;
+
+        let beyond_n_std = MagnitudePercentageRatio::new(QUANTILE_NUMERATOR, QUANTILE_DENOMINATOR);
+        assert_ser_tokens(
+            &beyond_n_std,
+            &[
+                Token::Struct {
+                    len: 2,
+                    name: "MagnitudePercentageRatio",
+                },
+                Token::String("quantile_numerator"),
+                Token::F32(QUANTILE_NUMERATOR),
+                Token::String("quantile_denominator"),
+                Token::F32(QUANTILE_DENOMINATOR),
+                Token::StructEnd,
+            ],
+        )
     }
 }

@@ -1,6 +1,8 @@
 use crate::evaluator::*;
 
 use conv::ConvUtil;
+use serde::ser::SerializeStruct;
+use serde::Serializer;
 
 /// Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m)) / 2$ interval
 ///
@@ -97,12 +99,28 @@ where
     }
 }
 
+impl<T> Serialize for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("MedianBufferRangePercentage", 1)?;
+        state.serialize_field("quantile", &self.quantile)?;
+        state.end()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
     use crate::tests::*;
+
+    use serde_test::{assert_ser_tokens, Token};
 
     eval_info_test!(
         median_buffer_range_percentage_info,
@@ -126,4 +144,22 @@ mod tests {
         [0.0],
         [0.0; 10],
     );
+
+    #[test]
+    fn serialization() {
+        const QUANTILE: f64 = 0.432;
+        let median_buffer_range_percentage = MedianBufferRangePercentage::new(QUANTILE);
+        assert_ser_tokens(
+            &median_buffer_range_percentage,
+            &[
+                Token::Struct {
+                    len: 1,
+                    name: "MedianBufferRangePercentage",
+                },
+                Token::String("quantile"),
+                Token::F64(QUANTILE),
+                Token::StructEnd,
+            ],
+        )
+    }
 }

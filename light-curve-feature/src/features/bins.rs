@@ -2,6 +2,8 @@ use crate::evaluator::*;
 use crate::extractor::FeatureExtractor;
 
 use itertools::Itertools;
+use serde::ser::SerializeStruct;
+use serde::Serializer;
 use unzip3::Unzip3;
 
 /// Bins — sampled time series
@@ -157,6 +159,23 @@ where
     F: FeatureEvaluator<T>,
 {
     transformer_eval!();
+}
+
+impl<T, F> Serialize for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Bins", 3)?;
+        state.serialize_field("window", &self.window)?;
+        state.serialize_field("offset", &self.offset)?;
+        state.serialize_field("features", self.feature_extractor.get_features())?;
+        state.end()
+    }
 }
 
 #[cfg(test)]

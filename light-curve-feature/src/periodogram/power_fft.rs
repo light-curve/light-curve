@@ -5,9 +5,11 @@ use crate::periodogram::power_trait::*;
 use crate::time_series::TimeSeries;
 
 use conv::{ConvAsUtil, RoundToNearest};
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::Debug;
 use std::sync::Arc;
 use thread_local::ThreadLocal;
 
@@ -44,11 +46,11 @@ where
     }
 }
 
-impl<T> fmt::Debug for PeriodogramPowerFft<T>
+impl<T> Debug for PeriodogramPowerFft<T>
 where
     T: Float,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", std::any::type_name::<Self>())
     }
 }
@@ -149,6 +151,18 @@ where
     }
 }
 
+impl<T> Serialize for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_struct("PeriodogramPowerFft", 0)?.end()
+    }
+}
+
 struct PeriodogramArrays<T>
 where
     T: Float,
@@ -174,11 +188,11 @@ where
     }
 }
 
-impl<T> fmt::Debug for PeriodogramArrays<T>
+impl<T> Debug for PeriodogramArrays<T>
 where
     T: Float,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PeriodogramArrays(n = {})", self.x_sch.len())
     }
 }

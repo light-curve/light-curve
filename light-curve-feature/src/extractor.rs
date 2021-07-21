@@ -3,15 +3,13 @@ use crate::evaluator::*;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
+use serde::ser::SerializeStruct;
+use serde::Serializer;
 use std::marker::PhantomData;
 
 /// The engine that extracts features one by one
 #[derive(Clone, Debug)]
-pub struct FeatureExtractor<T, F>
-where
-    T: Float,
-    F: FeatureEvaluator<T>,
-{
+pub struct FeatureExtractor<T, F> {
     info: Box<EvaluatorInfo>,
     features: Vec<F>,
     phantom: PhantomData<T>,
@@ -43,9 +41,8 @@ where
         }
     }
 
-    /// Copy of the feature vector
-    pub fn clone_features(&self) -> Vec<F> {
-        self.features.clone()
+    pub fn get_features(&self) -> &Vec<F> {
+        &self.features
     }
 
     pub fn add_feature(&mut self, feature: F) {
@@ -88,5 +85,47 @@ where
             .iter()
             .flat_map(|x| x.get_descriptions())
             .collect()
+    }
+}
+
+impl<T, F> Serialize for FeatureExtractor<T, F>
+where
+    F: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("FeatureExtractor", 1)?;
+        state.serialize_field("features", &self.features)?;
+        state.end()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use serde_test::{assert_ser_tokens, Token};
+
+    #[test]
+    fn serialization_empty() {
+        let fe: FeatureExtractor<f64, crate::Feature<_>> = FeatureExtractor::new(vec![]);
+        assert_ser_tokens(
+            &fe,
+            &[
+                //
+                Token::Struct {
+                    len: 1,
+                    name: "FeatureExtractor",
+                },
+                //
+                Token::String("features"),
+                Token::Seq { len: Some(0) },
+                Token::SeqEnd,
+                //
+                Token::StructEnd,
+            ],
+        )
     }
 }

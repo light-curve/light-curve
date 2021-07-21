@@ -9,7 +9,7 @@ use crate::evaluator::*;
 /// - Depends on: **time**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct Duration {}
 
 impl Duration {
