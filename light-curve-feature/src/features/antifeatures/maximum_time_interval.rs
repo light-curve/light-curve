@@ -10,7 +10,7 @@ use itertools::Itertools;
 /// - Depends on: **time**
 /// - Minimum number of observations: **2**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct MaximumTimeInterval {}
 
 impl MaximumTimeInterval {

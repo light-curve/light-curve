@@ -4,6 +4,8 @@ use crate::periodogram::power_trait::*;
 use crate::periodogram::recurrent_sin_cos::*;
 use crate::time_series::TimeSeries;
 
+use serde::Serialize;
+
 /// Direct periodogram executor
 ///
 /// This algorithm evaluate direct calculation of Lomb-Scargle periodogram. Asymptotic time is
@@ -11,7 +13,7 @@ use crate::time_series::TimeSeries;
 /// [PeriodogramPowerFft](crate::periodogram::PeriodogramPowerFft) instead
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct PeriodogramPowerDirect;
 
 impl<T> PeriodogramPowerTrait<T> for PeriodogramPowerDirect
