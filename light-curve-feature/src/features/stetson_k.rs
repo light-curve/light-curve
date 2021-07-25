@@ -16,7 +16,7 @@ use ndarray::Zip;
 /// - Number of features: **1**
 ///
 /// P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct StetsonK {}
 
 lazy_info!(

@@ -9,7 +9,8 @@ use enum_dispatch::enum_dispatch;
 use std::fmt::Debug;
 
 #[enum_dispatch(FeatureEvaluator<T>)]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(bound = "T: Float")]
 #[non_exhaustive]
 pub enum Feature<T>
 where

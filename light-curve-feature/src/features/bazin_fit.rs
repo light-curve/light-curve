@@ -26,7 +26,7 @@ use std::ops::{Add, Mul, Sub};
 /// - Number of features: **6**
 ///
 /// Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
 pub struct BazinFit {}
 
 impl BazinFit {

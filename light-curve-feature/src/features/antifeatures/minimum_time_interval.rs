@@ -10,7 +10,7 @@ use itertools::Itertools;
 /// - Depends on: **time**
 /// - Minimum number of observations: **2**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
 pub struct MinimumTimeInterval {}
 
 impl MinimumTimeInterval {
