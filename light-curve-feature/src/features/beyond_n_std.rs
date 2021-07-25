@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn serialization() {
-        const NSTD: f64 = 3.14;
+        const NSTD: f64 = 2.34;
         let beyond_n_std = BeyondNStd::new(NSTD);
         assert_tokens(
             &beyond_n_std,
