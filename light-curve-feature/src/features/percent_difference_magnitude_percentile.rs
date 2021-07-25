@@ -1,8 +1,5 @@
 use crate::evaluator::*;
 
-use serde::ser::SerializeStruct;
-use serde::Serializer;
-
 /// Ratio of $p$th inter-percentile range to the median
 ///
 /// $$
@@ -14,7 +11,12 @@ use serde::Serializer;
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "PercentDifferenceMagnitudePercentileParameters",
+    from = "PercentDifferenceMagnitudePercentileParameters"
+)]
 pub struct PercentDifferenceMagnitudePercentile {
     quantile: f32,
     name: String,
@@ -96,14 +98,22 @@ where
     }
 }
 
-impl Serialize for PercentDifferenceMagnitudePercentile {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("PercentDifferenceMagnitudePercentile", 1)?;
-        state.serialize_field("quantile", &self.quantile)?;
-        state.end()
+#[derive(Deserialize, Serialize)]
+struct PercentDifferenceMagnitudePercentileParameters {
+    quantile: f32,
+}
+
+impl From<PercentDifferenceMagnitudePercentile> for PercentDifferenceMagnitudePercentileParameters {
+    fn from(f: PercentDifferenceMagnitudePercentile) -> Self {
+        Self {
+            quantile: f.quantile,
+        }
+    }
+}
+
+impl From<PercentDifferenceMagnitudePercentileParameters> for PercentDifferenceMagnitudePercentile {
+    fn from(p: PercentDifferenceMagnitudePercentileParameters) -> Self {
+        Self::new(p.quantile)
     }
 }
 
@@ -114,7 +124,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    use serde_test::{assert_ser_tokens, Token};
+    use serde_test::{assert_tokens, Token};
 
     eval_info_test!(
         percent_difference_magnitude_percentile_info,
@@ -140,7 +150,7 @@ mod tests {
         const QUANTILE: f32 = 0.017;
         let percent_difference_magnitude_percentile =
             PercentDifferenceMagnitudePercentile::new(QUANTILE);
-        assert_ser_tokens(
+        assert_tokens(
             &percent_difference_magnitude_percentile,
             &[
                 Token::Struct {

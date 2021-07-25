@@ -3,10 +3,10 @@ use crate::time_series::TimeSeries;
 
 use conv::ConvAsUtil;
 use enum_dispatch::enum_dispatch;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 mod fft;
-pub use fft::FftwFloat;
+pub use fft::{FftwComplex, FftwFloat};
 
 mod freq;
 pub use freq::FreqGrid;
@@ -24,9 +24,13 @@ pub use power_trait::PeriodogramPowerTrait;
 pub mod recurrent_sin_cos;
 
 #[enum_dispatch(PeriodogramPowerTrait<T>)]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "T: Float")]
 #[non_exhaustive]
-pub enum PeriodogramPower<T: Float> {
+pub enum PeriodogramPower<T>
+where
+    T: Float,
+{
     Fft(PeriodogramPowerFft<T>),
     Direct(PeriodogramPowerDirect),
 }

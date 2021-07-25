@@ -16,7 +16,7 @@ use crate::fit::fit_straight_line;
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2**
 /// - Number of features: **2**
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct LinearTrend {}
 
 impl LinearTrend {

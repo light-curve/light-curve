@@ -1,8 +1,5 @@
 use crate::evaluator::*;
 
-use serde::ser::SerializeStruct;
-use serde::Serializer;
-
 /// Magnitude percentage ratio
 ///
 /// $$
@@ -16,7 +13,12 @@ use serde::Serializer;
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    from = "MagnitudePercentageRatioParameters",
+    into = "MagnitudePercentageRatioParameters"
+)]
 pub struct MagnitudePercentageRatio {
     quantile_numerator: f32,
     quantile_denominator: f32,
@@ -116,15 +118,24 @@ where
     }
 }
 
-impl Serialize for MagnitudePercentageRatio {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("MagnitudePercentageRatio", 2)?;
-        state.serialize_field("quantile_numerator", &self.quantile_numerator)?;
-        state.serialize_field("quantile_denominator", &self.quantile_denominator)?;
-        state.end()
+#[derive(Serialize, Deserialize)]
+struct MagnitudePercentageRatioParameters {
+    quantile_numerator: f32,
+    quantile_denominator: f32,
+}
+
+impl From<MagnitudePercentageRatio> for MagnitudePercentageRatioParameters {
+    fn from(f: MagnitudePercentageRatio) -> Self {
+        Self {
+            quantile_numerator: f.quantile_numerator,
+            quantile_denominator: f.quantile_denominator,
+        }
+    }
+}
+
+impl From<MagnitudePercentageRatioParameters> for MagnitudePercentageRatio {
+    fn from(p: MagnitudePercentageRatioParameters) -> Self {
+        Self::new(p.quantile_numerator, p.quantile_denominator)
     }
 }
 
@@ -135,7 +146,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    use serde_test::{assert_ser_tokens, Token};
+    use serde_test::{assert_tokens, Token};
 
     eval_info_test!(
         magnitude_percentage_ratio_info,
@@ -171,7 +182,7 @@ mod tests {
         const QUANTILE_DENOMINATOR: f32 = 0.128;
 
         let beyond_n_std = MagnitudePercentageRatio::new(QUANTILE_NUMERATOR, QUANTILE_DENOMINATOR);
-        assert_ser_tokens(
+        assert_tokens(
             &beyond_n_std,
             &[
                 Token::Struct {

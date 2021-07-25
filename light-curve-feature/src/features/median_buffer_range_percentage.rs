@@ -1,8 +1,6 @@
 use crate::evaluator::*;
 
 use conv::ConvUtil;
-use serde::ser::SerializeStruct;
-use serde::Serializer;
 
 /// Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m)) / 2$ interval
 ///
@@ -11,11 +9,14 @@ use serde::Serializer;
 /// - Number of features: **1**
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Debug)]
-pub struct MedianBufferRangePercentage<T>
-where
-    T: Float,
-{
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "MedianBufferRangePercentageParameters<T>",
+    from = "MedianBufferRangePercentageParameters<T>",
+    bound = "T: Float"
+)]
+pub struct MedianBufferRangePercentage<T> {
     quantile: T,
     name: String,
     description: String,
@@ -99,17 +100,25 @@ where
     }
 }
 
-impl<T> Serialize for MedianBufferRangePercentage<T>
+#[derive(Serialize, Deserialize)]
+struct MedianBufferRangePercentageParameters<T> {
+    quantile: T,
+}
+
+impl<T> From<MedianBufferRangePercentage<T>> for MedianBufferRangePercentageParameters<T> {
+    fn from(f: MedianBufferRangePercentage<T>) -> Self {
+        Self {
+            quantile: f.quantile,
+        }
+    }
+}
+
+impl<T> From<MedianBufferRangePercentageParameters<T>> for MedianBufferRangePercentage<T>
 where
     T: Float,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("MedianBufferRangePercentage", 1)?;
-        state.serialize_field("quantile", &self.quantile)?;
-        state.end()
+    fn from(p: MedianBufferRangePercentageParameters<T>) -> Self {
+        Self::new(p.quantile)
     }
 }
 
@@ -120,7 +129,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    use serde_test::{assert_ser_tokens, Token};
+    use serde_test::{assert_tokens, Token};
 
     eval_info_test!(
         median_buffer_range_percentage_info,
@@ -149,7 +158,7 @@ mod tests {
     fn serialization() {
         const QUANTILE: f64 = 0.432;
         let median_buffer_range_percentage = MedianBufferRangePercentage::new(QUANTILE);
-        assert_ser_tokens(
+        assert_tokens(
             &median_buffer_range_percentage,
             &[
                 Token::Struct {
