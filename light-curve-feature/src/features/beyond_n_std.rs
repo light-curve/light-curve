@@ -1,8 +1,6 @@
 use crate::evaluator::*;
 
 use conv::ConvUtil;
-use serde::ser::SerializeStruct;
-use serde::Serializer;
 
 /// Fraction of observations beyond $n\\,\sigma\_m$ from the mean magnitude $\langle m \rangle$
 ///
@@ -33,7 +31,13 @@ use serde::Serializer;
 /// assert!((1.0 - ts.m.get_std()).abs() < 1e-15);
 /// assert_eq!(vec![4.0 / 21.0, 2.0 / 21.0], fe.eval(&mut ts).unwrap());
 /// ```
-#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    from = "BeyondNStdParameters<T>",
+    into = "BeyondNStdParameters<T>",
+    bound = "T: Float"
+)]
 pub struct BeyondNStd<T> {
     nstd: T,
     name: String,
@@ -114,17 +118,23 @@ where
     }
 }
 
-impl<T> Serialize for BeyondNStd<T>
+#[derive(Serialize, Deserialize)]
+struct BeyondNStdParameters<T> {
+    nstd: T,
+}
+
+impl<T> From<BeyondNStd<T>> for BeyondNStdParameters<T> {
+    fn from(f: BeyondNStd<T>) -> Self {
+        Self { nstd: f.nstd }
+    }
+}
+
+impl<T> From<BeyondNStdParameters<T>> for BeyondNStd<T>
 where
     T: Float,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("BeyondNStd", 1)?;
-        state.serialize_field("nstd", &self.nstd)?;
-        state.end()
+    fn from(p: BeyondNStdParameters<T>) -> Self {
+        Self::new(p.nstd)
     }
 }
 
@@ -135,7 +145,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    use serde_test::{assert_ser_tokens, Token};
+    use serde_test::{assert_tokens, Token};
 
     eval_info_test!(beyond_n_std_info, BeyondNStd::default());
 
@@ -154,7 +164,7 @@ mod tests {
     fn serialization() {
         const NSTD: f64 = 3.14;
         let beyond_n_std = BeyondNStd::new(NSTD);
-        assert_ser_tokens(
+        assert_tokens(
             &beyond_n_std,
             &[
                 Token::Struct {

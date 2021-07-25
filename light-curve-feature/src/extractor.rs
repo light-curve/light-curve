@@ -3,12 +3,15 @@ use crate::evaluator::*;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
-use serde::ser::SerializeStruct;
-use serde::Serializer;
 use std::marker::PhantomData;
 
 /// The engine that extracts features one by one
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "FeatureExtractorParameters<F>",
+    from = "FeatureExtractorParameters<F>",
+    bound = "T: Float, F: FeatureEvaluator<T>"
+)]
 pub struct FeatureExtractor<T, F> {
     info: Box<EvaluatorInfo>,
     features: Vec<F>,
@@ -43,6 +46,10 @@ where
 
     pub fn get_features(&self) -> &Vec<F> {
         &self.features
+    }
+
+    pub fn into_vec(self) -> Vec<F> {
+        self.features
     }
 
     pub fn add_feature(&mut self, feature: F) {
@@ -88,17 +95,26 @@ where
     }
 }
 
-impl<T, F> Serialize for FeatureExtractor<T, F>
+#[derive(Serialize, Deserialize)]
+struct FeatureExtractorParameters<F> {
+    features: Vec<F>,
+}
+
+impl<T, F> From<FeatureExtractor<T, F>> for FeatureExtractorParameters<F> {
+    fn from(f: FeatureExtractor<T, F>) -> Self {
+        Self {
+            features: f.features,
+        }
+    }
+}
+
+impl<T, F> From<FeatureExtractorParameters<F>> for FeatureExtractor<T, F>
 where
-    F: Serialize,
+    T: Float,
+    F: FeatureEvaluator<T>,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("FeatureExtractor", 1)?;
-        state.serialize_field("features", &self.features)?;
-        state.end()
+    fn from(p: FeatureExtractorParameters<F>) -> Self {
+        Self::new(p.features)
     }
 }
 

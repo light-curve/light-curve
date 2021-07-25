@@ -4,7 +4,7 @@ use crate::periodogram::power_trait::*;
 use crate::periodogram::recurrent_sin_cos::*;
 use crate::time_series::TimeSeries;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Direct periodogram executor
 ///
@@ -13,7 +13,7 @@ use serde::Serialize;
 /// [PeriodogramPowerFft](crate::periodogram::PeriodogramPowerFft) instead
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
-#[derive(Debug, Default, Clone, Serialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PeriodogramPowerDirect;
 
 impl<T> PeriodogramPowerTrait<T> for PeriodogramPowerDirect

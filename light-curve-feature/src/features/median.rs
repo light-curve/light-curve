@@ -9,7 +9,7 @@ use crate::evaluator::*;
 /// - Depends on: **magnitude**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Median {}
 
 lazy_info!(

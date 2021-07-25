@@ -18,7 +18,7 @@ use crate::evaluator::*;
 /// - Number of features: **1**
 ///
 /// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
-#[derive(Clone, Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Cusum {}
 
 impl Cusum {

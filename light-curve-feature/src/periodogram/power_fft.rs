@@ -5,8 +5,7 @@ use crate::periodogram::power_trait::*;
 use crate::time_series::TimeSeries;
 
 use conv::{ConvAsUtil, RoundToNearest};
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -25,7 +24,12 @@ use thread_local::ThreadLocal;
 /// especially for large grids.
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(
+    into = "PeriodogramPowerFftParameters",
+    from = "PeriodogramPowerFftParameters",
+    bound = "T: Float"
+)]
 pub struct PeriodogramPowerFft<T>
 where
     T: Float,
@@ -151,15 +155,24 @@ where
     }
 }
 
-impl<T> Serialize for PeriodogramPowerFft<T>
+#[derive(Serialize, Deserialize)]
+struct PeriodogramPowerFftParameters {}
+
+impl<T> From<PeriodogramPowerFft<T>> for PeriodogramPowerFftParameters
 where
     T: Float,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_struct("PeriodogramPowerFft", 0)?.end()
+    fn from(_: PeriodogramPowerFft<T>) -> Self {
+        Self {}
+    }
+}
+
+impl<T> From<PeriodogramPowerFftParameters> for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    fn from(_: PeriodogramPowerFftParameters) -> Self {
+        Self::new()
     }
 }
 

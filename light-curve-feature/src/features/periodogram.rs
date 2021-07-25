@@ -4,8 +4,6 @@ use crate::peak_indices::peak_indices_reverse_sorted;
 use crate::periodogram;
 use crate::periodogram::{AverageNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerFft};
 
-use serde::ser::SerializeStruct;
-use serde::Serializer;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::iter;
@@ -23,10 +21,14 @@ fn number_ending(i: usize) -> &'static str {
 }
 
 /// Peak evaluator for `Periodogram`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    from = "PeriodogramPeaksParameters",
+    into = "PeriodogramPeaksParameters"
+)]
 pub struct PeriodogramPeaks {
-    properties: Box<EvaluatorProperties>,
     peaks: usize,
+    properties: Box<EvaluatorProperties>,
 }
 
 impl PeriodogramPeaks {
@@ -122,14 +124,20 @@ where
     }
 }
 
-impl Serialize for PeriodogramPeaks {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("PeriodogramPeaks", 1)?;
-        state.serialize_field("peaks", &self.peaks)?;
-        state.end()
+#[derive(Serialize, Deserialize)]
+struct PeriodogramPeaksParameters {
+    peaks: usize,
+}
+
+impl From<PeriodogramPeaks> for PeriodogramPeaksParameters {
+    fn from(f: PeriodogramPeaks) -> Self {
+        Self { peaks: f.peaks }
+    }
+}
+
+impl From<PeriodogramPeaksParameters> for PeriodogramPeaks {
+    fn from(p: PeriodogramPeaksParameters) -> Self {
+        Self::new(p.peaks)
     }
 }
 
@@ -151,25 +159,28 @@ impl Serialize for PeriodogramPeaks {
 /// - Depends on: **time**, **magnitude**
 /// - Minimum number of observations: **2** (or as required by sub-features)
 /// - Number of features: **$2 \times \mathrm{peaks}~+...$**
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(
+    bound = "T: Float, F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>, <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,",
+    from = "PeriodogramParameters<T, F>",
+    into = "PeriodogramParameters<T, F>"
+)]
 pub struct Periodogram<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T>,
 {
-    properties: Box<EvaluatorProperties>,
     resolution: f32,
     max_freq_factor: f32,
     nyquist: NyquistFreq,
     feature_extractor: FeatureExtractor<T, F>,
     periodogram_algorithm: PeriodogramPower<T>,
+    properties: Box<EvaluatorProperties>,
 }
 
 impl<T, F> Periodogram<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
-    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
+    F: FeatureEvaluator<T>,
 {
     #[inline]
     pub fn default_peaks() -> usize {
@@ -184,36 +195,6 @@ where
     #[inline]
     pub fn default_max_freq_factor() -> f32 {
         1.0
-    }
-
-    /// New [Periodogram] that finds given number of peaks
-    pub fn new(peaks: usize) -> Self {
-        let peaks = PeriodogramPeaks::new(peaks);
-        let peak_names = peaks.properties.names.clone();
-        let peak_descriptions = peaks.properties.descriptions.clone();
-        let peaks_size_hint = FeatureEvaluator::<T>::size_hint(&peaks);
-        let peaks_min_ts_length = FeatureEvaluator::<T>::min_ts_length(&peaks);
-        let info = EvaluatorInfo {
-            size: peaks_size_hint,
-            min_ts_length: usize::max(peaks_min_ts_length, 2),
-            t_required: true,
-            m_required: true,
-            w_required: false,
-            sorting_required: true,
-        };
-        Self {
-            properties: EvaluatorProperties {
-                info,
-                names: peak_names,
-                descriptions: peak_descriptions,
-            }
-            .into(),
-            resolution: Self::default_resolution(),
-            max_freq_factor: Self::default_max_freq_factor(),
-            nyquist: AverageNyquistFreq.into(),
-            feature_extractor: FeatureExtractor::new(vec![peaks.into()]),
-            periodogram_algorithm: PeriodogramPowerFft::new().into(),
-        }
     }
 
     /// Set frequency resolution
@@ -287,7 +268,50 @@ where
         let freq = (0..power.len()).map(|i| p.freq(i)).collect::<Vec<_>>();
         (freq, power)
     }
+}
 
+impl<T, F> Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks>,
+{
+    /// New [Periodogram] that finds given number of peaks
+    pub fn new(peaks: usize) -> Self {
+        let peaks = PeriodogramPeaks::new(peaks);
+        let peak_names = peaks.properties.names.clone();
+        let peak_descriptions = peaks.properties.descriptions.clone();
+        let peaks_size_hint = FeatureEvaluator::<T>::size_hint(&peaks);
+        let peaks_min_ts_length = FeatureEvaluator::<T>::min_ts_length(&peaks);
+        let info = EvaluatorInfo {
+            size: peaks_size_hint,
+            min_ts_length: usize::max(peaks_min_ts_length, 2),
+            t_required: true,
+            m_required: true,
+            w_required: false,
+            sorting_required: true,
+        };
+        Self {
+            properties: EvaluatorProperties {
+                info,
+                names: peak_names,
+                descriptions: peak_descriptions,
+            }
+            .into(),
+            resolution: Self::default_resolution(),
+            max_freq_factor: Self::default_max_freq_factor(),
+            nyquist: AverageNyquistFreq.into(),
+            feature_extractor: FeatureExtractor::new(vec![peaks.into()]),
+            periodogram_algorithm: PeriodogramPowerFft::new().into(),
+        }
+    }
+}
+
+impl<T, F> Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
+{
     fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmArrays<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let (freq, power) = self.freq_power(ts);
@@ -301,8 +325,7 @@ where
 impl<T, F> Default for Periodogram<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
-    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks>,
 {
     fn default() -> Self {
         Self::new(Self::default_peaks())
@@ -318,30 +341,77 @@ where
     transformer_eval!();
 }
 
-impl<T, F> Serialize for Periodogram<T, F>
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "T: Float, F: FeatureEvaluator<T>")]
+struct PeriodogramParameters<T, F>
 where
     T: Float,
-    F: FeatureEvaluator<T> + TryInto<PeriodogramPeaks> + From<PeriodogramPeaks>,
+    F: FeatureEvaluator<T>,
+{
+    resolution: f32,
+    max_freq_factor: f32,
+    nyquist: NyquistFreq,
+    features: Vec<F>,
+    peaks: usize,
+    periodogram_algorithm: PeriodogramPower<T>,
+}
+
+impl<T, F> From<Periodogram<T, F>> for PeriodogramParameters<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
     <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let features = self.feature_extractor.get_features();
-        let periodogram_peaks: PeriodogramPeaks = features[0].clone().try_into().unwrap();
-        let rest_of_features = &features[1..];
+    fn from(f: Periodogram<T, F>) -> Self {
+        let Periodogram {
+            resolution,
+            max_freq_factor,
+            nyquist,
+            feature_extractor,
+            periodogram_algorithm,
+            properties: _,
+        } = f;
 
-        let mut state = serializer.serialize_struct("Periodogram", 6)?;
-        state.serialize_field("resolution", &self.resolution)?;
-        state.serialize_field("max_freq_factor", &self.max_freq_factor)?;
-        state.serialize_field("nyquist", &self.nyquist)?;
-        // Write all features but peaks,
-        state.serialize_field("features", rest_of_features)?;
-        // and write peak number here
-        state.serialize_field("peaks", &periodogram_peaks.peaks)?;
-        state.serialize_field("periodogram_algorithm", &self.periodogram_algorithm)?;
-        state.end()
+        let mut features = feature_extractor.into_vec();
+        let rest_of_features = features.split_off(1);
+        let periodogram_peaks: PeriodogramPeaks = features.pop().unwrap().try_into().unwrap();
+        let peaks = periodogram_peaks.peaks;
+
+        Self {
+            resolution,
+            max_freq_factor,
+            nyquist,
+            features: rest_of_features,
+            peaks,
+            periodogram_algorithm,
+        }
+    }
+}
+
+impl<T, F> From<PeriodogramParameters<T, F>> for Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks>,
+{
+    fn from(p: PeriodogramParameters<T, F>) -> Self {
+        let PeriodogramParameters {
+            resolution,
+            max_freq_factor,
+            nyquist,
+            features,
+            peaks,
+            periodogram_algorithm,
+        } = p;
+
+        let mut periodogram = Periodogram::new(peaks);
+        periodogram.set_freq_resolution(resolution);
+        periodogram.set_max_freq_factor(max_freq_factor);
+        periodogram.set_nyquist(nyquist);
+        features.into_iter().for_each(|feature| {
+            periodogram.add_feature(feature);
+        });
+        periodogram.set_periodogram_algorithm(periodogram_algorithm);
+        periodogram
     }
 }
 

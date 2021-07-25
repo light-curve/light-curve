@@ -5,7 +5,8 @@ pub use crate::time_series::TimeSeries;
 use enum_dispatch::enum_dispatch;
 pub use lazy_static::lazy_static;
 use ndarray::Array1;
-pub use serde::Serialize;
+use serde::de::DeserializeOwned;
+pub use serde::{Deserialize, Serialize};
 pub use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -27,7 +28,7 @@ pub struct EvaluatorProperties {
 
 /// The trait each feature should implement
 #[enum_dispatch]
-pub trait FeatureEvaluator<T: Float>: Send + Clone + Debug + Serialize {
+pub trait FeatureEvaluator<T: Float>: Send + Clone + Debug + Serialize + DeserializeOwned {
     /// Should return the vector of feature values or `EvaluatorError`
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
 

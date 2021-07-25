@@ -2,8 +2,6 @@ use crate::evaluator::*;
 use crate::extractor::FeatureExtractor;
 
 use itertools::Itertools;
-use serde::ser::SerializeStruct;
-use serde::Serializer;
 use unzip3::Unzip3;
 
 /// Bins — sampled time series
@@ -27,16 +25,21 @@ use unzip3::Unzip3;
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **1** (or as required by sub-features)
 /// - Number of features: **$...$**
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "BinsParameters<T, F>",
+    from = "BinsParameters<T, F>",
+    bound = "T: Float, F: FeatureEvaluator<T>"
+)]
 pub struct Bins<T, F>
 where
     T: Float,
     F: FeatureEvaluator<T>,
 {
-    properties: Box<EvaluatorProperties>,
     window: T,
     offset: T,
     feature_extractor: FeatureExtractor<T, F>,
+    properties: Box<EvaluatorProperties>,
 }
 
 impl<T, F> Bins<T, F>
@@ -161,20 +164,47 @@ where
     transformer_eval!();
 }
 
-impl<T, F> Serialize for Bins<T, F>
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "T: Float, F: FeatureEvaluator<T>")]
+struct BinsParameters<T, F>
 where
     T: Float,
     F: FeatureEvaluator<T>,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("Bins", 3)?;
-        state.serialize_field("window", &self.window)?;
-        state.serialize_field("offset", &self.offset)?;
-        state.serialize_field("features", self.feature_extractor.get_features())?;
-        state.end()
+    window: T,
+    offset: T,
+    feature_extractor: FeatureExtractor<T, F>,
+}
+
+impl<T, F> From<Bins<T, F>> for BinsParameters<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn from(f: Bins<T, F>) -> Self {
+        Self {
+            window: f.window,
+            offset: f.offset,
+            feature_extractor: f.feature_extractor,
+        }
+    }
+}
+
+impl<T, F> From<BinsParameters<T, F>> for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn from(p: BinsParameters<T, F>) -> Self {
+        let mut bins = Self::new(p.window, p.offset);
+        p.feature_extractor
+            .get_features()
+            .iter()
+            .cloned()
+            .for_each(|feature| {
+                bins.add_feature(feature);
+            });
+        bins
     }
 }
 
