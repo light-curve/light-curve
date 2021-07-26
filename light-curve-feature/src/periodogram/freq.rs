@@ -31,6 +31,7 @@ pub enum NyquistFreq {
 /// in literature definition of "average Nyquist" frequency usually differ and place $N$ to the
 /// denominator
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Average")]
 pub struct AverageNyquistFreq;
 
 impl NyquistFreqTrait for AverageNyquistFreq {
@@ -46,6 +47,7 @@ fn diff<T: Float>(x: &[T]) -> Vec<T> {
 
 /// $\Delta t$ is the median time interval between observations
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Median")]
 pub struct MedianNyquistFreq;
 
 impl NyquistFreqTrait for MedianNyquistFreq {
@@ -58,6 +60,7 @@ impl NyquistFreqTrait for MedianNyquistFreq {
 
 /// $\Delta t$ is the $q$th quantile of time intervals between subsequent observations
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Quantile")]
 pub struct QuantileNyquistFreq {
     pub quantile: f32,
 }
