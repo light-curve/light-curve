@@ -437,16 +437,10 @@ mod tests {
     use crate::periodogram::{PeriodogramPowerDirect, QuantileNyquistFreq};
     use crate::tests::*;
 
-    serialization_name_test!(Periodogram<f64, Feature<f64>>);
+    check_feature!(Periodogram<f64, Feature<f64>>);
 
     serde_json_test!(
-        periodogram_ser_json_de_1,
-        Periodogram<f64, Feature<f64>>,
-        Periodogram::default(),
-    );
-
-    serde_json_test!(
-        periodogram_ser_json_de_2,
+        periodogram_ser_json_de_non_default,
         Periodogram<f64, Feature<f64>>,
         {
             let mut periodogram = Periodogram::default();

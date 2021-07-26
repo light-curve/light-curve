@@ -99,9 +99,9 @@ pub fn eval_info_tests(eval: Feature<f64>) {
         &eval, &baseline, &t_sorted, &m, &w, &mut rng,
     ));
 
-    check_size(&eval_info_sorting_required_test(
-        &eval, &baseline, &t, &m, &w,
-    ));
+    eval_info_sorting_required_test(&eval, &baseline, &t, &m, &w)
+        .as_ref()
+        .map(check_size);
 }
 
 fn eval_info_ts_length_test(
@@ -218,27 +218,34 @@ fn eval_info_sorting_required_test(
     t: &[f64],
     m: &[f64],
     w: &[f64],
-) -> Vec<f64> {
+) -> Option<Vec<f64>> {
     let m_ordered = sorted_by(m, t);
     assert_ne!(m_ordered, m);
     let w_ordered = sorted_by(w, t);
     assert_ne!(w_ordered, w);
 
-    let mut ts = TimeSeries::new(t, &m_ordered, &w_ordered);
-    let v = eval.eval(&mut ts).unwrap();
+    let is_sorting_required = FeatureEvaluator::<f64>::is_sorting_required(eval);
+
+    // FeatureEvaluator is allowed to panic for unsorted input if it requires sorted input
+    let v = match (
+        std::panic::catch_unwind(|| eval.eval(&mut TimeSeries::new(t, &m_ordered, &w_ordered))),
+        is_sorting_required,
+    ) {
+        (Ok(result), _) => result.unwrap(),
+        (Err(_), true) => return None,
+        (Err(err), false) => panic!("{:?}", err),
+    };
+
     let neq_baseline = !simeq(&v, baseline, 1e-12);
     assert_eq!(
-        neq_baseline,
-        FeatureEvaluator::<f64>::is_sorting_required(eval),
+        neq_baseline, is_sorting_required,
         "is_sorting_required() returns wrong value, \
                     unsorted result: {:?}, \
                     sorted result: {:?}, \
                     is_sorting_required: {}",
-        v,
-        baseline,
-        FeatureEvaluator::<f64>::is_sorting_required(eval),
+        v, baseline, is_sorting_required,
     );
-    v
+    Some(v)
 }
 
 #[macro_export]
