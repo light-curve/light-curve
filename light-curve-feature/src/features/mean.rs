@@ -58,7 +58,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(mean_info, Mean::default());
+    check_feature!(Mean);
 
     feature_test!(
         mean,

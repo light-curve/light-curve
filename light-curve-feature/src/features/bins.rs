@@ -165,7 +165,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(bound = "T: Float, F: FeatureEvaluator<T>")]
+#[serde(rename = "Bins", bound = "T: Float, F: FeatureEvaluator<T>")]
 struct BinsParameters<T, F>
 where
     T: Float,
@@ -216,7 +216,9 @@ mod tests {
     use crate::features::Amplitude;
     use crate::tests::*;
 
-    eval_info_test!(bins_info, {
+    serialization_name_test!(Bins<f64, Feature<f64>>);
+
+    eval_info_test!(bins_with_amplitude_info, {
         let mut bins = Bins::default();
         bins.add_feature(Amplitude::default().into());
         bins

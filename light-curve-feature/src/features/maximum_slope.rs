@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(maximum_slope_info, MaximumSlope::default());
+    check_feature!(MaximumSlope);
 
     feature_test!(
         maximum_slope_positive,

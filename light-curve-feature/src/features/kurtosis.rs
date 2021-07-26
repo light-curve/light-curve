@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(kurtosis_info, Kurtosis::default());
+    check_feature!(Kurtosis);
 
     feature_test!(
         kurtosis,

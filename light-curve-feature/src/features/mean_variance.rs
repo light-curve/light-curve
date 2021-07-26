@@ -57,7 +57,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(mean_variance_info, MeanVariance::default());
+    check_feature!(MeanVariance);
 
     feature_test!(
         mean,

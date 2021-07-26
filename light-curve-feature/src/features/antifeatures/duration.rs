@@ -57,7 +57,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(duration_info, Duration::default());
+    check_feature!(Duration);
 
     feature_test!(
         duration,

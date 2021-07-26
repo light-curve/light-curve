@@ -58,7 +58,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(weighted_mean_info, WeightedMean::default());
+    check_feature!(WeightedMean);
 
     feature_test!(
         weighted_mean,

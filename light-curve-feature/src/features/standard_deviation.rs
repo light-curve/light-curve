@@ -62,7 +62,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(standard_deviation_info, StandardDeviation::default());
+    check_feature!(StandardDeviation);
 
     feature_test!(
         standard_deviation,

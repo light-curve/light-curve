@@ -125,6 +125,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "PeriodogramPeaks")]
 struct PeriodogramPeaksParameters {
     peaks: usize,
 }
@@ -342,7 +343,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(bound = "T: Float, F: FeatureEvaluator<T>")]
+#[serde(rename = "Periodogram", bound = "T: Float, F: FeatureEvaluator<T>")]
 struct PeriodogramParameters<T, F>
 where
     T: Float,
@@ -423,6 +424,8 @@ mod tests {
     use crate::features::amplitude::Amplitude;
     use crate::periodogram::{PeriodogramPowerDirect, QuantileNyquistFreq};
     use crate::tests::*;
+
+    serialization_name_test!(Periodogram<f64, Feature<f64>>);
 
     eval_info_test!(periodogram_info_1, {
         let mut periodogram = Periodogram::default();
