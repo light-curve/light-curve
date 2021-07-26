@@ -101,6 +101,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "MedianBufferRangePercentage")]
 struct MedianBufferRangePercentageParameters<T> {
     quantile: T,
 }
@@ -131,10 +132,7 @@ mod tests {
 
     use serde_test::{assert_tokens, Token};
 
-    eval_info_test!(
-        median_buffer_range_percentage_info,
-        MedianBufferRangePercentage::default()
-    );
+    check_feature!(MedianBufferRangePercentage<f64>);
 
     feature_test!(
         median_buffer_range_percentage,

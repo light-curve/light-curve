@@ -74,7 +74,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(linear_trend_info, LinearTrend::default());
+    check_feature!(LinearTrend);
 
     feature_test!(
         linear_trend,

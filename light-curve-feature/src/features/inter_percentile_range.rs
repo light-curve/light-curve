@@ -92,6 +92,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "InterPercentileRange")]
 struct InterPercentileRangeParameters {
     quantile: f32,
 }
@@ -119,7 +120,7 @@ mod tests {
 
     use serde_test::{assert_tokens, Token};
 
-    eval_info_test!(inter_percentile_range_info, InterPercentileRange::default());
+    check_feature!(InterPercentileRange);
 
     feature_test!(
         inter_percentile_range,

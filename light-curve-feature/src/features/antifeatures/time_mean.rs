@@ -57,7 +57,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(time_mean_info, TimeMean::default());
+    check_feature!(TimeMean);
 
     feature_test!(
         time_mean,

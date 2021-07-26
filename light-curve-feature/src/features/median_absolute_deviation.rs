@@ -66,10 +66,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        median_absolute_deviation_info,
-        MedianAbsoluteDeviation::default()
-    );
+    check_feature!(MedianAbsoluteDeviation);
 
     feature_test!(
         median_absolute_deviation,

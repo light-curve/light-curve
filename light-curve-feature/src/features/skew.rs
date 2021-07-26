@@ -70,7 +70,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(skew_info, Skew::default());
+    check_feature!(Skew);
 
     feature_test!(
         skew,

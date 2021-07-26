@@ -119,6 +119,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "BeyondNStd")]
 struct BeyondNStdParameters<T> {
     nstd: T,
 }
@@ -147,7 +148,7 @@ mod tests {
 
     use serde_test::{assert_tokens, Token};
 
-    eval_info_test!(beyond_n_std_info, BeyondNStd::default());
+    check_feature!(BeyondNStd<f64>);
 
     feature_test!(
         beyond_n_std,

@@ -57,7 +57,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(median_info, Median::default());
+    check_feature!(Median);
 
     feature_test!(
         median_odd,

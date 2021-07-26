@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(cusum_info, Cusum::default());
+    check_feature!(Cusum);
 
     feature_test!(
         cumsum,
