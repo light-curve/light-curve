@@ -100,7 +100,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "MedianBufferRangePercentage")]
 struct MedianBufferRangePercentageParameters<T> {
     quantile: T,
@@ -121,6 +121,13 @@ where
     fn from(p: MedianBufferRangePercentageParameters<T>) -> Self {
         Self::new(p.quantile)
     }
+}
+
+impl<T> JsonSchema for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    json_schema!(MedianBufferRangePercentageParameters<T>, false);
 }
 
 #[cfg(test)]

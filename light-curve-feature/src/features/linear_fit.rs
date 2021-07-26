@@ -17,7 +17,7 @@ use crate::fit::fit_straight_line;
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **3**
 /// - Number of features: **3**
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinearFit {}
 
 impl LinearFit {

@@ -164,7 +164,7 @@ where
     transformer_eval!();
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Bins", bound = "T: Float, F: FeatureEvaluator<T>")]
 struct BinsParameters<T, F>
 where
@@ -206,6 +206,14 @@ where
             });
         bins
     }
+}
+
+impl<T, F> JsonSchema for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    json_schema!(BinsParameters<T, F>, false);
 }
 
 #[cfg(test)]

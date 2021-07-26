@@ -3,6 +3,7 @@ use crate::time_series::TimeSeries;
 
 use conv::ConvAsUtil;
 use enum_dispatch::enum_dispatch;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 mod fft;
@@ -24,7 +25,7 @@ pub use power_trait::PeriodogramPowerTrait;
 pub mod recurrent_sin_cos;
 
 #[enum_dispatch(PeriodogramPowerTrait<T>)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(bound = "T: Float")]
 #[non_exhaustive]
 pub enum PeriodogramPower<T>

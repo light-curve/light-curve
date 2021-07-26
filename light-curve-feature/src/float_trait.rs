@@ -4,6 +4,7 @@ use conv::prelude::*;
 use lazy_static::lazy_static;
 use ndarray::Array0;
 use num_traits::{float::Float as NumFloat, float::FloatConst, FromPrimitive};
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::PartialOrd;
@@ -48,6 +49,7 @@ pub trait Float:
     + FftwFloat
     + DeserializeOwned
     + Serialize
+    + JsonSchema
 {
     fn half() -> Self;
     fn two() -> Self;

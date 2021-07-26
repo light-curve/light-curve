@@ -10,7 +10,7 @@ use crate::evaluator::*;
 /// - Depends on: **magnitude**, **magnitude error**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct WeightedMean {}
 
 lazy_info!(

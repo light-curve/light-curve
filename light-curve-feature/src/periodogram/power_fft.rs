@@ -5,6 +5,7 @@ use crate::periodogram::power_trait::*;
 use crate::time_series::TimeSeries;
 
 use conv::{ConvAsUtil, RoundToNearest};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -155,7 +156,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "PeriodogramPowerFft")]
 struct PeriodogramPowerFftParameters {}
 
@@ -175,6 +176,13 @@ where
     fn from(_: PeriodogramPowerFftParameters) -> Self {
         Self::new()
     }
+}
+
+impl<T> JsonSchema for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    json_schema!(PeriodogramPowerFftParameters, false);
 }
 
 struct PeriodogramArrays<T>

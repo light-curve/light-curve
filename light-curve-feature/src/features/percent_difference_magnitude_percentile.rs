@@ -98,7 +98,7 @@ where
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(rename = "PercentDifferenceMagnitudePercentile")]
 struct PercentDifferenceMagnitudePercentileParameters {
     quantile: f32,
@@ -116,6 +116,10 @@ impl From<PercentDifferenceMagnitudePercentileParameters> for PercentDifferenceM
     fn from(p: PercentDifferenceMagnitudePercentileParameters) -> Self {
         Self::new(p.quantile)
     }
+}
+
+impl JsonSchema for PercentDifferenceMagnitudePercentile {
+    json_schema!(PercentDifferenceMagnitudePercentileParameters, false);
 }
 
 #[cfg(test)]

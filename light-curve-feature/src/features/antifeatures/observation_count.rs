@@ -9,7 +9,7 @@ use crate::evaluator::*;
 /// - Depends on: nothing
 /// - Minimum number of observations: **0**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct ObservationCount {}
 
 impl ObservationCount {

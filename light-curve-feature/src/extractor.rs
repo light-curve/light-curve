@@ -13,8 +13,8 @@ use std::marker::PhantomData;
     bound = "T: Float, F: FeatureEvaluator<T>"
 )]
 pub struct FeatureExtractor<T, F> {
-    info: Box<EvaluatorInfo>,
     features: Vec<F>,
+    info: Box<EvaluatorInfo>,
     phantom: PhantomData<T>,
 }
 
@@ -106,7 +106,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "FeatureExtractor")]
 struct FeatureExtractorParameters<F> {
     features: Vec<F>,
@@ -128,6 +128,13 @@ where
     fn from(p: FeatureExtractorParameters<F>) -> Self {
         Self::new(p.features)
     }
+}
+
+impl<T, F> JsonSchema for FeatureExtractor<T, F>
+where
+    F: JsonSchema,
+{
+    json_schema!(FeatureExtractorParameters<F>, true);
 }
 
 #[cfg(test)]
