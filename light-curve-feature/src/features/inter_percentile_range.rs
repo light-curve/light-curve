@@ -91,7 +91,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "InterPercentileRange")]
 struct InterPercentileRangeParameters {
     quantile: f32,
@@ -109,6 +109,10 @@ impl From<InterPercentileRangeParameters> for InterPercentileRange {
     fn from(p: InterPercentileRangeParameters) -> Self {
         Self::new(p.quantile)
     }
+}
+
+impl JsonSchema for InterPercentileRange {
+    json_schema!(InterPercentileRangeParameters, false);
 }
 
 #[cfg(test)]

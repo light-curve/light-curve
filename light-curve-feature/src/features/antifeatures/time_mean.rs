@@ -9,7 +9,7 @@ use crate::evaluator::*;
 /// - Depends on: **time**
 /// - Minimum number of observations: **1**
 /// - Number of features: **1**
-#[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TimeMean {}
 
 impl TimeMean {
