@@ -156,6 +156,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "PeriodogramPowerFft")]
 struct PeriodogramPowerFftParameters {}
 
 impl<T> From<PeriodogramPowerFft<T>> for PeriodogramPowerFftParameters

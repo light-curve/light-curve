@@ -57,7 +57,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(observation_count_info, ObservationCount::default());
+    check_feature!(ObservationCount);
 
     feature_test!(
         observation_count,

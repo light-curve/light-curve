@@ -61,7 +61,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(reduced_chi2_info, ReducedChi2::default());
+    check_feature!(ReducedChi2);
 
     feature_test!(
         reduced_chi2,

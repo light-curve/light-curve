@@ -57,10 +57,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        time_standard_deviation_info,
-        TimeStandardDeviation::default()
-    );
+    check_feature!(TimeStandardDeviation);
 
     feature_test!(
         time_standard_deviation,

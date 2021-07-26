@@ -95,7 +95,19 @@ where
     }
 }
 
+#[cfg(test)]
+impl<T, F> Default for FeatureExtractor<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn default() -> Self {
+        Self::new(vec![])
+    }
+}
+
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "FeatureExtractor")]
 struct FeatureExtractorParameters<F> {
     features: Vec<F>,
 }
@@ -123,6 +135,8 @@ mod tests {
     use super::*;
 
     use serde_test::{assert_ser_tokens, Token};
+
+    serialization_name_test!(FeatureExtractor<f64, crate::Feature<f64>>);
 
     #[test]
     fn serialization_empty() {

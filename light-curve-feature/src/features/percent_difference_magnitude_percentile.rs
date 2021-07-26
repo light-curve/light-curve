@@ -99,6 +99,7 @@ where
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(rename = "PercentDifferenceMagnitudePercentile")]
 struct PercentDifferenceMagnitudePercentileParameters {
     quantile: f32,
 }
@@ -126,10 +127,7 @@ mod tests {
 
     use serde_test::{assert_tokens, Token};
 
-    eval_info_test!(
-        percent_difference_magnitude_percentile_info,
-        PercentDifferenceMagnitudePercentile::default()
-    );
+    check_feature!(PercentDifferenceMagnitudePercentile);
 
     feature_test!(
         percent_difference_magnitude_percentile,

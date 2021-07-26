@@ -119,6 +119,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename = "MagnitudePercentageRatio")]
 struct MagnitudePercentageRatioParameters {
     quantile_numerator: f32,
     quantile_denominator: f32,
@@ -148,10 +149,7 @@ mod tests {
 
     use serde_test::{assert_tokens, Token};
 
-    eval_info_test!(
-        magnitude_percentage_ratio_info,
-        MagnitudePercentageRatio::default()
-    );
+    check_feature!(MagnitudePercentageRatio);
 
     feature_test!(
         magnitude_percentage_ratio,

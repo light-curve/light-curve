@@ -86,10 +86,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        anderson_darling_normal_info,
-        AndersonDarlingNormal::default()
-    );
+    check_feature!(AndersonDarlingNormal);
 
     feature_test!(
         anderson_darling_normal,

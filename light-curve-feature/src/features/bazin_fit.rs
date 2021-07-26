@@ -189,7 +189,7 @@ mod tests {
 
     use hyperdual::{Hyperdual, U6};
 
-    eval_info_test!(bazin_fit_info, BazinFit::default());
+    check_feature!(BazinFit);
 
     feature_test!(
         bazin_fit_plateau,

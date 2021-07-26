@@ -65,7 +65,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(excess_variance, ExcessVariance::default());
+    check_feature!(ExcessVariance);
 
     feature_test!(
         mean,

@@ -78,7 +78,7 @@ mod tests {
     use crate::features::Eta;
     use crate::tests::*;
 
-    eval_info_test!(eta_e_info, EtaE::default());
+    check_feature!(EtaE);
 
     feature_test!(
         eta_e,

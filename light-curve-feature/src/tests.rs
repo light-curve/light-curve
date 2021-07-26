@@ -184,6 +184,33 @@ macro_rules! eval_info_test {
     };
 }
 
+#[macro_export]
+macro_rules! serialization_name_test {
+    ($feature: ty) => {
+        #[test]
+        fn serialization_name() {
+            let feature = <$feature>::default();
+            let actual_name = serde_type_name::type_name(&feature).unwrap();
+
+            let str_type = stringify!($feature);
+            let desired_name = match str_type.split_once('<') {
+                Some((name, _)) => name,
+                None => str_type,
+            };
+
+            assert_eq!(actual_name, desired_name);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! check_feature {
+    ($feature: ty) => {
+        eval_info_test!(info_default, <$feature>::default());
+        serialization_name_test!($feature);
+    };
+}
+
 pub fn simeq<T: Float>(a: &[T], b: &[T], eps: T) -> bool {
     assert_eq!(a.len(), b.len());
     a.iter()

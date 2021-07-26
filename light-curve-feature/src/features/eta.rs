@@ -71,7 +71,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(eta_info, Eta::default());
+    check_feature!(Eta);
 
     feature_test!(
         eta,

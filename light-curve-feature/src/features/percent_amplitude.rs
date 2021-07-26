@@ -63,7 +63,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(percent_amplitude_info, PercentAmplitude::default());
+    check_feature!(PercentAmplitude);
 
     feature_test!(
         percent_amplitude,

@@ -65,7 +65,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(maximum_time_interval_info, MaximumTimeInterval::default());
+    check_feature!(MaximumTimeInterval);
 
     feature_test!(
         maximum_time_interval,
