@@ -14,7 +14,7 @@ use crate::evaluator::*;
 ///
 /// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
 #[cfg_attr(test, derive(PartialEq))]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(
     from = "MagnitudePercentageRatioParameters",
     into = "MagnitudePercentageRatioParameters"
@@ -118,7 +118,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "MagnitudePercentageRatio")]
 struct MagnitudePercentageRatioParameters {
     quantile_numerator: f32,

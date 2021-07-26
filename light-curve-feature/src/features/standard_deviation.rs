@@ -14,7 +14,7 @@ use crate::evaluator::*;
 /// - Number of features: **1**
 ///
 /// [Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct StandardDeviation {}
 
 lazy_info!(

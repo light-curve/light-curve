@@ -66,3 +66,20 @@ macro_rules! transformer_eval {
         }
     };
 }
+
+#[macro_export]
+macro_rules! json_schema {
+    ($parameters: ty, $is_referenceable: expr) => {
+        fn is_referenceable() -> bool {
+            $is_referenceable
+        }
+
+        fn schema_name() -> String {
+            <$parameters>::schema_name()
+        }
+
+        fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+            <$parameters>::json_schema(gen)
+        }
+    };
+}

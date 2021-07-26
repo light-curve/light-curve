@@ -124,7 +124,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "PeriodogramPeaks")]
 struct PeriodogramPeaksParameters {
     peaks: usize,
@@ -140,6 +140,10 @@ impl From<PeriodogramPeaksParameters> for PeriodogramPeaks {
     fn from(p: PeriodogramPeaksParameters) -> Self {
         Self::new(p.peaks)
     }
+}
+
+impl JsonSchema for PeriodogramPeaks {
+    json_schema!(PeriodogramPeaksParameters, false);
 }
 
 // See http://doi.org/10.1088/0004-637X/733/1/10
@@ -342,7 +346,7 @@ where
     transformer_eval!();
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Periodogram", bound = "T: Float, F: FeatureEvaluator<T>")]
 struct PeriodogramParameters<T, F>
 where
@@ -414,6 +418,14 @@ where
         periodogram.set_periodogram_algorithm(periodogram_algorithm);
         periodogram
     }
+}
+
+impl<T, F> JsonSchema for Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    json_schema!(PeriodogramParameters<T, F>, false);
 }
 
 #[cfg(test)]

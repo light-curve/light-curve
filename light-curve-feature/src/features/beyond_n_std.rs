@@ -118,7 +118,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "BeyondNStd")]
 struct BeyondNStdParameters<T> {
     nstd: T,
@@ -137,6 +137,13 @@ where
     fn from(p: BeyondNStdParameters<T>) -> Self {
         Self::new(p.nstd)
     }
+}
+
+impl<T> JsonSchema for BeyondNStd<T>
+where
+    T: Float,
+{
+    json_schema!(BeyondNStdParameters<T>, false);
 }
 
 #[cfg(test)]
