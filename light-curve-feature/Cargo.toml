@@ -45,6 +45,7 @@ criterion = "^0.3"
 chfft = "^0.3.4"
 realfft= "^1.1"
 rustfft = "^5.0"
+serde_json = "^1.0"
 serde_test = "^1.0"
 serde_type_name = "0.2.0"
 

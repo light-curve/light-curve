@@ -133,14 +133,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::*;
+    use crate::Feature;
 
     use serde_test::{assert_ser_tokens, Token};
 
-    serialization_name_test!(FeatureExtractor<f64, crate::Feature<f64>>);
+    serialization_name_test!(FeatureExtractor<f64, Feature<f64>>);
+
+    serde_json_test!(
+        feature_extractor_ser_json_de,
+        FeatureExtractor<f64, Feature<f64>>,
+        FeatureExtractor::new(vec![crate::Amplitude{}.into(), crate::BeyondNStd::new(2.0).into()]),
+    );
 
     #[test]
     fn serialization_empty() {
-        let fe: FeatureExtractor<f64, crate::Feature<_>> = FeatureExtractor::new(vec![]);
+        let fe: FeatureExtractor<f64, Feature<_>> = FeatureExtractor::new(vec![]);
         assert_ser_tokens(
             &fe,
             &[
