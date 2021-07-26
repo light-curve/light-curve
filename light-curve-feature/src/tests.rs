@@ -1,6 +1,8 @@
+pub use crate::evaluator::FeatureEvaluator;
 pub use crate::extractor::FeatureExtractor;
 pub use crate::feature::Feature;
 pub use crate::float_trait::Float;
+pub use crate::time_series::TimeSeries;
 
 pub use light_curve_common::{all_close, linspace};
 pub use ndarray::{Array1, ArrayView1};
@@ -46,142 +48,197 @@ macro_rules! eval_info_test {
     ($name: ident, $eval: expr $(,)?) => {
         #[test]
         fn $name() {
-            const N: usize = 128;
+            eval_info_tests($eval.into());
+        }
+    };
+}
 
-            let mut rng = StdRng::seed_from_u64(0);
+pub fn eval_info_tests(eval: Feature<f64>) {
+    const N: usize = 128;
 
-            let t1 = randvec::<f64>(&mut rng, N);
-            let t1_sorted = sorted(&t1);
-            assert_ne!(t1, t1_sorted);
-            let m1 = randvec::<f64>(&mut rng, N);
-            let w1 = positive_randvec::<f64>(&mut rng, N);
+    let mut rng = StdRng::seed_from_u64(0);
 
-            let eval: Feature<f64> = $eval.into();
-            let size_hint = FeatureEvaluator::<f64>::size_hint(&eval);
-            assert_eq!(
-                FeatureEvaluator::<f64>::get_names(&eval).len(),
-                size_hint,
-                "names vector has a wrong size"
-            );
-            assert_eq!(
-                FeatureEvaluator::<f64>::get_descriptions(&eval).len(),
-                size_hint,
-                "description vector has a wrong size"
-            );
-            let check_size =
-                |v: &Vec<f64>| assert_eq!(size_hint, v.len(), "size_hint() returns wrong value");
+    let t = randvec::<f64>(&mut rng, N);
+    let t_sorted = sorted(&t);
+    assert_ne!(t, t_sorted);
+    let m = randvec::<f64>(&mut rng, N);
+    let w = positive_randvec::<f64>(&mut rng, N);
 
-            let baseline = eval
-                .eval(&mut TimeSeries::new(&t1_sorted, &m1, &w1))
-                .unwrap();
-            check_size(&baseline);
+    let size_hint = FeatureEvaluator::<f64>::size_hint(&eval);
+    assert_eq!(
+        FeatureEvaluator::<f64>::get_names(&eval).len(),
+        size_hint,
+        "names vector has a wrong size"
+    );
+    assert_eq!(
+        FeatureEvaluator::<f64>::get_descriptions(&eval).len(),
+        size_hint,
+        "description vector has a wrong size"
+    );
+    let check_size =
+        |v: &Vec<f64>| assert_eq!(size_hint, v.len(), "size_hint() returns wrong value");
 
-            let min_ts_length = FeatureEvaluator::<f64>::min_ts_length(&eval);
-            for n in (0..10) {
-                let mut ts = TimeSeries::new(&t1_sorted[..n], &m1[..n], &w1[..n]);
-                let result = eval.eval(&mut ts);
-                let _ = result.as_ref().map(check_size);
-                assert_eq!(
-                    n >= min_ts_length,
-                    result.is_ok(),
-                    "min_ts_length() returns wrong value, \
+    let baseline = eval.eval(&mut TimeSeries::new(&t_sorted, &m, &w)).unwrap();
+    check_size(&baseline);
+
+    for n in 0..10 {
+        eval_info_ts_length_test(&eval, &t_sorted, &m, &w, n)
+            .as_ref()
+            .map(check_size);
+    }
+
+    check_size(&eval_info_t_required_test(
+        &eval, &baseline, &t_sorted, &m, &w, &mut rng,
+    ));
+
+    check_size(&eval_info_m_required_test(
+        &eval, &baseline, &t_sorted, &m, &w, &mut rng,
+    ));
+
+    check_size(&eval_info_w_required_test(
+        &eval, &baseline, &t_sorted, &m, &w, &mut rng,
+    ));
+
+    check_size(&eval_info_sorting_required_test(
+        &eval, &baseline, &t, &m, &w,
+    ));
+}
+
+fn eval_info_ts_length_test(
+    eval: &Feature<f64>,
+    t_sorted: &[f64],
+    m: &[f64],
+    w: &[f64],
+    n: usize,
+) -> Option<Vec<f64>> {
+    let min_ts_length = FeatureEvaluator::<f64>::min_ts_length(eval);
+    let mut ts = TimeSeries::new(&t_sorted[..n], &m[..n], &w[..n]);
+    let result = eval.eval(&mut ts);
+    assert_eq!(
+        n >= min_ts_length,
+        result.is_ok(),
+        "min_ts_length() returns wrong value, \
                     time-series length: {}, \
                     min_ts_length(): {}, \
                     eval(ts).is_ok(): {}",
-                    n,
-                    min_ts_length,
-                    result.is_ok(),
-                );
-            }
+        n,
+        min_ts_length,
+        result.is_ok(),
+    );
+    result.ok()
+}
 
-            {
-                let t2 = randvec::<f64>(&mut rng, N);
-                let t2_sorted = sorted(&t2);
-                assert_ne!(t1_sorted, t2_sorted);
+fn eval_info_t_required_test(
+    eval: &Feature<f64>,
+    baseline: &[f64],
+    t_sorted: &[f64],
+    m: &[f64],
+    w: &[f64],
+    rng: &mut StdRng,
+) -> Vec<f64> {
+    let t2_sorted = sorted(&randvec::<f64>(rng, t_sorted.len()));
+    assert_ne!(t_sorted, t2_sorted);
 
-                let mut ts = TimeSeries::new(&t2_sorted, &m1, &w1);
+    let mut ts = TimeSeries::new(&t2_sorted, m, w);
 
-                let v = eval.eval(&mut ts).unwrap();
-                check_size(&v);
-                let neq_baseline = !simeq(&v, &baseline, 1e-12);
-                assert_eq!(
-                    neq_baseline,
-                    FeatureEvaluator::<f64>::is_t_required(&eval),
-                    "is_t_required() returns wrong value, \
+    let v = eval.eval(&mut ts).unwrap();
+    let neq_baseline = !simeq(&v, baseline, 1e-12);
+    assert_eq!(
+        neq_baseline,
+        FeatureEvaluator::<f64>::is_t_required(eval),
+        "is_t_required() returns wrong value, \
                     v != baseline: {} ({:?} <=> {:?}), \
                     is_t_required(): {}",
-                    neq_baseline,
-                    v,
-                    baseline,
-                    FeatureEvaluator::<f64>::is_t_required(&eval),
-                );
-            }
+        neq_baseline,
+        v,
+        baseline,
+        FeatureEvaluator::<f64>::is_t_required(eval),
+    );
+    v
+}
 
-            {
-                let m2 = randvec::<f64>(&mut rng, N);
-                assert_ne!(m1, m2);
+fn eval_info_m_required_test(
+    eval: &Feature<f64>,
+    baseline: &[f64],
+    t_sorted: &[f64],
+    m: &[f64],
+    w: &[f64],
+    rng: &mut StdRng,
+) -> Vec<f64> {
+    let m2 = randvec::<f64>(rng, m.len());
+    assert_ne!(m, m2);
 
-                let mut ts = TimeSeries::new(&t1_sorted, &m2, &w1);
+    let mut ts = TimeSeries::new(t_sorted, m2, w);
 
-                let v = eval.eval(&mut ts).unwrap();
-                check_size(&v);
-                let neq_baseline = !simeq(&v, &baseline, 1e-12);
-                assert_eq!(
-                    neq_baseline,
-                    FeatureEvaluator::<f64>::is_m_required(&eval),
-                    "is_m_required() returns wrong value, \
+    let v = eval.eval(&mut ts).unwrap();
+    let neq_baseline = !simeq(&v, baseline, 1e-12);
+    assert_eq!(
+        neq_baseline,
+        FeatureEvaluator::<f64>::is_m_required(eval),
+        "is_m_required() returns wrong value, \
                     v != baseline: {} ({:?} <=> {:?}), \
                     is_m_required(): {}",
-                    neq_baseline,
-                    v,
-                    baseline,
-                    FeatureEvaluator::<f64>::is_m_required(&eval),
-                );
-            }
+        neq_baseline,
+        v,
+        baseline,
+        FeatureEvaluator::<f64>::is_m_required(eval),
+    );
+    v
+}
 
-            {
-                let w2 = positive_randvec::<f64>(&mut rng, N);
-                assert_ne!(w1, w2);
+fn eval_info_w_required_test(
+    eval: &Feature<f64>,
+    baseline: &[f64],
+    t_sorted: &[f64],
+    m: &[f64],
+    w: &[f64],
+    rng: &mut StdRng,
+) -> Vec<f64> {
+    let w2 = positive_randvec::<f64>(rng, w.len());
+    assert_ne!(w, w2);
 
-                let mut ts = TimeSeries::new(&t1_sorted, &m1, &w2);
-                let v = eval.eval(&mut ts).unwrap();
-                check_size(&v);
-                let neq_baseline = !simeq(&v, &baseline, 1e-12);
-                assert_eq!(
-                    neq_baseline,
-                    FeatureEvaluator::<f64>::is_w_required(&eval),
-                    "is_w_required() returns wrong value, \
+    let mut ts = TimeSeries::new(t_sorted, m, &w2);
+    let v = eval.eval(&mut ts).unwrap();
+    let neq_baseline = !simeq(&v, &baseline, 1e-12);
+    assert_eq!(
+        neq_baseline,
+        FeatureEvaluator::<f64>::is_w_required(eval),
+        "is_w_required() returns wrong value, \
                     v != baseline: {}, \
                     is_w_required(): {}",
-                    neq_baseline,
-                    FeatureEvaluator::<f64>::is_w_required(&eval),
-                );
-            }
+        neq_baseline,
+        FeatureEvaluator::<f64>::is_w_required(eval),
+    );
+    v
+}
 
-            {
-                let m1_ordered = sorted_by(&m1, &t1);
-                assert_ne!(m1_ordered, m1);
-                let w1_ordered = sorted_by(&w1, &t1);
-                assert_ne!(w1_ordered, w1);
+fn eval_info_sorting_required_test(
+    eval: &Feature<f64>,
+    baseline: &[f64],
+    t: &[f64],
+    m: &[f64],
+    w: &[f64],
+) -> Vec<f64> {
+    let m_ordered = sorted_by(m, t);
+    assert_ne!(m_ordered, m);
+    let w_ordered = sorted_by(w, t);
+    assert_ne!(w_ordered, w);
 
-                let mut ts = TimeSeries::new(&t1, &m1_ordered, &w1_ordered);
-                let v = eval.eval(&mut ts).unwrap();
-                check_size(&v);
-                let neq_baseline = !simeq(&v, &baseline, 1e-12);
-                assert_eq!(
-                    neq_baseline,
-                    FeatureEvaluator::<f64>::is_sorting_required(&eval),
-                    "is_sorting_required() returns wrong value, \
+    let mut ts = TimeSeries::new(t, &m_ordered, &w_ordered);
+    let v = eval.eval(&mut ts).unwrap();
+    let neq_baseline = !simeq(&v, baseline, 1e-12);
+    assert_eq!(
+        neq_baseline,
+        FeatureEvaluator::<f64>::is_sorting_required(eval),
+        "is_sorting_required() returns wrong value, \
                     unsorted result: {:?}, \
                     sorted result: {:?}, \
                     is_sorting_required: {}",
-                    v,
-                    baseline,
-                    FeatureEvaluator::<f64>::is_sorting_required(&eval),
-                );
-            }
-        }
-    };
+        v,
+        baseline,
+        FeatureEvaluator::<f64>::is_sorting_required(eval),
+    );
+    v
 }
 
 #[macro_export]
