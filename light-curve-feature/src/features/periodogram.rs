@@ -427,6 +427,23 @@ mod tests {
 
     serialization_name_test!(Periodogram<f64, Feature<f64>>);
 
+    serde_json_test!(
+        periodogram_ser_json_de_1,
+        Periodogram<f64, Feature<f64>>,
+        Periodogram::default(),
+    );
+
+    serde_json_test!(
+        periodogram_ser_json_de_2,
+        Periodogram<f64, Feature<f64>>,
+        {
+            let mut periodogram = Periodogram::default();
+            periodogram.add_feature(Amplitude::default().into());
+            periodogram.set_periodogram_algorithm(PeriodogramPowerDirect.into());
+            periodogram
+        },
+    );
+
     eval_info_test!(periodogram_info_1, {
         let mut periodogram = Periodogram::default();
         periodogram.set_periodogram_algorithm(PeriodogramPowerDirect.into());
