@@ -204,10 +204,42 @@ macro_rules! serialization_name_test {
 }
 
 #[macro_export]
+macro_rules! serde_json_test {
+    ($name: ident, $feature_type: ty, $feature_expr: expr $(,)?) => {
+        #[test]
+        fn $name() {
+            const N: usize = 128;
+            let mut rng = StdRng::seed_from_u64(0);
+
+            let t = sorted(&randvec::<f64>(&mut rng, N));
+            let m = randvec::<f64>(&mut rng, N);
+            let w = positive_randvec::<f64>(&mut rng, N);
+
+            let eval = $feature_expr;
+            let eval_serde: $feature_type =
+                serde_json::from_str(&serde_json::to_string(&eval).unwrap()).unwrap();
+            assert_eq!(
+                eval.eval(&mut TimeSeries::new(&t, &m, &w)),
+                eval_serde.eval(&mut TimeSeries::new(&t, &m, &w))
+            );
+
+            let feature: Feature<_> = eval.into();
+            let feature_serde: Feature<_> =
+                serde_json::from_str(&serde_json::to_string(&feature).unwrap()).unwrap();
+            assert_eq!(
+                feature.eval(&mut TimeSeries::new(&t, &m, &w)),
+                feature_serde.eval(&mut TimeSeries::new(&t, &m, &w))
+            );
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! check_feature {
     ($feature: ty) => {
         eval_info_test!(info_default, <$feature>::default());
         serialization_name_test!($feature);
+        serde_json_test!(ser_json_de, $feature, <$feature>::default());
     };
 }
 

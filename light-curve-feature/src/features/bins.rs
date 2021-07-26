@@ -218,6 +218,16 @@ mod tests {
 
     serialization_name_test!(Bins<f64, Feature<f64>>);
 
+    serde_json_test!(
+        bins_ser_json_de,
+        Bins<f64, Feature<f64>>,
+        {
+            let mut bins = Bins::default();
+            bins.add_feature(Amplitude::default().into());
+            bins
+        },
+    );
+
     eval_info_test!(bins_with_amplitude_info, {
         let mut bins = Bins::default();
         bins.add_feature(Amplitude::default().into());
