@@ -157,7 +157,7 @@ where
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename = "PeriodogramPowerFft")]
+#[serde(rename = "Fft")]
 struct PeriodogramPowerFftParameters {}
 
 impl<T> From<PeriodogramPowerFft<T>> for PeriodogramPowerFftParameters
