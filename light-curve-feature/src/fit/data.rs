@@ -2,40 +2,14 @@ use crate::float_trait::Float;
 use crate::time_series::{DataSample, TimeSeries};
 
 use conv::ConvUtil;
+use ndarray::Array1;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub struct Data<T> {
-    pub t: Vec<T>,
-    pub m: Vec<T>,
-    pub inv_err: Vec<T>,
-}
-
-impl<T> Data<T>
-where
-    T: Float,
-{
-    #[allow(dead_code)]
-    pub fn new(t: &[T], m: &[T], inv_err: &[T]) -> Self {
-        assert_eq!(t.len(), m.len());
-        assert_eq!(t.len(), inv_err.len());
-        Self {
-            t: t.to_vec(),
-            m: m.to_vec(),
-            inv_err: inv_err.to_vec(),
-        }
-    }
-
-    pub fn t_ie_iter(&self) -> impl Iterator<Item = (T, T)> + '_ {
-        self.t.iter().copied().zip(self.inv_err.iter().copied())
-    }
-
-    pub fn t_m_ie_iter(&self) -> impl Iterator<Item = (T, T, T)> + '_ {
-        self.t
-            .iter()
-            .zip(self.m.iter().zip(self.inv_err.iter()))
-            .map(|(&t, (&m, &inv_err))| (t, m, inv_err))
-    }
+    pub t: Array1<T>,
+    pub m: Array1<T>,
+    pub inv_err: Array1<T>,
 }
 
 #[derive(Clone, Debug)]
@@ -52,7 +26,7 @@ impl<T> NormalizedData<T>
 where
     T: Float,
 {
-    fn normalized<U>(ds: &mut DataSample<U>) -> (T, T, Vec<T>)
+    fn normalized<U>(ds: &mut DataSample<U>) -> (T, T, Array1<T>)
     where
         U: Float + conv::ApproxInto<T>,
     {
@@ -61,15 +35,13 @@ where
             (
                 ds.sample[0].approx_as::<T>().unwrap(),
                 T::zero(),
-                vec![T::zero(); ds.sample.len()],
+                Array1::zeros(ds.sample.len()),
             )
         } else {
             let mean = ds.get_mean().approx_as::<T>().unwrap();
             let v = ds
-                .as_slice()
-                .iter()
-                .map(|&x| (x.approx_as::<T>().unwrap() - mean) / std)
-                .collect();
+                .sample
+                .mapv(|x| (x.approx_as::<T>().unwrap() - mean) / std);
             (mean, std, v)
         }
     }
@@ -83,18 +55,13 @@ where
         let (inv_err_scale, inv_err) = if m_std.is_zero() {
             (
                 T::one(),
-                ts.w.as_slice()
-                    .iter()
-                    .map(|&x| x.approx_as::<T>().unwrap().sqrt())
-                    .collect(),
+                ts.w.sample.mapv(|x| x.approx_as::<T>().unwrap().sqrt()),
             )
         } else {
             let scale = m_std.recip();
             let inv_scale =
-                ts.w.as_slice()
-                    .iter()
-                    .map(|&x| x.approx_as::<T>().unwrap().sqrt() * m_std)
-                    .collect();
+                ts.w.sample
+                    .mapv(|x| x.approx_as::<T>().unwrap().sqrt() * m_std);
             (scale, inv_scale)
         };
 
