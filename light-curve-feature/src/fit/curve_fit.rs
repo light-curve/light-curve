@@ -1,6 +1,7 @@
 use crate::fit::data::Data;
 use crate::fit::nls::{MatrixF64, NlsProblem, Value, VectorF64};
 
+use ndarray::Zip;
 use std::rc::Rc;
 
 pub struct CurveFitResult {
@@ -18,12 +19,13 @@ where
         let ts = ts.clone();
         move |param: VectorF64, mut residual: VectorF64| {
             let param = param.as_slice().unwrap();
-            for ((t, m, inv_err), r) in ts
-                .t_m_ie_iter()
-                .zip(residual.as_slice_mut().unwrap().iter_mut())
-            {
-                *r = inv_err * (model(t, param) - m);
-            }
+            Zip::from(&ts.t)
+                .and(&ts.m)
+                .and(&ts.inv_err)
+                .and(residual.as_slice_mut().unwrap())
+                .for_each(|&t, &m, &inv_err, r| {
+                    *r = inv_err * (model(t, param) - m);
+                });
             Value::Success
         }
     };
@@ -32,12 +34,14 @@ where
         move |param: VectorF64, mut jacobian: MatrixF64| {
             let param = param.as_slice().unwrap();
             let mut buffer = vec![0.0; param.len()];
-            for (i, (t, inv_err)) in ts.t_ie_iter().enumerate() {
-                derivatives(t, param, &mut buffer);
-                for (j, &jac) in buffer.iter().enumerate() {
-                    jacobian.set(i, j, inv_err * jac);
-                }
-            }
+            Zip::indexed(&ts.t)
+                .and(&ts.inv_err)
+                .for_each(|i, &t, &inv_err| {
+                    derivatives(t, param, &mut buffer);
+                    for (j, &jac) in buffer.iter().enumerate() {
+                        jacobian.set(i, j, inv_err * jac);
+                    }
+                });
             Value::Success
         }
     };
