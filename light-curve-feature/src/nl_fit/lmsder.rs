@@ -1,10 +1,71 @@
 use crate::float_trait::Float;
+use crate::nl_fit::curve_fit::{CurveFitResult, CurveFitTrait};
+use crate::nl_fit::data::Data;
+
 use conv::prelude::*;
 use hyperdual::Hyperdual;
+use ndarray::Zip;
 pub use rgsl::{MatrixF64, Value, VectorF64};
 use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+#[derive(Clone, Debug)]
+pub struct LmsderCurveFit;
+
+impl CurveFitTrait for LmsderCurveFit {
+    fn curve_fit<F, DF>(
+        &self,
+        ts: Rc<Data<f64>>,
+        x0: &[f64],
+        model: F,
+        derivatives: DF,
+    ) -> CurveFitResult<f64>
+    where
+        F: 'static + Clone + Fn(f64, &[f64]) -> f64,
+        DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]),
+    {
+        let f = {
+            let ts = ts.clone();
+            move |param: VectorF64, mut residual: VectorF64| {
+                let param = param.as_slice().unwrap();
+                Zip::from(&ts.t)
+                    .and(&ts.m)
+                    .and(&ts.inv_err)
+                    .and(residual.as_slice_mut().unwrap())
+                    .for_each(|&t, &m, &inv_err, r| {
+                        *r = inv_err * (model(t, param) - m);
+                    });
+                Value::Success
+            }
+        };
+        let df = {
+            let ts = ts.clone();
+            move |param: VectorF64, mut jacobian: MatrixF64| {
+                let param = param.as_slice().unwrap();
+                let mut buffer = vec![0.0; param.len()];
+                Zip::indexed(&ts.t)
+                    .and(&ts.inv_err)
+                    .for_each(|i, &t, &inv_err| {
+                        derivatives(t, param, &mut buffer);
+                        for (j, &jac) in buffer.iter().enumerate() {
+                            jacobian.set(i, j, inv_err * jac);
+                        }
+                    });
+                Value::Success
+            }
+        };
+
+        let mut problem = NlsProblem::from_f_df(ts.t.len(), x0.len(), f, df);
+        let result = problem.solve(VectorF64::from_slice(x0).unwrap());
+
+        CurveFitResult {
+            x: result.x().as_slice().unwrap().iter().copied().collect(),
+            reduced_chi2: result.loss() / ((ts.t.len() - x0.len()) as f64),
+            success: result.status == Value::Success,
+        }
+    }
+}
 
 pub struct NlsProblem {
     pub max_iter: usize,
@@ -185,7 +246,7 @@ impl NlsFitResult {
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
-    use crate::fit::straight_line::StraightLineFitterResult;
+    use crate::straight_line_fit::StraightLineFitterResult;
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
     use rand_distr::StandardNormal;

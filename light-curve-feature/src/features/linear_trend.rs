@@ -1,5 +1,5 @@
 use crate::evaluator::*;
-use crate::fit::fit_straight_line;
+use crate::straight_line_fit::fit_straight_line;
 
 /// The slope and noise of the light curve without observation errors in the linear fit
 ///

@@ -1,5 +1,7 @@
 use crate::evaluator::*;
-use crate::fit::{curve_fit, data::NormalizedData, CurveFitResult};
+use crate::nl_fit::{
+    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, LmsderCurveFit,
+};
 
 use conv::ConvUtil;
 use hyperdual::Float as HyperdualFloat;
@@ -99,12 +101,14 @@ where
             x0
         };
 
+        let algo: CurveFitAlgorithm = LmsderCurveFit {}.into();
+
         let result = {
             let CurveFitResult {
                 mut x,
                 reduced_chi2,
                 ..
-            } = curve_fit(
+            } = algo.curve_fit(
                 norm_data.data.clone(),
                 &x0,
                 Self::model::<f64>,
