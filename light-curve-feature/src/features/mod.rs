@@ -6,9 +6,7 @@ pub use amplitude::Amplitude;
 mod anderson_darling_normal;
 pub use anderson_darling_normal::AndersonDarlingNormal;
 
-#[cfg(feature = "gsl")]
 mod bazin_fit;
-#[cfg(feature = "gsl")]
 pub use bazin_fit::BazinFit;
 
 mod beyond_n_std;

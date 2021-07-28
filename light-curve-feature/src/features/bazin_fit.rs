@@ -1,6 +1,6 @@
 use crate::evaluator::*;
 use crate::nl_fit::{
-    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, LmsderCurveFit,
+    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, McmcCurveFit,
 };
 
 use conv::ConvUtil;
@@ -28,12 +28,20 @@ use std::ops::{Add, Mul, Sub};
 /// - Number of features: **6**
 ///
 /// Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
-#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct BazinFit {}
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+pub struct BazinFit {
+    algorithm: CurveFitAlgorithm,
+}
 
 impl BazinFit {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(algorithm: CurveFitAlgorithm) -> Self {
+        Self { algorithm }
+    }
+}
+
+impl Default for BazinFit {
+    fn default() -> Self {
+        Self::new(McmcCurveFit {}.into())
     }
 }
 
@@ -101,14 +109,12 @@ where
             x0
         };
 
-        let algo: CurveFitAlgorithm = LmsderCurveFit {}.into();
-
         let result = {
             let CurveFitResult {
                 mut x,
                 reduced_chi2,
                 ..
-            } = algo.curve_fit(
+            } = self.algorithm.curve_fit(
                 norm_data.data.clone(),
                 &x0,
                 Self::model::<f64>,
