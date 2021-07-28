@@ -21,6 +21,7 @@ impl CurveFitTrait for LmsderCurveFit {
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64],
+        _bounds: &[(f64, f64)],
         model: F,
         derivatives: DF,
     ) -> CurveFitResult<f64>

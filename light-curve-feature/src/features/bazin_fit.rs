@@ -4,8 +4,14 @@ use crate::nl_fit::{
 };
 
 use conv::ConvUtil;
-use hyperdual::Float as HyperdualFloat;
 use std::ops::{Add, Mul, Sub};
+
+#[cfg(feature = "gsl")]
+use hyperdual::Float as HyperdualFloat;
+#[cfg(not(feature = "gsl"))]
+trait HyperdualFloat {}
+#[cfg(not(feature = "gsl"))]
+impl<T> HyperdualFloat for T {}
 
 /// Bazin fit
 ///
@@ -78,15 +84,33 @@ impl BazinFit {
         jac[4] = -*x.a() * minus_dt * frac / x.fall().powi(2);
     }
 
-    fn init_array_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> [f64; 5] {
-        let a = 0.5 * (ts.m.get_max().value_into().unwrap() - ts.m.get_min().value_into().unwrap());
-        let b = ts.m.get_min().value_into().unwrap();
-        let t0 = ts.get_t_max_m().value_into().unwrap();
-        let rise = 0.5
-            * (ts.t.sample[ts.lenu() - 1].value_into().unwrap()
-                - ts.t.sample[0].value_into().unwrap());
-        let fall = rise;
-        [a, b, t0, rise, fall]
+    fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 5], [(f64, f64); 5]) {
+        let t_min: f64 = ts.t.get_min().value_into().unwrap();
+        let t_max: f64 = ts.t.get_max().value_into().unwrap();
+        let t_amplitude = t_max - t_min;
+        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+        let m_min: f64 = ts.m.get_min().value_into().unwrap();
+        let m_max: f64 = ts.m.get_max().value_into().unwrap();
+        let m_amplitude = m_max - m_min;
+
+        let a_init = 0.5 * m_amplitude;
+        let a_bound = (0.0, 100.0 * m_amplitude);
+
+        let b_init = m_min;
+        let b_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+
+        let t0_init = t_peak;
+        let t0_bound = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+
+        let rise_init = 0.5 * t_amplitude;
+        let rise_bound = (0.0, 10.0 * t_amplitude);
+
+        let fall_init = 0.5 * t_amplitude;
+        let fall_bound = (0.0, 10.0 * t_amplitude);
+        (
+            [a_init, b_init, t0_init, rise_init, fall_init],
+            [a_bound, b_bound, t0_bound, rise_bound, fall_bound],
+        )
     }
 }
 
@@ -99,14 +123,35 @@ where
 
         let norm_data = NormalizedData::<f64>::from_ts(ts);
 
-        let x0 = {
-            let mut x0 = Self::init_array_from_ts(ts);
-            x0[0] = norm_data.m_to_norm_scale(x0[0]); // amplitude
-            x0[1] = norm_data.m_to_norm(x0[1]); // offset
-            x0[2] = norm_data.t_to_norm(x0[2]); // peak time
-            x0[3] = norm_data.t_to_norm_scale(x0[3]); // rise time
-            x0[4] = norm_data.t_to_norm_scale(x0[4]); // fall time
-            x0
+        let (x0, bound) = {
+            let (mut x0, mut bound) = Self::init_and_bounds_from_ts(ts);
+
+            // amplitude
+            x0[0] = norm_data.m_to_norm_scale(x0[0]);
+            bound[0].0 = norm_data.m_to_norm_scale(bound[0].0);
+            bound[0].1 = norm_data.m_to_norm_scale(bound[0].1);
+
+            // offset
+            x0[1] = norm_data.m_to_norm(x0[1]);
+            bound[1].0 = norm_data.m_to_norm(bound[1].0);
+            bound[1].1 = norm_data.m_to_norm(bound[1].1);
+
+            // peak time
+            x0[2] = norm_data.t_to_norm(x0[2]);
+            bound[2].0 = norm_data.t_to_norm(bound[2].0);
+            bound[2].1 = norm_data.t_to_norm(bound[2].1);
+
+            // rise time
+            x0[3] = norm_data.t_to_norm_scale(x0[3]);
+            bound[3].0 = norm_data.t_to_norm_scale(bound[3].0);
+            bound[3].1 = norm_data.t_to_norm_scale(bound[3].1);
+
+            // fall time
+            x0[4] = norm_data.t_to_norm_scale(x0[4]);
+            bound[4].0 = norm_data.t_to_norm_scale(bound[4].0);
+            bound[4].1 = norm_data.t_to_norm_scale(bound[4].1);
+
+            (x0, bound)
         };
 
         let result = {
@@ -117,6 +162,7 @@ where
             } = self.algorithm.curve_fit(
                 norm_data.data.clone(),
                 &x0,
+                &bound,
                 Self::model::<f64>,
                 Self::derivatives,
             );
