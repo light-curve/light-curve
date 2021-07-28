@@ -70,6 +70,10 @@ where
             FeatureExtractor::new(beyond_n_std_vec),
         )))
         .chain(std::iter::once((
+            "BazinFit",
+            FeatureExtractor::new(vec![BazinFit::default().into()]),
+        )))
+        .chain(std::iter::once((
             "Bins",
             FeatureExtractor::new(vec![bins.into()]),
         )))
