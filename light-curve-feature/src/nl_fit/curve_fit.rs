@@ -1,5 +1,6 @@
 use crate::nl_fit::data::Data;
 use crate::nl_fit::lmsder::LmsderCurveFit;
+use crate::nl_fit::mcmc::McmcCurveFit;
 
 use enum_dispatch::enum_dispatch;
 use std::fmt::Debug;
@@ -31,4 +32,5 @@ pub trait CurveFitTrait: Clone + Debug {
 #[non_exhaustive]
 pub enum CurveFitAlgorithm {
     Lmsder(LmsderCurveFit),
+    Mcmc(McmcCurveFit),
 }

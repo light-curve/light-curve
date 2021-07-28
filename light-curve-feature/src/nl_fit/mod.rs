@@ -5,3 +5,6 @@ pub mod data;
 
 pub mod lmsder;
 pub use lmsder::LmsderCurveFit;
+
+pub mod mcmc;
+pub use mcmc::McmcCurveFit;
