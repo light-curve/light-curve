@@ -4,9 +4,12 @@ use crate::nl_fit::data::Data;
 use emcee::{EnsembleSampler, Guess, Prob};
 use emcee_rand::*;
 use ndarray::Zip;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Mcmc")]
 pub struct McmcCurveFit {}
 
 impl CurveFitTrait for McmcCurveFit {

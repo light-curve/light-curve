@@ -47,8 +47,10 @@ pub use float_trait::Float;
 
 mod lnerfc;
 
-#[cfg(feature = "gsl")]
 mod nl_fit;
+#[cfg(feature = "gsl")]
+pub use nl_fit::LmsderCurveFit;
+pub use nl_fit::{CurveFitAlgorithm, CurveFitResult, CurveFitTrait, McmcCurveFit};
 
 pub mod periodogram;
 pub use periodogram::recurrent_sin_cos::RecurrentSinCos;

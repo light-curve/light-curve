@@ -1,8 +1,12 @@
 use crate::nl_fit::data::Data;
+#[cfg(feature = "gsl")]
 use crate::nl_fit::lmsder::LmsderCurveFit;
 use crate::nl_fit::mcmc::McmcCurveFit;
 
 use enum_dispatch::enum_dispatch;
+use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -14,7 +18,7 @@ pub struct CurveFitResult<T> {
 }
 
 #[enum_dispatch]
-pub trait CurveFitTrait: Clone + Debug {
+pub trait CurveFitTrait: Clone + Debug + Serialize + DeserializeOwned {
     fn curve_fit<F, DF>(
         &self,
         ts: Rc<Data<f64>>,
@@ -28,9 +32,10 @@ pub trait CurveFitTrait: Clone + Debug {
 }
 
 #[enum_dispatch(CurveFitTrait)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum CurveFitAlgorithm {
+    #[cfg(feature = "gsl")]
     Lmsder(LmsderCurveFit),
     Mcmc(McmcCurveFit),
 }

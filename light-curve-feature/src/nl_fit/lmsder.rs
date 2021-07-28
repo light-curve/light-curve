@@ -7,10 +7,13 @@ use hyperdual::Hyperdual;
 use ndarray::Zip;
 pub use rgsl::{MatrixF64, Value, VectorF64};
 use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Lmsder")]
 pub struct LmsderCurveFit;
 
 impl CurveFitTrait for LmsderCurveFit {
