@@ -5,6 +5,7 @@ use enum_dispatch::enum_dispatch;
 use std::fmt::Debug;
 use std::rc::Rc;
 
+#[derive(Clone, Debug)]
 pub struct CurveFitResult<T> {
     pub x: Vec<T>,
     pub reduced_chi2: T,
