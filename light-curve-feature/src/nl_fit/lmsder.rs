@@ -12,9 +12,15 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Lmsder")]
 pub struct LmsderCurveFit;
+
+impl LmsderCurveFit {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
 impl CurveFitTrait for LmsderCurveFit {
     fn curve_fit<F, DF>(

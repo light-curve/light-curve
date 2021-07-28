@@ -47,7 +47,7 @@ impl BazinFit {
 
 impl Default for BazinFit {
     fn default() -> Self {
-        Self::new(McmcCurveFit {}.into())
+        Self::new(McmcCurveFit::default().into())
     }
 }
 
@@ -242,6 +242,7 @@ impl<'a, T> Params<'a, T> {
 mod tests {
     use super::*;
     use crate::tests::*;
+    use crate::LmsderCurveFit;
 
     use hyperdual::{Hyperdual, U6};
 
@@ -277,9 +278,6 @@ mod tests {
         println!("{:?}\n{:?}\n{:?}\n{:?}", t, model, m, w);
         let mut ts = TimeSeries::new(&t, &m, &w);
 
-        let eval = BazinFit::default();
-        let values = eval.eval(&mut ts).unwrap();
-
         // curve_fit(lambda t, a, b, t0, rise, fall: b + a * np.exp(-(t-t0)/fall) / (1 + np.exp(-(t-t0) / rise)), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 30, 10, 30])
         let desired = [
             9.89658673e+03,
@@ -288,7 +286,14 @@ mod tests {
             9.75027284e+00,
             2.86714363e+01,
         ];
-        all_close(&values[..5], &desired, 0.1);
+
+        for eval in &[
+            BazinFit::new(LmsderCurveFit::default().into()),
+            BazinFit::new(McmcCurveFit::new(Some(LmsderCurveFit {}.into())).into()),
+        ] {
+            let values = eval.eval(&mut ts).unwrap();
+            all_close(&values[..5], &desired, 0.1);
+        }
     }
 
     #[test]
