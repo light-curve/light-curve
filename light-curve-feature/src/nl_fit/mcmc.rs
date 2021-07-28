@@ -17,6 +17,7 @@ impl CurveFitTrait for McmcCurveFit {
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64],
+        bounds: &[(f64, f64)],
         model: F,
         _derivatives: DF,
     ) -> CurveFitResult<f64>
@@ -46,7 +47,13 @@ impl CurveFitTrait for McmcCurveFit {
 
         let initial_guess = Guess::new(&x0.iter().map(|&x| x as f32).collect::<Vec<_>>());
         let initial_lnprob = lnlike(&initial_guess);
-        let model = EmceeModel { func: lnlike };
+        let model = EmceeModel {
+            func: lnlike,
+            bounds: bounds
+                .iter()
+                .map(|&(lower, upper)| (lower as f32, upper as f32))
+                .collect(),
+        };
         let mut sampler = EnsembleSampler::new(nwalkers, ndims, &model).unwrap();
         sampler.seed(&[]);
 
@@ -75,6 +82,7 @@ impl CurveFitTrait for McmcCurveFit {
 
 struct EmceeModel<F> {
     func: F,
+    bounds: Vec<(f32, f32)>,
 }
 
 impl<F> Prob for EmceeModel<F>
@@ -85,7 +93,12 @@ where
         (self.func)(params)
     }
 
-    fn lnprior(&self, _params: &Guess) -> f32 {
+    fn lnprior(&self, params: &Guess) -> f32 {
+        for (&p, &(lower, upper)) in params.values.iter().zip(self.bounds.iter()) {
+            if p < lower || p > upper {
+                return -f32::INFINITY;
+            }
+        }
         0.0
     }
 }
