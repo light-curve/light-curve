@@ -1,4 +1,4 @@
-use crate::nl_fit::curve_fit::{CurveFitResult, CurveFitTrait};
+use crate::nl_fit::curve_fit::{CurveFitAlgorithm, CurveFitResult, CurveFitTrait};
 use crate::nl_fit::data::Data;
 
 use emcee::{EnsembleSampler, Guess, Prob};
@@ -10,7 +10,23 @@ use std::rc::Rc;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Mcmc")]
-pub struct McmcCurveFit {}
+pub struct McmcCurveFit {
+    fine_tuning_algorithm: Option<Box<CurveFitAlgorithm>>,
+}
+
+impl McmcCurveFit {
+    pub fn new(fine_tuning_algorithm: Option<CurveFitAlgorithm>) -> Self {
+        Self {
+            fine_tuning_algorithm: fine_tuning_algorithm.map(|x| x.into()),
+        }
+    }
+}
+
+impl Default for McmcCurveFit {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
 
 impl CurveFitTrait for McmcCurveFit {
     fn curve_fit<F, DF>(
@@ -19,7 +35,7 @@ impl CurveFitTrait for McmcCurveFit {
         x0: &[f64],
         bounds: &[(f64, f64)],
         model: F,
-        _derivatives: DF,
+        derivatives: DF,
     ) -> CurveFitResult<f64>
     where
         F: 'static + Clone + Fn(f64, &[f64]) -> f64,
@@ -32,6 +48,8 @@ impl CurveFitTrait for McmcCurveFit {
         let nsamples = ts.t.len();
 
         let lnlike = {
+            let ts = ts.clone();
+            let model = model.clone();
             move |params: &Guess| {
                 let mut residual = 0.0;
                 let params = params.values.iter().map(|&x| x as f64).collect::<Vec<_>>();
@@ -47,14 +65,14 @@ impl CurveFitTrait for McmcCurveFit {
 
         let initial_guess = Guess::new(&x0.iter().map(|&x| x as f32).collect::<Vec<_>>());
         let initial_lnprob = lnlike(&initial_guess);
-        let model = EmceeModel {
+        let emcee_model = EmceeModel {
             func: lnlike,
             bounds: bounds
                 .iter()
                 .map(|&(lower, upper)| (lower as f32, upper as f32))
                 .collect(),
         };
-        let mut sampler = EnsembleSampler::new(nwalkers, ndims, &model).unwrap();
+        let mut sampler = EnsembleSampler::new(nwalkers, ndims, &emcee_model).unwrap();
         sampler.seed(&[]);
 
         let (best_x, best_lnprob) = {
@@ -69,13 +87,19 @@ impl CurveFitTrait for McmcCurveFit {
                     }
                 }
             });
-            (best_x, best_lnprob)
+            (
+                best_x.into_iter().map(|x| x as f64).collect::<Vec<_>>(),
+                best_lnprob as f64,
+            )
         };
 
-        CurveFitResult {
-            x: best_x.into_iter().map(|x| x as f64).collect(),
-            reduced_chi2: (-best_lnprob / ((nsamples - ndims) as f32)) as f64,
-            success: true,
+        match self.fine_tuning_algorithm.as_ref() {
+            Some(algo) => algo.curve_fit(ts, &best_x, bounds, model, derivatives),
+            None => CurveFitResult {
+                x: best_x,
+                reduced_chi2: -best_lnprob / ((nsamples - ndims) as f64),
+                success: true,
+            },
         }
     }
 }
