@@ -20,11 +20,16 @@ impl McmcCurveFit {
             fine_tuning_algorithm: fine_tuning_algorithm.map(|x| x.into()),
         }
     }
+
+    #[inline]
+    pub fn default_fine_tuning_algorithm() -> Option<CurveFitAlgorithm> {
+        None
+    }
 }
 
 impl Default for McmcCurveFit {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(Self::default_fine_tuning_algorithm())
     }
 }
 
