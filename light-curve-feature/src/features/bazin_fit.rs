@@ -43,11 +43,16 @@ impl BazinFit {
     pub fn new(algorithm: CurveFitAlgorithm) -> Self {
         Self { algorithm }
     }
+
+    #[inline]
+    pub fn default_algorithm() -> CurveFitAlgorithm {
+        McmcCurveFit::new(None).into()
+    }
 }
 
 impl Default for BazinFit {
     fn default() -> Self {
-        Self::new(McmcCurveFit::default().into())
+        Self::new(Self::default_algorithm())
     }
 }
 
