@@ -12,13 +12,26 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Lmsder")]
-pub struct LmsderCurveFit;
+pub struct LmsderCurveFit {
+    pub niterations: u16,
+}
 
 impl LmsderCurveFit {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(niterations: u16) -> Self {
+        Self { niterations }
+    }
+
+    #[inline]
+    pub fn default_niterations() -> u16 {
+        NlsProblem::default_max_iter()
+    }
+}
+
+impl Default for LmsderCurveFit {
+    fn default() -> Self {
+        Self::new(Self::default_niterations())
     }
 }
 
@@ -67,6 +80,7 @@ impl CurveFitTrait for LmsderCurveFit {
         };
 
         let mut problem = NlsProblem::from_f_df(ts.t.len(), x0.len(), f, df);
+        problem.max_iter = self.niterations;
         let result = problem.solve(VectorF64::from_slice(x0).unwrap());
 
         CurveFitResult {
@@ -78,7 +92,7 @@ impl CurveFitTrait for LmsderCurveFit {
 }
 
 struct NlsProblem {
-    max_iter: usize,
+    max_iter: u16,
     atol: f64,
     rtol: f64,
     fit_function: MultiFitFunctionFdf,
@@ -87,11 +101,16 @@ struct NlsProblem {
 impl NlsProblem {
     fn new(fit_function: MultiFitFunctionFdf) -> Self {
         Self {
-            max_iter: 10,
+            max_iter: Self::default_max_iter(),
             atol: 0.0,
             rtol: 1e-4,
             fit_function,
         }
+    }
+
+    #[inline]
+    fn default_max_iter() -> u16 {
+        10
     }
 
     fn solve(&mut self, x0: VectorF64) -> NlsFitResult {

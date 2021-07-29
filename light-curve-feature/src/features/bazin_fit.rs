@@ -46,7 +46,7 @@ impl BazinFit {
 
     #[inline]
     pub fn default_algorithm() -> CurveFitAlgorithm {
-        McmcCurveFit::new(None).into()
+        McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
     }
 }
 
@@ -249,6 +249,7 @@ mod tests {
     use crate::tests::*;
     use crate::LmsderCurveFit;
 
+    use approx::assert_relative_eq;
     use hyperdual::{Hyperdual, U6};
 
     check_feature!(BazinFit);
@@ -261,8 +262,7 @@ mod tests {
         [0.0; 11],
     );
 
-    #[test]
-    fn bazin_fit_noisy() {
+    fn bazin_fit_noisy(eval: BazinFit) {
         const N: usize = 50;
 
         let mut rng = StdRng::seed_from_u64(0);
@@ -292,13 +292,20 @@ mod tests {
             2.86714363e+01,
         ];
 
-        for eval in &[
-            BazinFit::new(LmsderCurveFit::default().into()),
-            BazinFit::new(McmcCurveFit::new(Some(LmsderCurveFit {}.into())).into()),
-        ] {
-            let values = eval.eval(&mut ts).unwrap();
-            all_close(&values[..5], &desired, 0.1);
-        }
+        let values = eval.eval(&mut ts).unwrap();
+        assert_relative_eq!(&values[..5], &desired[..], max_relative = 0.01);
+    }
+
+    #[test]
+    fn bazin_fit_noisy_lmsder() {
+        bazin_fit_noisy(BazinFit::new(LmsderCurveFit::new(9).into()));
+    }
+
+    #[test]
+    fn bazin_fit_noizy_mcmc_plus_lmsder() {
+        let lmsder = LmsderCurveFit::new(8);
+        let mcmc = McmcCurveFit::new(128, Some(lmsder.into()));
+        bazin_fit_noisy(BazinFit::new(mcmc.into()));
     }
 
     #[test]
@@ -330,7 +337,7 @@ mod tests {
                 (1..=5).map(|i| result[i]).collect()
             };
 
-            all_close(&actual, &desired, 1e-9);
+            assert_relative_eq!(&actual[..], &desired[..], epsilon = 1e-9);
         }
     }
 }
