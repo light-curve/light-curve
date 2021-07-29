@@ -16,6 +16,7 @@ The most of the code base is written on Rust and split into several crates.
 - `light-curve-feature` ![docs.rs badge](https://docs.rs/light-curve-feature/badge.svg) A collection of features to be extracted from light curves
 - `light-curve-interpol`**WIP** Light curve interpolation tools. Currently it includes linear interpolation only
 - `light-curve-python` [![PyPI version](https://badge.fury.io/py/light-curve-python.svg)](https://badge.fury.io/py/light-curve-python) Python bindings to `light-curve-dmdt` and `light-curve-feature`. Note that in the future releases `light-curve-python`Python package will be renamed to `light-curve`.
+- `test-data` is [a Git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules) linking to the [test-data](https://github.com/light-curve/test-data) repository containing light curves required for testing, benchmarking and development of the new features. Use `git clone --recurse-submodules` to download this repo with all submodules
 - `.ci` Continuous integration related stuff, currently it is just a custom Docker [maturin](https://github.com/pyo3/maturin) image used to publish x86-64 Linux Python packages via Github Actions
 - `.github` GitHub related utils, such as dependabot configuration and Actions workflows
 
