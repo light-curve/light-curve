@@ -11,14 +11,21 @@ use std::rc::Rc;
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Mcmc")]
 pub struct McmcCurveFit {
-    fine_tuning_algorithm: Option<Box<CurveFitAlgorithm>>,
+    pub niterations: u32,
+    pub fine_tuning_algorithm: Option<Box<CurveFitAlgorithm>>,
 }
 
 impl McmcCurveFit {
-    pub fn new(fine_tuning_algorithm: Option<CurveFitAlgorithm>) -> Self {
+    pub fn new(niterations: u32, fine_tuning_algorithm: Option<CurveFitAlgorithm>) -> Self {
         Self {
+            niterations,
             fine_tuning_algorithm: fine_tuning_algorithm.map(|x| x.into()),
         }
+    }
+
+    #[inline]
+    pub fn default_niterations() -> u32 {
+        128
     }
 
     #[inline]
@@ -29,7 +36,10 @@ impl McmcCurveFit {
 
 impl Default for McmcCurveFit {
     fn default() -> Self {
-        Self::new(Self::default_fine_tuning_algorithm())
+        Self::new(
+            Self::default_niterations(),
+            Self::default_fine_tuning_algorithm(),
+        )
     }
 }
 
