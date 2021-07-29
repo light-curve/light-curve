@@ -77,10 +77,10 @@ impl CurveFitTrait for LmsderCurveFit {
     }
 }
 
-pub struct NlsProblem {
-    pub max_iter: usize,
-    pub atol: f64,
-    pub rtol: f64,
+struct NlsProblem {
+    max_iter: usize,
+    atol: f64,
+    rtol: f64,
     fit_function: MultiFitFunctionFdf,
 }
 
@@ -94,7 +94,7 @@ impl NlsProblem {
         }
     }
 
-    pub fn solve(&mut self, x0: VectorF64) -> NlsFitResult {
+    fn solve(&mut self, x0: VectorF64) -> NlsFitResult {
         let mut solver = MultiFitFdfSolver::new(
             &MultiFitFdfSolverType::lmsder(),
             self.fit_function.n,
@@ -126,7 +126,7 @@ impl NlsProblem {
     /// Construct a problem from function (f), its jacobian (df) and fdf
     ///
     /// Looks like fdf is never called
-    pub fn from_f_df_fdf<F, DF, FDF>(t_size: usize, x_size: usize, f: F, df: DF, fdf: FDF) -> Self
+    fn from_f_df_fdf<F, DF, FDF>(t_size: usize, x_size: usize, f: F, df: DF, fdf: FDF) -> Self
     where
         F: 'static + Fn(VectorF64, VectorF64) -> Value,
         DF: 'static + Fn(VectorF64, MatrixF64) -> Value,
@@ -139,7 +139,7 @@ impl NlsProblem {
         Self::new(fit_function)
     }
 
-    pub fn from_f_df<F, DF>(t_size: usize, x_size: usize, f: F, df: DF) -> Self
+    fn from_f_df<F, DF>(t_size: usize, x_size: usize, f: F, df: DF) -> Self
     where
         F: 'static + Clone + Fn(VectorF64, VectorF64) -> Value,
         DF: 'static + Clone + Fn(VectorF64, MatrixF64) -> Value,
@@ -164,7 +164,7 @@ impl NlsProblem {
     /// https://github.com/rust-lang/rust/issues/78220
     ///
     /// Current implementation is something like twice slower than `Self::from_f_df_fdf`
-    pub fn from_dual_f<RF, DF>(t_size: usize, real_f: RF, dual_f: DF) -> Self
+    fn from_dual_f<RF, DF>(t_size: usize, real_f: RF, dual_f: DF) -> Self
     where
         RF: 'static + Clone + Fn(&[f64], &mut [f64]),
         DF: 'static
@@ -232,21 +232,21 @@ where
         .collect()
 }
 
-pub struct NlsFitResult {
-    pub status: Value,
+struct NlsFitResult {
+    status: Value,
     solver: MultiFitFdfSolver,
 }
 
 impl NlsFitResult {
-    pub fn x(&self) -> VectorF64 {
+    fn x(&self) -> VectorF64 {
         self.solver.x()
     }
 
-    pub fn f(&self) -> VectorF64 {
+    fn f(&self) -> VectorF64 {
         self.solver.f()
     }
 
-    pub fn loss(&self) -> f64 {
+    fn loss(&self) -> f64 {
         self.f().as_slice().unwrap().iter().map(|x| x.powi(2)).sum()
     }
 }
