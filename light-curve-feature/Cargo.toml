@@ -40,7 +40,7 @@ rand_distr = "^0.2"
 criterion = "^0.3"
 chfft = "^0.3.4"
 realfft= "^1.1"
-rustfft = "^5.0"
+rustfft = "^6.0"
 
 [[bench]]
 name = "benchmark"
