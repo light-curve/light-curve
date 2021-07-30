@@ -22,7 +22,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --workspace --all-targets --exclude python/light-curve
+        args: --workspace --all-targets --exclude light-curve-python
     - name: Build light-curve-feature gsl+fftw-source
       uses: actions-rs/cargo@v1
       with:
@@ -42,7 +42,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --workspace --exclude python/light-curve
+        args: --workspace --exclude light-curve-python
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
@@ -52,7 +52,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --workspace --exclude python/light-curve --all-targets -- -D warnings
+        args: --workspace --exclude light-curve-python --all-targets -- -D warnings
 
 
   python:
@@ -124,7 +124,7 @@ jobs:
       with:
         submodules: true
     - name: build all but python
-      run: cargo build --workspace --all-targets --exclude python/light-curve
+      run: cargo build --workspace --all-targets --exclude light-curve-python
     - name: build python
       run: maturin build
       working-directory: python/light-curve
