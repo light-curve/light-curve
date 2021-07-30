@@ -2,7 +2,7 @@
 name = "light-curve-interpol"
 version = "0.1.1"
 description = "Interpolations tools for time series"
-repository = "https://github.com/hombit/light-curve"
+repository = "https://github.com/light-curve/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 edition = "2018"
 license = "MIT"
