@@ -258,9 +258,9 @@ mod tests {
 
         assert_eq!(actual_tmw.t.len(), actual_tmw.m.len());
         assert_eq!(actual_tmw.t.len(), actual_tmw.w.len());
-        all_close(&actual_tmw.t.as_slice().unwrap(), &desired_t, 1e-6);
-        all_close(&actual_tmw.m.as_slice().unwrap(), &desired_m, 1e-6);
-        all_close(&actual_tmw.w.as_slice().unwrap(), &desired_w, 1e-6);
+        all_close(actual_tmw.t.as_slice().unwrap(), &desired_t, 1e-6);
+        all_close(actual_tmw.m.as_slice().unwrap(), &desired_m, 1e-6);
+        all_close(actual_tmw.w.as_slice().unwrap(), &desired_w, 1e-6);
     }
 
     #[test]
