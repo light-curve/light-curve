@@ -4,7 +4,7 @@ version = "0.3.0-alpha.2"
 edition = "2018"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 description = "Feature extractor from noisy time series"
-repository = "https://github.com/hombit/light-curve"
+repository = "https://github.com/light-curve/light-curve"
 license = "GPL-3.0-or-later"
 
 [lib]

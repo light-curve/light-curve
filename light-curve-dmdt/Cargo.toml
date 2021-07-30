@@ -2,7 +2,7 @@
 name = "light-curve-dmdt"
 version = "0.3.0"
 description = "dm-dt maps generator"
-repository = "https://github.com/hombit/light-curve"
+repository = "https://github.com/light-curve/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "MIT"
 edition = "2018"
