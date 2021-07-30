@@ -9,6 +9,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
     - name: Install FFTW and GSL
       run: |
         sudo apt-get update
@@ -63,6 +65,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
     - name: Install FFTW
       run: |
         sudo apt-get update
@@ -116,9 +120,11 @@ jobs:
     runs-on: [self-hosted, linux, ARM64]
 
     steps:
-      - uses: actions/checkout@v2
-      - name: build all but python
-        run: cargo build --workspace --all-targets --exclude python/light-curve
-      - name: build python
-        run: maturin build
-        working-directory: python/light-curve
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: build all but python
+      run: cargo build --workspace --all-targets --exclude python/light-curve
+    - name: build python
+      run: maturin build
+      working-directory: python/light-curve
