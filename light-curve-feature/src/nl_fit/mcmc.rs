@@ -57,7 +57,6 @@ impl CurveFitTrait for McmcCurveFit {
         DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]),
     {
         const NWALKERS_PER_DIMENSION: usize = 4;
-        const NITERATIONS: usize = 128;
         let ndims = x0.len();
         let nwalkers = NWALKERS_PER_DIMENSION * ndims;
         let nsamples = ts.t.len();
@@ -94,7 +93,7 @@ impl CurveFitTrait for McmcCurveFit {
             let (mut best_x, mut best_lnprob) = (initial_guess.values.clone(), initial_lnprob);
             let initial_guesses =
                 initial_guess.create_initial_guess_with_rng(nwalkers, &mut StdRng::from_seed(&[]));
-            let _ = sampler.sample(&initial_guesses, NITERATIONS, |step| {
+            let _ = sampler.sample(&initial_guesses, self.niterations as usize, |step| {
                 for (pos, &lnprob) in step.pos.iter().zip(step.lnprob.iter()) {
                     if lnprob > best_lnprob {
                         best_x = pos.values.clone();
