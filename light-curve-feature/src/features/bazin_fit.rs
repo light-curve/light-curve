@@ -252,10 +252,6 @@ mod tests {
 
     use approx::assert_relative_eq;
     use hyperdual::{Hyperdual, U6};
-    use include_dir::{include_dir, Dir};
-    use ndarray::Array1;
-    use plotters::prelude::*;
-    use unzip3::Unzip3;
 
     check_feature!(BazinFit);
 
@@ -344,76 +340,5 @@ mod tests {
 
             assert_relative_eq!(&actual[..], &desired[..], epsilon = 1e-9);
         }
-    }
-
-    #[derive(Deserialize)]
-    struct LightCurveRecord {
-        ant_mjd: f64,
-        ant_mag: f64,
-        ant_magerr: f64,
-        ant_passband: char,
-        ant_survey: u8,
-    }
-
-    #[test]
-    fn fit_real_data() {
-        // Relative to the current file
-        const ZTF_IDS_CSV: &str =
-            include_str!("../../../test-data/SNIa/snIa_bandg_minobs10_beforepeak3_afterpeak4.csv");
-
-        // Relative to the project root
-        const LC_DIR: Dir = include_dir!("../test-data/SNIa/light-curves");
-
-        let lmsder = BazinFit::new(LmsderCurveFit::new(15).into());
-        let mcmc =
-            BazinFit::new(McmcCurveFit::new(128, Some(LmsderCurveFit::new(10).into())).into());
-
-        let mut count_lmsder_better = 0;
-        let mut count_mcmc_better = 0;
-
-        for ztf_id in ZTF_IDS_CSV.split_terminator('\n') {
-            let filename = format!("{}.csv", ztf_id);
-            let file = LC_DIR.get_file(&filename).unwrap();
-            let mut reader = csv::ReaderBuilder::new().from_reader(file.contents());
-            let (t, m, w): (Vec<_>, Vec<_>, Vec<_>) = reader
-                .deserialize()
-                .map(|row| row.unwrap())
-                .filter(|record: &LightCurveRecord| {
-                    record.ant_passband == 'g' && record.ant_survey == 1
-                })
-                .map(|record| {
-                    let LightCurveRecord {
-                        ant_mjd: t,
-                        ant_mag: m,
-                        ant_magerr: sigma_m,
-                        ..
-                    } = record;
-                    let flux = 10.0.powf(-0.4 * m);
-                    let sigma_flux = f64::ln(10.0) * 0.4 * sigma_m * flux;
-                    let w_flux = sigma_flux.powi(-2);
-                    (t, flux, w_flux)
-                })
-                .unzip3();
-            let mut ts = TimeSeries::new(&t, &m, &w);
-            let lmsder_features = lmsder.eval(&mut ts).unwrap();
-            let mcmc_features = mcmc.eval(&mut ts).unwrap();
-
-            // Use reduced chi2 = 5 as a threshold
-            if lmsder_features[5] < 5.0 && mcmc_features[5] > 5.0 {
-                count_lmsder_better += 1;
-            }
-            if lmsder_features[5] > 5.0 && mcmc_features[5] < 5.0 {
-                count_mcmc_better += 1;
-            }
-
-            // plot(&mut ts, &[&lmsder_features, &mcmc_features], ztf_id);
-        }
-
-        assert!(
-            count_mcmc_better > count_lmsder_better,
-            "mcmc better: {}, lmsder better: {}",
-            count_mcmc_better,
-            count_lmsder_better
-        );
     }
 }
