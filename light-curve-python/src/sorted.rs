@@ -18,7 +18,7 @@ where
             "sorting is not implemented, please provide time-sorted arrays",
         ))),
         None => {
-            if is_sorted(&a) {
+            if is_sorted(a) {
                 Ok(())
             } else {
                 Err(Exception::ValueError(String::from(

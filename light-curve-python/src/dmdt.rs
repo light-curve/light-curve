@@ -95,7 +95,7 @@ where
 
     fn normalize(&self, a: &mut ndarray::Array2<T>, t: &[T]) {
         if self.norm.contains(NormFlag::Dt) {
-            let dt = self.dmdt.dt_points(&t);
+            let dt = self.dmdt.dt_points(t);
             let dt_no_zeros = dt.mapv(|x| {
                 if x == 0 {
                     T::one()
@@ -185,7 +185,7 @@ where
         check_sorted(t, sorted)?;
 
         let mut result = self.dmdt.points(t, m).mapv(|x| x.approx_into().unwrap());
-        self.normalize(&mut result, &t);
+        self.normalize(&mut result, t);
         Ok(result)
     }
 
@@ -347,10 +347,10 @@ where
         check_sorted(t, sorted)?;
 
         let mut result = match self.error_func {
-            ErrorFunction::Exact => self.dmdt.gausses::<lcdmdt::ExactErf>(&t, &m, err2),
-            ErrorFunction::Eps1Over1e3 => self.dmdt.gausses::<lcdmdt::Eps1Over1e3Erf>(&t, &m, err2),
+            ErrorFunction::Exact => self.dmdt.gausses::<lcdmdt::ExactErf>(t, m, err2),
+            ErrorFunction::Eps1Over1e3 => self.dmdt.gausses::<lcdmdt::Eps1Over1e3Erf>(t, m, err2),
         };
-        self.normalize(&mut result, &t);
+        self.normalize(&mut result, t);
         Ok(result)
     }
 
