@@ -199,7 +199,7 @@ fn eval_info_w_required_test(
 
     let mut ts = TimeSeries::new(t_sorted, m, &w2);
     let v = eval.eval(&mut ts).unwrap();
-    let neq_baseline = !simeq(&v, &baseline, 1e-12);
+    let neq_baseline = !simeq(&v, baseline, 1e-12);
     assert_eq!(
         neq_baseline,
         FeatureEvaluator::<f64>::is_w_required(eval),
