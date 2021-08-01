@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `ndarray` is updated to 0.15.3, it is a breaking change
+—
 
 ### Depreceted
 
@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 —
+
+## [0.4.0]
+
+### Changed
+
+- `ndarray` is updated to 0.15.3, it is a breaking change
+
 
 ## [0.3.x]
 
