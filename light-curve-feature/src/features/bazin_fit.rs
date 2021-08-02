@@ -15,8 +15,6 @@ impl<T> HyperdualFloat for T {}
 
 /// Bazin fit
 ///
-/// Requires *gsl* feature to be enabled
-///
 /// Five fit parameters and goodness of fit (reduced $\Chi^2$) of Bazin function developed for
 /// core-collapsed supernovae:
 /// $$
@@ -26,8 +24,10 @@ impl<T> HyperdualFloat for T {}
 /// Note, that Bazin function is developed to use with fluxes, not magnitudes. Also note a typo in
 /// the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent
 ///
-/// Is not guaranteed that parameters correspond to global minima of the loss function, the feature
-/// extractor needs a lot of improvement.
+/// Optimization is done using specified `algorithm` which is an instance of the
+/// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+/// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
+/// `gsl` Cargo feature).
 ///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **6**
@@ -44,6 +44,7 @@ impl BazinFit {
         Self { algorithm }
     }
 
+    /// [BazinFit] with the default [McmcCurveFit]
     #[inline]
     pub fn default_algorithm() -> CurveFitAlgorithm {
         McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()

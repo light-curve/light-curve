@@ -8,6 +8,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
+/// MCMC sampler for non-linear least squares
+///
+/// First it generates `4 * dimension_number` walkers from the given initial guess using the
+/// Standard distribution with `sigma = 1e-5`, next it samples `niterations` guesses for each walker
+/// and chooses guess corresponding to the minimum sum of squared deviations (maximum likelihood).
+/// Optionally, if `fine_tuning_algorithm` is `Some`, it sends this best guess to the next
+/// optimization as an initial guess and returns its result
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Mcmc")]
 pub struct McmcCurveFit {

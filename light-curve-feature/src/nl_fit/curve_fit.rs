@@ -32,6 +32,7 @@ pub trait CurveFitTrait: Clone + Debug + Serialize + DeserializeOwned {
         DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]);
 }
 
+/// Optimization algorithm for non-linear least squares
 #[enum_dispatch(CurveFitTrait)]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
