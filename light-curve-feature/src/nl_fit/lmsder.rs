@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// LMSDER GSL non-linear least-squares wrapper
+///
+/// Requires `gsl` Cargo feature
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Lmsder")]
 pub struct LmsderCurveFit {
