@@ -1,13 +1,19 @@
 use crate::evaluator::*;
-use crate::fit::{curve_fit, data::NormalizedData, CurveFitResult};
+use crate::nl_fit::{
+    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, McmcCurveFit,
+};
 
 use conv::ConvUtil;
-use hyperdual::Float as HyperdualFloat;
 use std::ops::{Add, Mul, Sub};
 
+#[cfg(feature = "gsl")]
+use hyperdual::Float as HyperdualFloat;
+#[cfg(not(feature = "gsl"))]
+trait HyperdualFloat {}
+#[cfg(not(feature = "gsl"))]
+impl<T> HyperdualFloat for T {}
+
 /// Bazin fit
-///
-/// Requires *gsl* feature to be enabled
 ///
 /// Five fit parameters and goodness of fit (reduced $\Chi^2$) of Bazin function developed for
 /// core-collapsed supernovae:
@@ -18,20 +24,36 @@ use std::ops::{Add, Mul, Sub};
 /// Note, that Bazin function is developed to use with fluxes, not magnitudes. Also note a typo in
 /// the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent
 ///
-/// Is not guaranteed that parameters correspond to global minima of the loss function, the feature
-/// extractor needs a lot of improvement.
+/// Optimization is done using specified `algorithm` which is an instance of the
+/// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+/// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
+/// `gsl` Cargo feature).
 ///
 /// - Depends on: **time**, **magnitude**, **magnitude error**
 /// - Minimum number of observations: **6**
 /// - Number of features: **6**
 ///
 /// Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
-#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct BazinFit {}
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+pub struct BazinFit {
+    algorithm: CurveFitAlgorithm,
+}
 
 impl BazinFit {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(algorithm: CurveFitAlgorithm) -> Self {
+        Self { algorithm }
+    }
+
+    /// [BazinFit] with the default [McmcCurveFit]
+    #[inline]
+    pub fn default_algorithm() -> CurveFitAlgorithm {
+        McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
+    }
+}
+
+impl Default for BazinFit {
+    fn default() -> Self {
+        Self::new(Self::default_algorithm())
     }
 }
 
@@ -68,15 +90,33 @@ impl BazinFit {
         jac[4] = -*x.a() * minus_dt * frac / x.fall().powi(2);
     }
 
-    fn init_array_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> [f64; 5] {
-        let a = 0.5 * (ts.m.get_max().value_into().unwrap() - ts.m.get_min().value_into().unwrap());
-        let b = ts.m.get_min().value_into().unwrap();
-        let t0 = ts.get_t_max_m().value_into().unwrap();
-        let rise = 0.5
-            * (ts.t.sample[ts.lenu() - 1].value_into().unwrap()
-                - ts.t.sample[0].value_into().unwrap());
-        let fall = rise;
-        [a, b, t0, rise, fall]
+    fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 5], [(f64, f64); 5]) {
+        let t_min: f64 = ts.t.get_min().value_into().unwrap();
+        let t_max: f64 = ts.t.get_max().value_into().unwrap();
+        let t_amplitude = t_max - t_min;
+        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+        let m_min: f64 = ts.m.get_min().value_into().unwrap();
+        let m_max: f64 = ts.m.get_max().value_into().unwrap();
+        let m_amplitude = m_max - m_min;
+
+        let a_init = 0.5 * m_amplitude;
+        let a_bound = (0.0, 100.0 * m_amplitude);
+
+        let b_init = m_min;
+        let b_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+
+        let t0_init = t_peak;
+        let t0_bound = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+
+        let rise_init = 0.5 * t_amplitude;
+        let rise_bound = (0.0, 10.0 * t_amplitude);
+
+        let fall_init = 0.5 * t_amplitude;
+        let fall_bound = (0.0, 10.0 * t_amplitude);
+        (
+            [a_init, b_init, t0_init, rise_init, fall_init],
+            [a_bound, b_bound, t0_bound, rise_bound, fall_bound],
+        )
     }
 }
 
@@ -89,14 +129,35 @@ where
 
         let norm_data = NormalizedData::<f64>::from_ts(ts);
 
-        let x0 = {
-            let mut x0 = Self::init_array_from_ts(ts);
-            x0[0] = norm_data.m_to_norm_scale(x0[0]); // amplitude
-            x0[1] = norm_data.m_to_norm(x0[1]); // offset
-            x0[2] = norm_data.t_to_norm(x0[2]); // peak time
-            x0[3] = norm_data.t_to_norm_scale(x0[3]); // rise time
-            x0[4] = norm_data.t_to_norm_scale(x0[4]); // fall time
-            x0
+        let (x0, bound) = {
+            let (mut x0, mut bound) = Self::init_and_bounds_from_ts(ts);
+
+            // amplitude
+            x0[0] = norm_data.m_to_norm_scale(x0[0]);
+            bound[0].0 = norm_data.m_to_norm_scale(bound[0].0);
+            bound[0].1 = norm_data.m_to_norm_scale(bound[0].1);
+
+            // offset
+            x0[1] = norm_data.m_to_norm(x0[1]);
+            bound[1].0 = norm_data.m_to_norm(bound[1].0);
+            bound[1].1 = norm_data.m_to_norm(bound[1].1);
+
+            // peak time
+            x0[2] = norm_data.t_to_norm(x0[2]);
+            bound[2].0 = norm_data.t_to_norm(bound[2].0);
+            bound[2].1 = norm_data.t_to_norm(bound[2].1);
+
+            // rise time
+            x0[3] = norm_data.t_to_norm_scale(x0[3]);
+            bound[3].0 = norm_data.t_to_norm_scale(bound[3].0);
+            bound[3].1 = norm_data.t_to_norm_scale(bound[3].1);
+
+            // fall time
+            x0[4] = norm_data.t_to_norm_scale(x0[4]);
+            bound[4].0 = norm_data.t_to_norm_scale(bound[4].0);
+            bound[4].1 = norm_data.t_to_norm_scale(bound[4].1);
+
+            (x0, bound)
         };
 
         let result = {
@@ -104,9 +165,10 @@ where
                 mut x,
                 reduced_chi2,
                 ..
-            } = curve_fit(
+            } = self.algorithm.curve_fit(
                 norm_data.data.clone(),
                 &x0,
+                &bound,
                 Self::model::<f64>,
                 Self::derivatives,
             );
@@ -186,7 +248,10 @@ impl<'a, T> Params<'a, T> {
 mod tests {
     use super::*;
     use crate::tests::*;
+    use crate::LmsderCurveFit;
+    use crate::TimeSeries;
 
+    use approx::assert_relative_eq;
     use hyperdual::{Hyperdual, U6};
 
     check_feature!(BazinFit);
@@ -199,8 +264,7 @@ mod tests {
         [0.0; 11],
     );
 
-    #[test]
-    fn bazin_fit_noisy() {
+    fn bazin_fit_noisy(eval: BazinFit) {
         const N: usize = 50;
 
         let mut rng = StdRng::seed_from_u64(0);
@@ -221,9 +285,6 @@ mod tests {
         println!("{:?}\n{:?}\n{:?}\n{:?}", t, model, m, w);
         let mut ts = TimeSeries::new(&t, &m, &w);
 
-        let eval = BazinFit::default();
-        let values = eval.eval(&mut ts).unwrap();
-
         // curve_fit(lambda t, a, b, t0, rise, fall: b + a * np.exp(-(t-t0)/fall) / (1 + np.exp(-(t-t0) / rise)), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 30, 10, 30])
         let desired = [
             9.89658673e+03,
@@ -232,7 +293,21 @@ mod tests {
             9.75027284e+00,
             2.86714363e+01,
         ];
-        all_close(&values[..5], &desired, 0.1);
+
+        let values = eval.eval(&mut ts).unwrap();
+        assert_relative_eq!(&values[..5], &desired[..], max_relative = 0.01);
+    }
+
+    #[test]
+    fn bazin_fit_noisy_lmsder() {
+        bazin_fit_noisy(BazinFit::new(LmsderCurveFit::new(9).into()));
+    }
+
+    #[test]
+    fn bazin_fit_noizy_mcmc_plus_lmsder() {
+        let lmsder = LmsderCurveFit::new(8);
+        let mcmc = McmcCurveFit::new(128, Some(lmsder.into()));
+        bazin_fit_noisy(BazinFit::new(mcmc.into()));
     }
 
     #[test]
@@ -264,7 +339,7 @@ mod tests {
                 (1..=5).map(|i| result[i]).collect()
             };
 
-            all_close(&actual, &desired, 1e-9);
+            assert_relative_eq!(&actual[..], &desired[..], epsilon = 1e-9);
         }
     }
 }

@@ -1,29 +1,122 @@
 use crate::float_trait::Float;
+use crate::nl_fit::curve_fit::{CurveFitResult, CurveFitTrait};
+use crate::nl_fit::data::Data;
+
 use conv::prelude::*;
 use hyperdual::Hyperdual;
+use ndarray::Zip;
 pub use rgsl::{MatrixF64, Value, VectorF64};
 use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub struct NlsProblem {
-    pub max_iter: usize,
-    pub atol: f64,
-    pub rtol: f64,
+/// LMSDER GSL non-linear least-squares wrapper
+///
+/// Requires `gsl` Cargo feature
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Lmsder")]
+pub struct LmsderCurveFit {
+    pub niterations: u16,
+}
+
+impl LmsderCurveFit {
+    pub fn new(niterations: u16) -> Self {
+        Self { niterations }
+    }
+
+    #[inline]
+    pub fn default_niterations() -> u16 {
+        NlsProblem::default_max_iter()
+    }
+}
+
+impl Default for LmsderCurveFit {
+    fn default() -> Self {
+        Self::new(Self::default_niterations())
+    }
+}
+
+impl CurveFitTrait for LmsderCurveFit {
+    fn curve_fit<F, DF>(
+        &self,
+        ts: Rc<Data<f64>>,
+        x0: &[f64],
+        _bounds: &[(f64, f64)],
+        model: F,
+        derivatives: DF,
+    ) -> CurveFitResult<f64>
+    where
+        F: 'static + Clone + Fn(f64, &[f64]) -> f64,
+        DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]),
+    {
+        let f = {
+            let ts = ts.clone();
+            move |param: VectorF64, mut residual: VectorF64| {
+                let param = param.as_slice().unwrap();
+                Zip::from(&ts.t)
+                    .and(&ts.m)
+                    .and(&ts.inv_err)
+                    .and(residual.as_slice_mut().unwrap())
+                    .for_each(|&t, &m, &inv_err, r| {
+                        *r = inv_err * (model(t, param) - m);
+                    });
+                Value::Success
+            }
+        };
+        let df = {
+            let ts = ts.clone();
+            move |param: VectorF64, mut jacobian: MatrixF64| {
+                let param = param.as_slice().unwrap();
+                let mut buffer = vec![0.0; param.len()];
+                Zip::indexed(&ts.t)
+                    .and(&ts.inv_err)
+                    .for_each(|i, &t, &inv_err| {
+                        derivatives(t, param, &mut buffer);
+                        for (j, &jac) in buffer.iter().enumerate() {
+                            jacobian.set(i, j, inv_err * jac);
+                        }
+                    });
+                Value::Success
+            }
+        };
+
+        let mut problem = NlsProblem::from_f_df(ts.t.len(), x0.len(), f, df);
+        problem.max_iter = self.niterations;
+        let result = problem.solve(VectorF64::from_slice(x0).unwrap());
+
+        CurveFitResult {
+            x: result.x().as_slice().unwrap().iter().copied().collect(),
+            reduced_chi2: result.loss() / ((ts.t.len() - x0.len()) as f64),
+            success: result.status == Value::Success,
+        }
+    }
+}
+
+struct NlsProblem {
+    max_iter: u16,
+    atol: f64,
+    rtol: f64,
     fit_function: MultiFitFunctionFdf,
 }
 
 impl NlsProblem {
     fn new(fit_function: MultiFitFunctionFdf) -> Self {
         Self {
-            max_iter: 10,
+            max_iter: Self::default_max_iter(),
             atol: 0.0,
             rtol: 1e-4,
             fit_function,
         }
     }
 
-    pub fn solve(&mut self, x0: VectorF64) -> NlsFitResult {
+    #[inline]
+    fn default_max_iter() -> u16 {
+        10
+    }
+
+    fn solve(&mut self, x0: VectorF64) -> NlsFitResult {
         let mut solver = MultiFitFdfSolver::new(
             &MultiFitFdfSolverType::lmsder(),
             self.fit_function.n,
@@ -55,7 +148,7 @@ impl NlsProblem {
     /// Construct a problem from function (f), its jacobian (df) and fdf
     ///
     /// Looks like fdf is never called
-    pub fn from_f_df_fdf<F, DF, FDF>(t_size: usize, x_size: usize, f: F, df: DF, fdf: FDF) -> Self
+    fn from_f_df_fdf<F, DF, FDF>(t_size: usize, x_size: usize, f: F, df: DF, fdf: FDF) -> Self
     where
         F: 'static + Fn(VectorF64, VectorF64) -> Value,
         DF: 'static + Fn(VectorF64, MatrixF64) -> Value,
@@ -68,7 +161,7 @@ impl NlsProblem {
         Self::new(fit_function)
     }
 
-    pub fn from_f_df<F, DF>(t_size: usize, x_size: usize, f: F, df: DF) -> Self
+    fn from_f_df<F, DF>(t_size: usize, x_size: usize, f: F, df: DF) -> Self
     where
         F: 'static + Clone + Fn(VectorF64, VectorF64) -> Value,
         DF: 'static + Clone + Fn(VectorF64, MatrixF64) -> Value,
@@ -93,7 +186,7 @@ impl NlsProblem {
     /// https://github.com/rust-lang/rust/issues/78220
     ///
     /// Current implementation is something like twice slower than `Self::from_f_df_fdf`
-    pub fn from_dual_f<RF, DF>(t_size: usize, real_f: RF, dual_f: DF) -> Self
+    fn from_dual_f<RF, DF>(t_size: usize, real_f: RF, dual_f: DF) -> Self
     where
         RF: 'static + Clone + Fn(&[f64], &mut [f64]),
         DF: 'static
@@ -161,21 +254,21 @@ where
         .collect()
 }
 
-pub struct NlsFitResult {
-    pub status: Value,
+struct NlsFitResult {
+    status: Value,
     solver: MultiFitFdfSolver,
 }
 
 impl NlsFitResult {
-    pub fn x(&self) -> VectorF64 {
+    fn x(&self) -> VectorF64 {
         self.solver.x()
     }
 
-    pub fn f(&self) -> VectorF64 {
+    fn f(&self) -> VectorF64 {
         self.solver.f()
     }
 
-    pub fn loss(&self) -> f64 {
+    fn loss(&self) -> f64 {
         self.f().as_slice().unwrap().iter().map(|x| x.powi(2)).sum()
     }
 }
@@ -185,7 +278,7 @@ impl NlsFitResult {
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
-    use crate::fit::straight_line::StraightLineFitterResult;
+    use crate::straight_line_fit::StraightLineFitterResult;
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
     use rand_distr::StandardNormal;

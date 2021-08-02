@@ -1,9 +1,13 @@
 use conv::ConvUtil;
 use criterion::{black_box, Criterion};
+use include_dir::{include_dir, Dir};
 use light_curve_feature::*;
+use ndarray::Array1;
 use rand::prelude::*;
 use rand_distr::StandardNormal;
+use serde::Deserialize;
 use std::any::type_name;
+use unzip3::Unzip3;
 
 pub fn bench_extractor<T>(c: &mut Criterion)
 where
@@ -70,6 +74,10 @@ where
             FeatureExtractor::new(beyond_n_std_vec),
         )))
         .chain(std::iter::once((
+            "BazinFit",
+            FeatureExtractor::new(vec![BazinFit::default().into()]),
+        )))
+        .chain(std::iter::once((
             "Bins",
             FeatureExtractor::new(vec![bins.into()]),
         )))
@@ -80,15 +88,13 @@ where
         .collect();
 
     for &n in N.iter() {
-        let x = randspace(n);
-        let y = randvec(n);
-        let err = randvec(n);
+        let mut ts = randts(n);
         for (name, fe) in names_fes.iter() {
             c.bench_function(
                 format!("FeatureExtractor {}: [{}; {}]", name, n, type_name::<T>()).as_str(),
                 |b| {
                     b.iter(|| {
-                        run(black_box(fe), black_box(&x), black_box(&y), black_box(&err)).unwrap();
+                        let _v = fe.eval(black_box(&mut ts)).unwrap();
                     });
                 },
             );
@@ -97,33 +103,46 @@ where
 
     {
         let n = 10;
-        let x = randspace(n);
-        let y = randvec(n);
-        let mut ts = TimeSeries::new_without_weight(&x, &y);
+        let mut ts = randts(n);
         let fe = FeatureExtractor::new(observation_count_vec);
         c.bench_function(
             format!("Multiple ObservationCount {}", type_name::<T>()).as_str(),
             |b| {
                 b.iter(|| {
-                    fe.eval(black_box(&mut ts)).unwrap();
+                    let _v = fe.eval(black_box(&mut ts)).unwrap();
                 });
             },
         );
     }
+
+    {
+        let mut real_data: Vec<_> = iter_sn1a_flux_ts::<T>().collect();
+        let curve_fits: Vec<CurveFitAlgorithm> = vec![
+            LmsderCurveFit::new(5).into(),
+            LmsderCurveFit::new(10).into(),
+            LmsderCurveFit::new(15).into(),
+            McmcCurveFit::new(128, None).into(),
+            McmcCurveFit::new(1024, None).into(),
+            McmcCurveFit::new(128, Some(LmsderCurveFit::new(5).into())).into(),
+            McmcCurveFit::new(1024, Some(LmsderCurveFit::new(10).into())).into(),
+        ];
+        for curve_fit in curve_fits.into_iter() {
+            let eval = BazinFit::new(curve_fit);
+            c.bench_function(
+                format!("SN Ia {:?} {}", eval, type_name::<T>()).as_str(),
+                |b| {
+                    b.iter(|| {
+                        real_data.iter_mut().for_each(|mut ts| {
+                            let _v = eval.eval(black_box(&mut ts)).unwrap();
+                        });
+                    });
+                },
+            );
+        }
+    }
 }
 
-fn run<T: Float>(
-    fe: &FeatureExtractor<T, Feature<T>>,
-    x: &[T],
-    y: &[T],
-    err: &[T],
-) -> Result<Vec<T>, EvaluatorError> {
-    let w: Vec<_> = err.iter().map(|&e| e.powi(-2)).collect();
-    let mut ts = TimeSeries::new(x, y, &w);
-    fe.eval(&mut ts)
-}
-
-fn randvec<T>(n: usize) -> Vec<T>
+fn randvec<T>(n: usize) -> Array1<T>
 where
     T: Float,
     StandardNormal: Distribution<T>,
@@ -136,12 +155,76 @@ where
         .collect()
 }
 
-fn randspace<T>(n: usize) -> Vec<T>
+fn randspace<T>(n: usize) -> Array1<T>
 where
     T: Float,
     StandardNormal: Distribution<T>,
 {
     let mut x = randvec::<T>(n);
-    x[..].sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    x.as_slice_mut()
+        .unwrap()
+        .sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     x
+}
+
+pub fn randts<T>(n: usize) -> TimeSeries<'static, T>
+where
+    T: Float,
+    StandardNormal: Distribution<T>,
+{
+    let t = randspace(n);
+    let m = randvec(n);
+    let w = randvec(n).mapv(|x: T| x.powi(2));
+    TimeSeries::new(t, m, w)
+}
+
+#[derive(Deserialize)]
+struct LightCurveRecord {
+    ant_mjd: f64,
+    ant_mag: f64,
+    ant_magerr: f64,
+    ant_passband: char,
+    ant_survey: u8,
+}
+
+fn iter_sn1a_flux_ts<T>() -> impl Iterator<Item = TimeSeries<'static, T>>
+where
+    T: Float,
+{
+    // Relative to the current file
+    const ZTF_IDS_CSV: &str =
+        include_str!("../../test-data/SNIa/snIa_bandg_minobs10_beforepeak3_afterpeak4.csv");
+
+    // Relative to the project root
+    const LC_DIR: Dir = include_dir!("../test-data/SNIa/light-curves");
+
+    ZTF_IDS_CSV.split_terminator('\n').map(|ztf_id| {
+        let filename = format!("{}.csv", ztf_id);
+        let file = LC_DIR.get_file(&filename).unwrap();
+        let mut reader = csv::ReaderBuilder::new().from_reader(file.contents());
+        let (t, flux, w_flux): (Vec<_>, Vec<_>, Vec<_>) = reader
+            .deserialize()
+            .map(|row| row.unwrap())
+            .filter(|record: &LightCurveRecord| {
+                record.ant_passband == 'g' && record.ant_survey == 1
+            })
+            .map(|record| {
+                let LightCurveRecord {
+                    ant_mjd: t,
+                    ant_mag: m,
+                    ant_magerr: sigma_m,
+                    ..
+                } = record;
+                let flux = 10.0_f64.powf(-0.4_f64 * m);
+                let sigma_flux = f64::ln(10.0_f64) * 0.4_f64 * sigma_m * flux;
+                let w_flux = sigma_flux.powi(-2);
+                (
+                    t.approx_as::<T>().unwrap(),
+                    flux.approx_as::<T>().unwrap(),
+                    w_flux.approx_as::<T>().unwrap(),
+                )
+            })
+            .unzip3();
+        TimeSeries::new(t, flux, w_flux)
+    })
 }
