@@ -15,14 +15,14 @@ impl<T> HyperdualFloat for T {}
 
 /// Bazin fit
 ///
-/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of Bazin function developed for
+/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Bazin function developed for
 /// core-collapsed supernovae:
 /// $$
 /// f(t) = A \frac{ \\mathrm{e}^{ -(t-t_0)/\\tau_\\mathrm{fall} } }{ 1 + \\mathrm{e}^{ -(t - t_0) / \\tau_\\mathrm{rise} } } + B.
 /// $$
 ///
-/// Note, that Bazin function is developed to use with fluxes, not magnitudes. Also note a typo in
-/// the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent
+/// Note, that the Bazin function is developed to use with fluxes, not magnitudes. Also note a typo
+/// in the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent.
 ///
 /// Optimization is done using specified `algorithm` which is an instance of the
 /// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
@@ -191,7 +191,7 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec![
             "bazin_fit_amplitude",
-            "bazin_fit_offset",
+            "bazin_fit_baseline",
             "bazin_fit_peak_time",
             "bazin_fit_rise_time",
             "bazin_fit_fall_time",
@@ -202,7 +202,7 @@ where
     fn get_descriptions(&self) -> Vec<&str> {
         vec![
             "half amplitude of the Bazin function (A)",
-            "offset of the Bazin function (B)",
+            "baseline of the Bazin function (B)",
             "peak time of the Bazin fit (t0)",
             "rise time of the Bazin function (tau_rise)",
             "fall time of the Bazin function (tau_fall)",
