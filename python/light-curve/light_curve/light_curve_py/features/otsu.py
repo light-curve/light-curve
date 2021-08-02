@@ -6,31 +6,23 @@ from ._base import BaseFeature
 
 @dataclass()
 class Otsu(BaseFeature):
-    bins_number: int = 256  # optimal bins num?
-
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
-        hist, edges = np.histogram(m, bins=self.bins_number)
-        n = np.size(m)
+        n = len(m)
+        amounts = np.arange(1, n)
 
-        edges_mid = (edges[:-1] + edges[1:]) / 2
-        cumsum = np.cumsum(hist)
-        cumsum2 = np.cumsum(hist[::-1])
-        heights = edges_mid * hist  # rename
+        w0 = amounts / n
+        w1 = 1 - w0
 
-        weight1 = cumsum / n
-        weight2 = 1 - weight1
+        cumsum0 = np.cumsum(m)[:-1]
+        cumsum1 = np.cumsum(m[::-1])[:-1][::-1]
+        mean0 = cumsum0 / amounts
+        mean1 = cumsum1 / amounts[::-1]
 
-        mean1 = np.cumsum(heights) / cumsum
-        mean2 = (np.cumsum(heights[::-1]) / cumsum2)[::-1]
-
-        inter_class_variance = weight1 * weight2 * (mean1 - mean2) ** 2
+        inter_class_variance = w0 * w1 * (mean0 - mean1) ** 2
         arg = np.argmax(inter_class_variance)
-        threshold = edges_mid[arg]
+        threshold = m[arg]
 
-        idx = np.argwhere(m < edges_mid[arg])
-        idx2 = np.argwhere(m > edges_mid[arg])
-
-        return threshold, (t[idx], m[idx], sigma[idx]), (t[idx2], m[idx2], sigma[idx2])
+        return mean0[arg] - mean1[arg]
 
 
 __all__ = ("Otsu",)
