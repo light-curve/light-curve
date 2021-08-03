@@ -8,6 +8,10 @@ use plotters::prelude::*;
 
 fn main() {
     let Opts { n, dir } = Opts::parse();
+    let n = match n {
+        Some(n) => n,
+        None => usize::MAX,
+    };
 
     std::fs::create_dir_all(&dir).expect("Cannot create output directory");
 
@@ -44,8 +48,8 @@ fn main() {
 
 #[derive(Clap)]
 struct Opts {
-    #[clap(short, default_value = "usize::MAX")]
-    n: usize,
+    #[clap(short)]
+    n: Option<usize>,
     #[clap(short, long, default_value = "figures")]
     dir: String,
 }
