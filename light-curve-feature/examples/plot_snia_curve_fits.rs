@@ -60,14 +60,13 @@ fn fitted_model(
     feature: &Feature<f64>,
 ) -> (Array1<f64>, f64) {
     let values = feature.eval(ts).expect("Feature cannot be extracted");
-    let params = &values[..values.len() - 1];
     let reduced_chi2 = values[values.len() - 1];
     let model: Box<dyn Fn(f64, &[f64]) -> f64> = match feature {
-        Feature::BazinFit(..) => Box::new(BazinFit::model::<f64, f64>),
-        Feature::VillarFit(..) => Box::new(VillarFit::model::<f64, f64>),
+        Feature::BazinFit(..) => Box::new(BazinFit::f::<f64>),
+        Feature::VillarFit(..) => Box::new(VillarFit::f::<f64>),
         _ => panic!("Unknown *Fit variant"),
     };
-    let flux = t.mapv(|t| model(t, params));
+    let flux = t.mapv(|t| model(t, &values));
     (flux, reduced_chi2)
 }
 
