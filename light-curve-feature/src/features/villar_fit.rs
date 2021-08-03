@@ -60,7 +60,17 @@ lazy_info!(
 );
 
 impl VillarFit {
-    pub fn model<T, U>(t: T, param: &[U]) -> U
+    pub fn f<T>(t: T, values: &[T]) -> T
+    where
+        T: Float,
+    {
+        let mut param = values[..values.len() - 1].to_owned();
+        // beta to b
+        param[5] = T::sqrt(T::abs(param[5]));
+        Self::model(t, &param)
+    }
+
+    fn model<T, U>(t: T, param: &[U]) -> U
     where
         T: Into<U>,
         U: F64LikeFloat,
@@ -69,7 +79,7 @@ impl VillarFit {
         let x = Params { storage: param };
         let dt = x.dt(t);
         let t1 = x.t1();
-        let mut f = (x.a() + x.beta() * dt) / (U::one() + U::exp(-dt / x.tau_rise()));
+        let mut f = (x.a() - x.b().powi(2) * dt) / (U::one() + U::exp(-dt / x.tau_rise()));
         if t > t1 {
             f *= U::exp(-(t - t1) / x.tau_fall());
         }
@@ -84,6 +94,7 @@ impl VillarFit {
         let x = Params { storage: param };
         let dt = x.dt(t);
         let t1 = x.t1();
+        let beta = -x.b().powi(2);
         let exp_rise = T::exp(-dt / x.tau_rise());
         let rise = T::recip(T::one() + exp_rise);
         let is_fall = t > t1;
@@ -92,7 +103,7 @@ impl VillarFit {
         } else {
             T::one()
         };
-        let plateau = x.a() + x.beta() * dt;
+        let plateau = x.a() + beta * dt;
         let f_minus_c = plateau * rise * fall;
 
         // A
@@ -101,7 +112,7 @@ impl VillarFit {
         jac[1] = T::one();
         // t0
         jac[2] = {
-            let mut df_dt0 = -x.beta() * rise - plateau * rise.powi(2) * exp_rise / x.tau_rise();
+            let mut df_dt0 = -beta * rise - plateau * rise.powi(2) * exp_rise / x.tau_rise();
             if is_fall {
                 df_dt0 = df_dt0 * fall + f_minus_c / x.tau_fall();
             }
@@ -115,8 +126,8 @@ impl VillarFit {
         } else {
             T::zero()
         };
-        // beta
-        jac[5] = dt * rise * fall;
+        // b = sqrt(-beta)
+        jac[5] = -T::two() * x.b() * dt * rise * fall;
         // gamma
         jac[6] = if is_fall {
             f_minus_c / x.tau_fall()
@@ -215,10 +226,9 @@ where
             bound[4].0 = norm_data.t_to_norm_scale(bound[4].0);
             bound[4].1 = norm_data.t_to_norm_scale(bound[4].1);
 
-            // plateau slope
-            x0[5] = norm_data.slope_to_norm(x0[5]);
-            bound[5].0 = norm_data.slope_to_norm(x0[5]);
-            bound[5].1 = norm_data.slope_to_norm(x0[5]);
+            // sqrt(plateau slope)
+            x0[5] = norm_data.slope_to_norm(-x0[5]).sqrt();
+            bound[5] = (-f64::INFINITY, f64::INFINITY);
 
             // plateau duration
             x0[6] = norm_data.t_to_norm_scale(x0[6]);
@@ -245,7 +255,7 @@ where
             x[2] = norm_data.t_to_orig(x[2]); // peak time
             x[3] = norm_data.t_to_orig_scale(x[3]); // rise time
             x[4] = norm_data.t_to_orig_scale(x[4]); // fall time
-            x[5] = norm_data.slope_to_orig(x[5]); // plateau slope
+            x[5] = norm_data.slope_to_orig(-x[5].powi(2)); // plateau slope
             x[6] = norm_data.t_to_orig_scale(x[6]); // plateau duration
             x.push(reduced_chi2);
             x.iter().map(|&x| x.approx_as::<T>().unwrap()).collect()
@@ -318,8 +328,9 @@ where
         self.storage[4]
     }
 
+    /// sqrt(-beta)
     #[inline]
-    fn beta(&self) -> T {
+    fn b(&self) -> T {
         self.storage[5]
     }
 
