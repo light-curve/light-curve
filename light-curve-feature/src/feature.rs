@@ -48,6 +48,7 @@ where
     Skew,
     StandardDeviation,
     StetsonK,
+    VillarFit,
     WeightedMean,
     // antifeatures
     Duration,
