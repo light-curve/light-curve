@@ -1,17 +1,10 @@
 use crate::evaluator::*;
 use crate::nl_fit::{
-    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, McmcCurveFit,
+    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, F64LikeFloat,
+    McmcCurveFit,
 };
 
 use conv::ConvUtil;
-use std::ops::{Add, Mul, Sub};
-
-#[cfg(feature = "gsl")]
-use hyperdual::Float as HyperdualFloat;
-#[cfg(not(feature = "gsl"))]
-trait HyperdualFloat {}
-#[cfg(not(feature = "gsl"))]
-impl<T> HyperdualFloat for T {}
 
 /// Bazin fit
 ///
@@ -68,13 +61,15 @@ lazy_info!(
 );
 
 impl BazinFit {
-    fn model<T>(t: f64, param: &[T]) -> T
+    fn model<T, U>(t: T, param: &[U]) -> U
     where
-        T: HyperdualFloat + Add<f64, Output = T> + Mul<f64, Output = T> + Sub<f64, Output = T>,
+        T: Into<U>,
+        U: F64LikeFloat,
     {
+        let t: U = t.into();
         let x = Params { storage: param };
         let minus_dt = *x.t0() - t;
-        *x.b() + *x.a() * T::exp(minus_dt / *x.fall()) / (T::exp(minus_dt / *x.rise()) + 1.0_f64)
+        *x.b() + *x.a() * U::exp(minus_dt / *x.fall()) / (U::exp(minus_dt / *x.rise()) + U::one())
     }
 
     fn derivatives(t: f64, param: &[f64], jac: &mut [f64]) {
@@ -169,7 +164,7 @@ where
                 norm_data.data.clone(),
                 &x0,
                 &bound,
-                Self::model::<f64>,
+                Self::model::<f64, f64>,
                 Self::derivatives,
             );
             x[0] = norm_data.m_to_orig_scale(x[0]); // amplitude

@@ -1,14 +1,19 @@
+#[cfg(test)]
 use crate::float_trait::Float;
 use crate::nl_fit::curve_fit::{CurveFitResult, CurveFitTrait};
 use crate::nl_fit::data::Data;
 
+#[cfg(test)]
 use conv::prelude::*;
+#[cfg(test)]
 use hyperdual::Hyperdual;
 use ndarray::Zip;
-pub use rgsl::{MatrixF64, Value, VectorF64};
-use rgsl::{MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf};
+use rgsl::{
+    MatrixF64, MultiFitFdfSolver, MultiFitFdfSolverType, MultiFitFunctionFdf, Value, VectorF64,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -179,7 +184,7 @@ impl NlsProblem {
         Self::from_f_df_fdf(t_size, x_size, f, df, fdf)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     /// Create fitter from residual function of dual numbers
     ///
     /// WIP: implemented for parameter vector of length three only, stacked by
@@ -238,6 +243,7 @@ impl NlsProblem {
 
 // Cannot make it dimension-generic for now
 // https://github.com/rust-lang/rust/issues/78220
+#[cfg(test)]
 fn slice_to_hyperdual_vec<T>(s: &[T]) -> Vec<Hyperdual<f64, hyperdual::U4>>
 where
     T: Float + hyperdual::Float,
@@ -279,6 +285,7 @@ impl NlsFitResult {
 mod tests {
     use super::*;
     use crate::straight_line_fit::StraightLineFitterResult;
+
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
     use rand_distr::StandardNormal;
