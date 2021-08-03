@@ -64,7 +64,7 @@ impl VillarFit {
     where
         T: Float,
     {
-        let mut param = values[..values.len() - 1].to_owned();
+        let mut param = values[..7].to_owned();
         // beta to b
         param[5] = T::sqrt(T::abs(param[5]));
         Self::model(t, &param)
@@ -380,10 +380,7 @@ mod tests {
         let param_true = [1e4, 1e3, 30.0, 10.0, 30.0, -2e3 / 20.0, 20.0];
 
         let t = linspace(0.0, 100.0, N);
-        let model: Vec<_> = t
-            .iter()
-            .map(|&x| VillarFit::model(x, &param_true))
-            .collect();
+        let model: Vec<_> = t.iter().map(|&x| VillarFit::f(x, &param_true)).collect();
         let m: Vec<_> = model
             .iter()
             .map(|&y| {
@@ -413,13 +410,13 @@ mod tests {
 
     #[test]
     fn villar_fit_noisy_lmsder() {
-        villar_fit_noisy(VillarFit::new(LmsderCurveFit::new(7).into()));
+        villar_fit_noisy(VillarFit::new(LmsderCurveFit::new(18).into()));
     }
 
     #[test]
     fn villar_fit_noizy_mcmc_plus_lmsder() {
-        let lmsder = LmsderCurveFit::new(7);
-        let mcmc = McmcCurveFit::new(128, Some(lmsder.into()));
+        let lmsder = LmsderCurveFit::new(6);
+        let mcmc = McmcCurveFit::new(1024, Some(lmsder.into()));
         villar_fit_noisy(VillarFit::new(mcmc.into()));
     }
 
