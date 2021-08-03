@@ -65,7 +65,7 @@ impl BazinFit {
     where
         T: Float,
     {
-        Self::model(t, &values[..values.len() - 1])
+        Self::model(t, &values[..5])
     }
 
     fn model<T, U>(t: T, param: &[U]) -> U
