@@ -85,6 +85,10 @@ where
             "Periodogram",
             FeatureExtractor::new(vec![periodogram.into()]),
         )))
+        .chain(std::iter::once((
+            "VillarFit",
+            FeatureExtractor::new(vec![VillarFit::default().into()]),
+        )))
         .collect();
 
     for &n in N.iter() {
@@ -127,17 +131,22 @@ where
             McmcCurveFit::new(1024, Some(LmsderCurveFit::new(10).into())).into(),
         ];
         for curve_fit in curve_fits.into_iter() {
-            let eval = BazinFit::new(curve_fit);
-            c.bench_function(
-                format!("SN Ia {:?} {}", eval, type_name::<T>()).as_str(),
-                |b| {
-                    b.iter(|| {
-                        real_data.iter_mut().for_each(|mut ts| {
-                            let _v = eval.eval(black_box(&mut ts)).unwrap();
+            let features: Vec<Feature<_>> = vec![
+                BazinFit::new(curve_fit.clone()).into(),
+                VillarFit::new(curve_fit).into(),
+            ];
+            for f in features {
+                c.bench_function(
+                    format!("SN Ia {:?} {}", f, type_name::<T>()).as_str(),
+                    |b| {
+                        b.iter(|| {
+                            real_data.iter_mut().for_each(|mut ts| {
+                                let _v = f.eval(black_box(&mut ts)).unwrap();
+                            });
                         });
-                    });
-                },
-            );
+                    },
+                );
+            }
         }
     }
 }
