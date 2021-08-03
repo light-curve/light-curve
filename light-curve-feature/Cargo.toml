@@ -56,6 +56,7 @@ hyperdual = "^0.4.2"
 plotters = { version = "^0.3.1", default-features = false, features = ["errorbar", "line_series", "ttf"] }
 plotters-bitmap = "^0.3.1"
 clap = "3.0.0-beta.2"
+rayon = "~1.5.1"
 
 [[bench]]
 name = "benchmark"

@@ -6,6 +6,7 @@ use light_curve_feature_test_util::iter_sn1a_flux_ts;
 use ndarray::{Array1, ArrayView1};
 use plotters::prelude::*;
 use plotters_bitmap::BitMapBackend;
+use rayon::prelude::*;
 
 fn main() {
     let Opts { n, dir } = Opts::parse();
@@ -36,15 +37,18 @@ fn main() {
                 .into(),
         ),
     ];
-    iter_sn1a_flux_ts().take(n).for_each(|(ztf_id, mut ts)| {
-        let filename = format!("{}.png", ztf_id);
-        let path = {
-            let mut path = std::path::PathBuf::from(&dir);
-            path.push(filename);
-            path
-        };
-        fit_and_plot(&mut ts, &features, ztf_id, path);
-    });
+    iter_sn1a_flux_ts()
+        .take(n)
+        .par_bridge()
+        .for_each(|(ztf_id, mut ts)| {
+            let filename = format!("{}.png", ztf_id);
+            let path = {
+                let mut path = std::path::PathBuf::from(&dir);
+                path.push(filename);
+                path
+            };
+            fit_and_plot(&mut ts, &features, ztf_id, path);
+        });
 }
 
 #[derive(Clap)]
