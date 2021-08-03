@@ -41,6 +41,7 @@ unzip3 = "^1.0"
 
 [dev-dependencies]
 light-curve-feature = { path = ".", default-features = false, features = ["gsl"] }
+light-curve-feature-test-util = { path = "test-util" }
 rand = "^0.7"
 rand_distr = "^0.2"
 criterion = "^0.3"
@@ -51,9 +52,9 @@ serde_json = "^1.0"
 serde_test = "^1.0"
 serde_type_name = "0.2.0"
 approx = "^0.5"
-include_dir = "^0.6.1"
-csv = "^1.1"
-hyperdual = "~0.4.2"
+hyperdual = "^0.4.2"
+plotters = "^0.3.1"
+clap = "3.0.0-beta.2"
 
 [[bench]]
 name = "benchmark"

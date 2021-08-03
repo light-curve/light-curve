@@ -61,7 +61,7 @@ lazy_info!(
 );
 
 impl BazinFit {
-    fn model<T, U>(t: T, param: &[U]) -> U
+    pub fn model<T, U>(t: T, param: &[U]) -> U
     where
         T: Into<U>,
         U: F64LikeFloat,
