@@ -5,6 +5,7 @@ use light_curve_feature::{
 use light_curve_feature_test_util::iter_sn1a_flux_ts;
 use ndarray::{Array1, ArrayView1};
 use plotters::prelude::*;
+use plotters_bitmap::BitMapBackend;
 
 fn main() {
     let Opts { n, dir } = Opts::parse();
