@@ -150,7 +150,7 @@ impl VillarFit {
         let tau_fall_bound = (0.0, 10.0 * t_amplitude);
 
         let beta_init = -0.1 * m_amplitude / t_amplitude;
-        let beta_bound = (-100.0 * m_amplitude / t_amplitude, 0.0);
+        let beta_bound = (-f64::INFINITY, 0.0);
 
         let gamma_init = 0.1 * t_amplitude;
         let gamma_bound = (0.0, 10.0 * t_amplitude);
