@@ -68,21 +68,21 @@ impl BazinFit {
     {
         let t: U = t.into();
         let x = Params { storage: param };
-        let minus_dt = *x.t0() - t;
-        *x.b() + *x.a() * U::exp(minus_dt / *x.fall()) / (U::exp(minus_dt / *x.rise()) + U::one())
+        let minus_dt = x.t0() - t;
+        x.b() + x.a() * U::exp(minus_dt / x.fall()) / (U::exp(minus_dt / x.rise()) + U::one())
     }
 
     fn derivatives(t: f64, param: &[f64], jac: &mut [f64]) {
         let x = Params { storage: param };
-        let minus_dt = *x.t0() - t;
-        let exp_rise = f64::exp(minus_dt / *x.rise());
-        let frac = f64::exp(minus_dt / *x.fall()) / (1.0 + exp_rise);
+        let minus_dt = x.t0() - t;
+        let exp_rise = f64::exp(minus_dt / x.rise());
+        let frac = f64::exp(minus_dt / x.fall()) / (1.0 + exp_rise);
         let exp_1p_exp_rise = 1.0 / (1.0 + 1.0 / exp_rise);
         jac[0] = frac;
         jac[1] = 1.0;
-        jac[2] = *x.a() * frac * (1.0 / *x.fall() - exp_1p_exp_rise / *x.rise());
-        jac[3] = *x.a() * minus_dt * frac / x.rise().powi(2) * exp_1p_exp_rise;
-        jac[4] = -*x.a() * minus_dt * frac / x.fall().powi(2);
+        jac[2] = x.a() * frac * (1.0 / x.fall() - exp_1p_exp_rise / x.rise());
+        jac[3] = x.a() * minus_dt * frac / x.rise().powi(2) * exp_1p_exp_rise;
+        jac[4] = -x.a() * minus_dt * frac / x.fall().powi(2);
     }
 
     fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 5], [(f64, f64); 5]) {
@@ -210,30 +210,33 @@ struct Params<'a, T> {
     storage: &'a [T],
 }
 
-impl<'a, T> Params<'a, T> {
+impl<'a, T> Params<'a, T>
+where
+    T: Copy,
+{
     #[inline]
-    fn a(&self) -> &T {
-        &self.storage[0]
+    fn a(&self) -> T {
+        self.storage[0]
     }
 
     #[inline]
-    fn b(&self) -> &T {
-        &self.storage[1]
+    fn b(&self) -> T {
+        self.storage[1]
     }
 
     #[inline]
-    fn t0(&self) -> &T {
-        &self.storage[2]
+    fn t0(&self) -> T {
+        self.storage[2]
     }
 
     #[inline]
-    fn rise(&self) -> &T {
-        &self.storage[3]
+    fn rise(&self) -> T {
+        self.storage[3]
     }
 
     #[inline]
-    fn fall(&self) -> &T {
-        &self.storage[4]
+    fn fall(&self) -> T {
+        self.storage[4]
     }
 }
 
