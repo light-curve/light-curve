@@ -36,7 +36,7 @@ impl VillarFit {
         Self { algorithm }
     }
 
-    /// [BazinFit] with the default [McmcCurveFit]
+    /// [VillarFit] with the default [McmcCurveFit]
     #[inline]
     pub fn default_algorithm() -> CurveFitAlgorithm {
         McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
