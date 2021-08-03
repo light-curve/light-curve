@@ -53,7 +53,8 @@ serde_test = "^1.0"
 serde_type_name = "0.2.0"
 approx = "^0.5"
 hyperdual = "^0.4.2"
-plotters = "^0.3.1"
+plotters = { version = "^0.3.1", default-features = false, features = ["errorbar", "line_series", "ttf"] }
+plotters-bitmap = "^0.3.1"
 clap = "3.0.0-beta.2"
 
 [[bench]]
