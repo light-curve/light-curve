@@ -2,21 +2,28 @@ use crate::evaluator::*;
 
 use conv::ConvUtil;
 
-/// Fraction of observations beyond $n\\,\sigma\_m$ from the mean magnitude $\langle m \rangle$
-///
-/// $$
-/// \mathrm{beyond}~n\\,\sigma\_m \equiv \frac{\sum\_i I\_{|m - \langle m \rangle| > n\\,\sigma\_m}(m_i)}{N},
-/// $$
-/// where $I$ is the [indicator function](https://en.wikipedia.org/wiki/Indicator_function),
-/// $N$ is the number of observations,
-/// $\langle m \rangle$ is the mean magnitude
-/// and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+macro_const! {
+    const DOC: &str = r#"
+Fraction of observations beyond $n\,\sigma\_m$ from the mean magnitude $\langle m \rangle$
+
+$$
+\mathrm{beyond}~n\,\sigma\_m \equiv \frac{\sum\_i I\_{|m - \langle m \rangle| > n\,\sigma\_m}(m_i)}{N},
+$$
+where $I$ is the [indicator function](https://en.wikipedia.org/wiki/Indicator_function),
+$N$ is the number of observations,
+$\langle m \rangle$ is the mean magnitude
+and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
+/// ### Example
 /// ```
 /// use light_curve_feature::*;
 /// use light_curve_common::all_close;
@@ -68,6 +75,12 @@ where
     #[inline]
     pub fn default_nstd() -> T {
         T::one()
+    }
+}
+
+impl<T> BeyondNStd<T> {
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

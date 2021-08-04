@@ -2,13 +2,19 @@ use crate::evaluator::*;
 
 use conv::ConvUtil;
 
-/// Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m)) / 2$ interval
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+macro_const! {
+    const DOC: &str = r#"
+Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m)) / 2$ interval
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)   
+"#;
+}
+
+#[doc = DOC!()]
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
@@ -59,6 +65,12 @@ where
     #[inline]
     pub fn default_quantile() -> T {
         0.1_f32.value_as::<T>().unwrap()
+    }
+}
+
+impl<T> MedianBufferRangePercentage<T> {
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

@@ -3,28 +3,38 @@ use crate::lnerfc::ln_erfc;
 
 use conv::ConvUtil;
 
-/// Unbiased Anderson–Darling normality test statistic
-///
-/// $$
-/// A^2 \equiv \left(1 + \frac4{N} - \frac{25}{N^2}\right) \left(-N - \frac1{N} \sum_{i=0}^{N-1} {(2i + 1)\ln\Phi_i + (2(N - i) - 1)\ln(1 - \Phi_i)}\right),
-/// $$
-/// where $\Phi_i \equiv \Phi((m_i - \langle m \rangle) / \sigma_m)$ is the cumulative distribution
-/// function of the standard normal distribution,
-/// $N$ is the number of observations,
-/// $\langle m \rangle$ is the mean magnitude
-/// and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **4**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Anderson–Darling_test)
+macro_const! {
+    const DOC: &str = r#"
+Unbiased Anderson–Darling normality test statistic
+
+$$
+A^2 \equiv \left(1 + \frac4{N} - \frac{25}{N^2}\right) \left(-N - \frac1{N} \sum_{i=0}^{N-1} {(2i + 1)\ln\Phi_i + (2(N - i) - 1)\ln(1 - \Phi_i)}\right),
+$$
+where $\Phi_i \equiv \Phi((m_i - \langle m \rangle) / \sigma_m)$ is the cumulative distribution
+function of the standard normal distribution,
+$N$ is the number of observations,
+$\langle m \rangle$ is the mean magnitude
+and $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **4**
+- Number of features: **1**
+
+[Wikipedia](https://en.wikipedia.org/wiki/Anderson–Darling_test)
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct AndersonDarlingNormal {}
 
 impl AndersonDarlingNormal {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

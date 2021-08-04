@@ -1,19 +1,25 @@
 use crate::evaluator::*;
 
-/// Measure of the variability amplitude
-///
-/// $$
-/// \frac{\sigma_m^2 - \langle \delta^2 \rangle}{\langle m \rangle^2},
-/// $$
-/// where $\langle \delta^2 \rangle$ is the mean of squared error, $\sigma_m$ is the magnitude
-/// standard deviation. Note that this definition differs from
-/// [Sánchez et al. 2017](https://doi.org/10.3847/1538-4357/aa9188)
-///
-/// - Depends on: **magnitude**, **error**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// Sánchez et al. 2017 [DOI:10.3847/1538-4357/aa9188](https://doi.org/10.3847/1538-4357/aa9188)
+macro_const! {
+    const DOC: &str = r#"
+Measure of the variability amplitude
+
+$$
+\frac{\sigma_m^2 - \langle \delta^2 \rangle}{\langle m \rangle^2},
+$$
+where $\langle \delta^2 \rangle$ is the mean of squared error, $\sigma_m$ is the magnitude
+standard deviation. Note that this definition differs from
+[Sánchez et al. 2017](https://doi.org/10.3847/1538-4357/aa9188)
+
+- Depends on: **magnitude**, **error**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+Sánchez et al. 2017 [DOI:10.3847/1538-4357/aa9188](https://doi.org/10.3847/1538-4357/aa9188)
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ExcessVariance {}
 
@@ -30,6 +36,10 @@ lazy_info!(
 impl ExcessVariance {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

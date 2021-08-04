@@ -1,28 +1,38 @@
 use crate::evaluator::*;
 use crate::straight_line_fit::fit_straight_line;
 
-/// The slope, its error and reduced $\chi^2$ of the light curve in the linear fit
-///
-/// Least squares fit of the linear stochastic model with Gaussian noise described by observation
-/// errors $\\{\delta_i\\}$:
-/// $$
-/// m_i = c + \mathrm{slope}\\,t_i + \delta_i \varepsilon_i
-/// $$
-/// where $c$ is a constant,
-/// $\\{\varepsilon_i\\}$ are standard distributed random variables.
-///
-/// Feature values are $\mathrm{slope}$, $\sigma_\mathrm{slope}$ and
-/// $\frac{\sum{((m_i - c - \mathrm{slope}\\,t_i) / \delta_i)^2}}{N - 2}$.
-///
-/// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **3**
-/// - Number of features: **3**
+macro_const! {
+    const DOC: &str = r#"
+The slope, its error and reduced $\chi^2$ of the light curve in the linear fit
+
+Least squares fit of the linear stochastic model with Gaussian noise described by observation
+errors $\{\delta_i\}$:
+$$
+m_i = c + \mathrm{slope}\,t_i + \delta_i \varepsilon_i
+$$
+where $c$ is a constant,
+$\{\varepsilon_i\}$ are standard distributed random variables.
+
+Feature values are $\mathrm{slope}$, $\sigma_\mathrm{slope}$ and
+$\frac{\sum{((m_i - c - \mathrm{slope}\,t_i) / \delta_i)^2}}{N - 2}$.
+
+- Depends on: **time**, **magnitude**, **magnitude error**
+- Minimum number of observations: **3**
+- Number of features: **3**  
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinearFit {}
 
 impl LinearFit {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

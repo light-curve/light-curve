@@ -2,20 +2,26 @@ use crate::evaluator::*;
 
 use ndarray::Zip;
 
-/// Stetson $K$ coefficient described light curve shape
-///
-/// $$
-/// \mathrm{Stetson}~K \equiv \frac{\sum_i\left|\frac{m_i - \bar{m}}{\delta_i}\right|}{\sqrt{N\\,\chi^2}},
-/// $$
-/// where N is the number of observations,
-/// $\bar{m}$ is the weighted mean magnitude
-/// and $\chi^2 = \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2$.
-///
-/// - Depends on: **magnitude**, **magnitude error**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
+macro_const! {
+    const DOC: &str = r#"
+Stetson $K$ coefficient described light curve shape
+
+$$
+\mathrm{Stetson}~K \equiv \frac{\sum_i\left|\frac{m_i - \bar{m}}{\delta_i}\right|}{\sqrt{N\\,\chi^2}},
+$$
+where N is the number of observations,
+$\bar{m}$ is the weighted mean magnitude
+and $\chi^2 = \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2$.
+
+- Depends on: **magnitude**, **magnitude error**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct StetsonK {}
 
@@ -32,6 +38,10 @@ lazy_info!(
 impl StetsonK {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

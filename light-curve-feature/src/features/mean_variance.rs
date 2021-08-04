@@ -1,14 +1,20 @@
 use crate::evaluator::*;
 
-/// Standard deviation to mean ratio
-///
-/// $$
-/// \frac{\sigma_m}{\langle m \rangle}
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &str = r#"
+Standard deviation to mean ratio
+
+$$
+\frac{\sigma_m}{\langle m \rangle}
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 pub struct MeanVariance {}
 
@@ -25,6 +31,10 @@ lazy_info!(
 impl MeanVariance {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

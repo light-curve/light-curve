@@ -1,19 +1,25 @@
 use crate::evaluator::*;
 
-/// Skewness of magnitude $G_1$
-///
-/// $$
-/// G_1 \equiv \frac{N}{(N - 1)(N - 2)} \frac{\sum_i(m_i - \langle m \rangle)^3}{\sigma_m^3},
-/// $$
-/// where $N$ is the number of observations,
-/// $\langle m \rangle$ is the mean magnitude,
-/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **3**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)
+macro_const! {
+    const DOC: &str = r#"
+Skewness of magnitude $G_1$
+
+$$
+G_1 \equiv \frac{N}{(N - 1)(N - 2)} \frac{\sum_i(m_i - \langle m \rangle)^3}{\sigma_m^3},
+$$
+where $N$ is the number of observations,
+$\langle m \rangle$ is the mean magnitude,
+$\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **3**
+- Number of features: **1**
+
+[Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)   
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Skew {}
 
@@ -30,6 +36,10 @@ lazy_info!(
 impl Skew {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

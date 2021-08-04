@@ -4,6 +4,7 @@ pub use crate::time_series::TimeSeries;
 
 use enum_dispatch::enum_dispatch;
 pub use lazy_static::lazy_static;
+pub use macro_const::macro_const;
 use ndarray::Array1;
 pub use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -50,7 +51,7 @@ pub trait FeatureEvaluator<T: Float>:
     /// correspond to `eval()` output
     fn get_names(&self) -> Vec<&str>;
 
-    /// Shoud return the vector of feature descriptions. The length and feature order should
+    /// Should return the vector of feature descriptions. The length and feature order should
     /// correspond to `eval()` output
     fn get_descriptions(&self) -> Vec<&str>;
 

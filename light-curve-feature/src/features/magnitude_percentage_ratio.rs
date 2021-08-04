@@ -1,18 +1,24 @@
 use crate::evaluator::*;
 
-/// Magnitude percentage ratio
-///
-/// $$
-/// \mathrm{magnitude~}q\mathrm{~to~}n\mathrm{~ratio} \equiv \frac{Q(1-n) - Q(n)}{Q(1-d) - Q(d)},
-/// $$
-/// where $n$ and $d$ denotes user defined percentage, $Q$ is the quantile function of magnitude
-/// distribution.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+macro_const! {
+    const DOC: &str = r#"
+Magnitude percentage ratio
+
+$$
+\mathrm{magnitude~}q\mathrm{~to~}n\mathrm{~ratio} \equiv \frac{Q(1-n) - Q(n)}{Q(1-d) - Q(d)},
+$$
+where $n$ and $d$ denotes user defined percentage, $Q$ is the quantile function of magnitude
+distribution.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)    
+"#;
+}
+
+#[doc = DOC!()]
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(
@@ -76,6 +82,10 @@ impl MagnitudePercentageRatio {
     #[inline]
     pub fn default_quantile_denominator() -> f32 {
         0.05
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 impl Default for MagnitudePercentageRatio {

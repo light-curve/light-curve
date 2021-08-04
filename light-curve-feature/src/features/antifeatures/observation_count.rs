@@ -1,20 +1,30 @@
 use crate::evaluator::*;
 
-/// Number of observations
-///
-/// $$
-/// N
-/// $$
-///
-/// - Depends on: nothing
-/// - Minimum number of observations: **0**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &'static str = r#"
+Number of observations
+
+$$
+N
+$$
+
+- Depends on: nothing
+- Minimum number of observations: **0**
+- Number of features: **1**  
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct ObservationCount {}
 
 impl ObservationCount {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

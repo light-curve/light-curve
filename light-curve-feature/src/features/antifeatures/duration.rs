@@ -1,20 +1,30 @@
 use crate::evaluator::*;
 
-/// Time-series duration
-///
-/// $$
-/// t_{N-1} - t_0.
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &str = r#"
+Time-series duration
+
+$$
+t_{N-1} - t_0.
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **1**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct Duration {}
 
 impl Duration {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

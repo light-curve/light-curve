@@ -20,7 +20,13 @@ fn number_ending(i: usize) -> &'static str {
     }
 }
 
-/// Peak evaluator for `Periodogram`
+macro_const! {
+    const PERIODOGRAM_PEAK_DOC: &'static str = r#"
+Peak evaluator for [Periodogram]  
+"#;
+}
+
+#[doc = PERIODOGRAM_PEAK_DOC!()]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
     from = "PeriodogramPeaksParameters",
@@ -32,7 +38,7 @@ pub struct PeriodogramPeaks {
 }
 
 impl PeriodogramPeaks {
-    fn new(peaks: usize) -> Self {
+    pub fn new(peaks: usize) -> Self {
         assert!(peaks > 0, "Number of peaks should be at least one");
         let info = EvaluatorInfo {
             size: 2 * peaks,
@@ -74,8 +80,12 @@ impl PeriodogramPeaks {
     }
 
     #[inline]
-    fn default_peaks() -> usize {
+    pub fn default_peaks() -> usize {
         1
+    }
+
+    pub fn doc() -> &'static str {
+        PERIODOGRAM_PEAK_DOC
     }
 }
 
@@ -146,24 +156,29 @@ impl JsonSchema for PeriodogramPeaks {
     json_schema!(PeriodogramPeaksParameters, false);
 }
 
-// See http://doi.org/10.1088/0004-637X/733/1/10
-/// A number of features based on Lomb–Scargle periodogram
-///
-/// Periodogram $P(\omega)$ is an estimate of spectral density of unevenly time series.
-/// `Periodogram::new`'s `peaks` argument corresponds to a number of the most significant spectral
-/// density peaks to return. For each peak its period and "signal to noise" ratio is returned.
-///
-/// $$
-/// \mathrm{signal~to~noise~of~peak} \equiv \frac{P(\omega_\mathrm{peak}) - \langle P(\omega) \rangle}{\sigma\_{P(\omega)}}.
-/// $$
-///
-/// `Periodogram` can accept another `dyn FeatureEvaluator` for feature extraction from periodogram
-/// as it was time series without observation errors. You can even pass one `Periodogram` to another
-/// one if you are crazy enough
-///
-/// - Depends on: **time**, **magnitude**
-/// - Minimum number of observations: **2** (or as required by sub-features)
-/// - Number of features: **$2 \times \mathrm{peaks}~+...$**
+macro_const! {
+    const DOC: &str = r#"
+A number of features based on Lomb–Scargle periodogram
+
+Periodogram $P(\omega)$ is an estimate of spectral density of unevenly time series.
+`Periodogram::new`'s `peaks` argument corresponds to a number of the most significant spectral
+density peaks to return. For each peak its period and "signal to noise" ratio is returned.
+
+$$
+\mathrm{signal~to~noise~of~peak} \equiv \frac{P(\omega_\mathrm{peak}) - \langle P(\omega) \rangle}{\sigma\_{P(\omega)}}.
+$$
+
+`Periodogram` can accept another `dyn FeatureEvaluator` for feature extraction from periodogram
+as it was time series without observation errors. You can even pass one `Periodogram` to another
+one if you are crazy enough
+
+- Depends on: **time**, **magnitude**
+- Minimum number of observations: **2** (or as required by sub-features)
+- Number of features: **$2 \times \mathrm{peaks}~+...$**
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(
     bound = "T: Float, F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>, <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,",
@@ -324,6 +339,15 @@ where
             t: freq.into(),
             m: power.into(),
         })
+    }
+}
+
+impl<T, F> Periodogram<T, F>
+where
+    T: Float,
+{
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

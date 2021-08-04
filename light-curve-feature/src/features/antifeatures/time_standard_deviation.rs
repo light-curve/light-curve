@@ -1,20 +1,30 @@
 use crate::evaluator::*;
 
-/// Standard deviation of time moments
-///
-/// $$
-/// \sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &'static str = r#"
+Standard deviation of time moments
+
+$$
+\sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **2**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TimeStandardDeviation {}
 
 impl TimeStandardDeviation {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

@@ -4,27 +4,33 @@ use crate::extractor::FeatureExtractor;
 use itertools::Itertools;
 use unzip3::Unzip3;
 
-/// Bins — sampled time series
-///
-/// Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
-/// $j-th$ bin interval is
-/// $[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset})$.
-/// Binned time series is defined by
-/// $$
-/// t_j^* = (j + \frac12) \cdot \mathrm{window} + \mathrm{offset},
-/// $$
-/// $$
-/// m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta_i^{-2}}},
-/// $$
-/// $$
-/// \delta_j^* = \frac{N_j}{\sum{\delta_i^{-2}}},
-/// $$
-/// where $N_j$ is a number of sampling observations and all sums are over observations inside
-/// considering bin
-///
-/// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **1** (or as required by sub-features)
-/// - Number of features: **$...$**
+macro_const! {
+    const DOC: &str = r#"
+Bins — sampled time series
+
+Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
+$j-th$ bin interval is
+$[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset})$.
+Binned time series is defined by
+$$
+t_j^* = (j + \frac12) \cdot \mathrm{window} + \mathrm{offset},
+$$
+$$
+m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta_i^{-2}}},
+$$
+$$
+\delta_j^* = \frac{N_j}{\sum{\delta_i^{-2}}},
+$$
+where $N_j$ is a number of sampling observations and all sums are over observations inside
+considering bin
+
+- Depends on: **time**, **magnitude**, **magnitude error**
+- Minimum number of observations: **1** (or as required by sub-features)
+- Number of features: **$...$**   
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
     into = "BinsParameters<T, F>",
@@ -146,6 +152,16 @@ where
     }
 }
 
+impl<T, F> Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    pub fn doc() -> &'static str {
+        DOC
+    }
+}
+
 impl<T, F> Default for Bins<T, F>
 where
     T: Float,
@@ -241,6 +257,8 @@ mod tests {
         bins.add_feature(Amplitude::default().into());
         bins
     });
+
+    check_doc_static_method!(bins_doc_static_method, Bins<f64, Feature<f64>>);
 
     #[test]
     fn bins() {
