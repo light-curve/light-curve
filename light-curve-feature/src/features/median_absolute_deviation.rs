@@ -1,17 +1,23 @@
 use crate::evaluator::*;
 use crate::sorted_array::SortedArray;
 
-/// Median of the absolute value of the difference between magnitude and its median
-///
-/// $$
-/// \mathrm{median~absolute~deviation} \equiv \mathrm{Median}\left(|m_i - \mathrm{Median}(m)|\right).
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+macro_const! {
+    const DOC: &'static str = r#"
+Median of the absolute value of the difference between magnitude and its median
+
+$$
+\mathrm{median~absolute~deviation} \equiv \mathrm{Median}\left(|m_i - \mathrm{Median}(m)|\right).
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct MedianAbsoluteDeviation {}
 
@@ -28,6 +34,10 @@ lazy_info!(
 impl MedianAbsoluteDeviation {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

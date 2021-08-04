@@ -1,14 +1,20 @@
 use crate::evaluator::*;
 
-/// Median magnitude
-///
-/// $$
-/// \mathrm{Median}
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &str = r#"
+Median magnitude
+
+$$
+\mathrm{Median}
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Median {}
 
@@ -25,6 +31,10 @@ lazy_info!(
 impl Median {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

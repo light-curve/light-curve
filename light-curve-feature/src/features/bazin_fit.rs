@@ -6,27 +6,33 @@ use crate::nl_fit::{
 
 use conv::ConvUtil;
 
-/// Bazin fit
-///
-/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Bazin function developed for
-/// core-collapsed supernovae:
-/// $$
-/// f(t) = A \frac{ \\mathrm{e}^{ -(t-t_0)/\\tau_\\mathrm{fall} } }{ 1 + \\mathrm{e}^{ -(t - t_0) / \\tau_\\mathrm{rise} } } + B.
-/// $$
-///
-/// Note, that the Bazin function is developed to use with fluxes, not magnitudes. Also note a typo
-/// in the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent.
-///
-/// Optimization is done using specified `algorithm` which is an instance of the
-/// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
-/// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
-/// `gsl` Cargo feature).
-///
-/// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **6**
-/// - Number of features: **6**
-///
-/// Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
+macro_const! {
+    const DOC: &str = r#"
+Bazin fit:
+
+Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Bazin function developed for
+core-collapsed supernovae:
+$$
+f(t) = A \frac{ \mathrm{e}^{ -(t-t_0)/\tau_\mathrm{fall} } }{ 1 + \mathrm{e}^{ -(t - t_0) / \tau_\mathrm{rise} } } + B.
+$$
+
+Note, that the Bazin function is developed to use with fluxes, not magnitudes. Also note a typo
+in the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent.
+
+Optimization is done using specified `algorithm` which is an instance of the
+[CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+[LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
+`gsl` Cargo feature).
+
+- Depends on: **time**, **magnitude**, **magnitude error**
+- Minimum number of observations: **6**
+- Number of features: **6**
+
+Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct BazinFit {
     algorithm: CurveFitAlgorithm,
@@ -41,6 +47,10 @@ impl BazinFit {
     #[inline]
     pub fn default_algorithm() -> CurveFitAlgorithm {
         McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

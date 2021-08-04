@@ -6,26 +6,32 @@ use crate::nl_fit::{
 
 use conv::ConvUtil;
 
-/// Villar fit
-///
-/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Villar function developed for
-/// supernovae classification:
-/// $$
-/// f(t) = c + \\frac{ A + \\beta (t - t_0) }{ 1 + \\exp{\\frac{-(t - t_0)}{\\tau_\\mathrm{rise}}}}  \\left\\{ \\begin{split} &1, t < t_0 + \\gamma \\\\ &\\exp{\\frac{-(t-t_0-\\gamma)}{\\tau_\\mathrm{fall}}}, t \\geq t_0 + \\gamma \\end{split} \\right.
-/// $$
-///
-/// Note, that the Villar function is developed to use with fluxes, not magnitudes.
-///
-/// Optimization is done using specified `algorithm` which is an instance of the
-/// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
-/// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
-/// `gsl` Cargo feature).
-///
-/// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **8**
-/// - Number of features: **8**
-///
-/// Villar et al. 2019 [DOI:10.3847/1538-4357/ab418c](https://doi.org/10.3847/1538-4357/ab418c)
+macro_const! {
+    const DOC: &str = r#"
+Villar fit
+
+Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Villar function developed for
+supernovae classification:
+$$
+f(t) = c + \frac{ A + \beta (t - t_0) }{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{split} &1, t < t_0 + \gamma \\ &\exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, t \geq t_0 + \gamma \end{split} \right.
+$$
+
+Note, that the Villar function is developed to use with fluxes, not magnitudes.
+
+Optimization is done using specified `algorithm` which is an instance of the
+[CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+[LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
+`gsl` Cargo feature).
+
+- Depends on: **time**, **magnitude**, **magnitude error**
+- Minimum number of observations: **8**
+- Number of features: **8**
+
+Villar et al. 2019 [DOI:10.3847/1538-4357/ab418c](https://doi.org/10.3847/1538-4357/ab418c)   
+"#; 
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct VillarFit {
     algorithm: CurveFitAlgorithm,
@@ -40,6 +46,10 @@ impl VillarFit {
     #[inline]
     pub fn default_algorithm() -> CurveFitAlgorithm {
         McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
