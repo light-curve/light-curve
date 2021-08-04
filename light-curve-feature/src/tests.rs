@@ -299,11 +299,25 @@ macro_rules! serde_json_test {
 }
 
 #[macro_export]
+macro_rules! check_doc_static_method {
+    ($name: ident, $feature: ty) => {
+        #[test]
+        fn $name() {
+            let doc = <$feature>::doc();
+            assert!(doc.contains("Depends on: "));
+            assert!(doc.contains("Minimum number of observations: "));
+            assert!(doc.contains("Number of features: "));
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! check_feature {
     ($feature: ty) => {
         eval_info_test!(info_default, <$feature>::default());
         serialization_name_test!($feature);
         serde_json_test!(ser_json_de, $feature, <$feature>::default());
+        check_doc_static_method!(doc_static_method, $feature);
     };
 }
 

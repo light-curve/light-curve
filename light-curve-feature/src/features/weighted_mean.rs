@@ -1,15 +1,21 @@
 use crate::evaluator::*;
 
-/// Weighted mean magnitude
-///
-/// $$
-/// \bar{m} \equiv \frac{\sum_i m_i / \delta_i^2}{\sum_i 1 / \delta_i^2}.
-/// $$
-/// See [Mean](crate::Mean) for non-weighted mean.
-///
-/// - Depends on: **magnitude**, **magnitude error**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &str = r#"
+Weighted mean magnitude
+
+$$
+\bar{m} \equiv \frac{\sum_i m_i / \delta_i^2}{\sum_i 1 / \delta_i^2}.
+$$
+See [Mean](crate::Mean) for non-weighted mean.
+
+- Depends on: **magnitude**, **magnitude error**
+- Minimum number of observations: **1**
+- Number of features: **1**   
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct WeightedMean {}
 
@@ -26,6 +32,10 @@ lazy_info!(
 impl WeightedMean {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

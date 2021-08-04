@@ -1,18 +1,24 @@
 use crate::evaluator::*;
 
-/// Reduced $\chi^2$ of magnitude measurements
-///
-/// $$
-/// \mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \bar{m}}{\delta\_i}\right)^2,
-/// $$
-/// where $N$ is the number of observations,
-/// and $\bar{m}$ is the weighted mean magnitude.
-///
-/// - Depends on: **magnitude**, **magnitude error**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
+macro_const! {
+    const DOC: &'static str = r#"
+Reduced $\chi^2$ of magnitude measurements
+
+$$
+\mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \bar{m}}{\delta\_i}\right)^2,
+$$
+where $N$ is the number of observations,
+and $\bar{m}$ is the weighted mean magnitude.
+
+- Depends on: **magnitude**, **magnitude error**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+[Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ReducedChi2 {}
 
@@ -29,6 +35,10 @@ lazy_info!(
 impl ReducedChi2 {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

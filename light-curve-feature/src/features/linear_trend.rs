@@ -1,27 +1,37 @@
 use crate::evaluator::*;
 use crate::straight_line_fit::fit_straight_line;
 
-/// The slope and noise of the light curve without observation errors in the linear fit
-///
-/// Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
-/// observation errors to be zero:
-/// $$
-/// m_i = c + \mathrm{slope}\\,t_i + \Sigma \varepsilon_i,
-/// $$
-/// where $c$ and $\Sigma$ are constants,
-/// $\\{\varepsilon_i\\}$ are standard distributed random variables.
-/// $\mathrm{slope}$ and $\sigma_\mathrm{slope}$ are returned, if $N = 2$ than no least squares fit is done, a
-/// slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $0$ are returned.
-///
-/// - Depends on: **time**, **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **2**
+macro_const! {
+    const DOC: &str = r#"
+The slope and noise of the light curve without observation errors in the linear fit
+
+Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
+observation errors to be zero:
+$$
+m_i = c + \mathrm{slope}\,t_i + \Sigma \varepsilon_i,
+$$
+where $c$ and $\Sigma$ are constants,
+$\{\varepsilon_i\}$ are standard distributed random variables.
+$\mathrm{slope}$ and $\sigma_\mathrm{slope}$ are returned, if $N = 2$ than no least squares fit is done, a
+slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $0$ are returned.
+
+- Depends on: **time**, **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **2**    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinearTrend {}
 
 impl LinearTrend {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

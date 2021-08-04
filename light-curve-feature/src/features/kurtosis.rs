@@ -1,26 +1,36 @@
 use crate::evaluator::*;
 
-/// Excess kurtosis of magnitude
-///
-/// $$
-/// G_2 \equiv \frac{N\\,(N + 1)}{(N - 1)(N - 2)(N - 3)} \frac{\sum_i(m_i - \langle m \rangle)^4}{\sigma_m^4}
-/// \- 3\frac{(N - 1)^2}{(N - 2)(N - 3)},
-/// $$
-/// where $N$ is the number of observations,
-/// $\langle m \rangle$ is the mean magnitude,
-/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **4**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Kurtosis#Estimators_of_population_kurtosis)
+macro_const! {
+    const DOC: &str = r#"
+Excess kurtosis of magnitude
+
+$$
+G_2 \equiv \frac{N\,(N + 1)}{(N - 1)(N - 2)(N - 3)} \frac{\sum_i(m_i - \langle m \rangle)^4}{\sigma_m^4}
+\- 3\frac{(N - 1)^2}{(N - 2)(N - 3)},
+$$
+where $N$ is the number of observations,
+$\langle m \rangle$ is the mean magnitude,
+$\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **4**
+- Number of features: **1**
+
+[Wikipedia](https://en.wikipedia.org/wiki/Kurtosis#Estimators_of_population_kurtosis)    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Kurtosis {}
 
 impl Kurtosis {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

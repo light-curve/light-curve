@@ -1,20 +1,26 @@
 use crate::evaluator::*;
 
-/// Inter-percentile range
-///
-/// $$
-/// \mathrm{inter-percetile range} \equiv Q(1 - p) - Q(p),
-/// $$
-/// where $Q(p)$ is the $p$th quantile of the magnitude distribution.
-///
-/// Special cases are [the interquartile range](https://en.wikipedia.org/wiki/Interquartile_range)
-/// which is inter-percentile range for $p = 0.25$ and
-/// [the interdecile range](https://en.wikipedia.org/wiki/Interdecile_range) which is
-/// inter-percentile range for $p = 0.1$.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &'static str = r#"
+Inter-percentile range
+
+$$
+\mathrm{inter-percetile range} \equiv Q(1 - p) - Q(p),
+$$
+where $Q(p)$ is the $p$th quantile of the magnitude distribution.
+
+Special cases are [the interquartile range](https://en.wikipedia.org/wiki/Interquartile_range)
+which is inter-percentile range for $p = 0.25$ and
+[the interdecile range](https://en.wikipedia.org/wiki/Interdecile_range) which is
+inter-percentile range for $p = 0.1$.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
@@ -57,6 +63,10 @@ impl InterPercentileRange {
     #[inline]
     pub fn default_quantile() -> f32 {
         0.25
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

@@ -1,14 +1,21 @@
 use crate::evaluator::*;
 
-/// Half amplitude of magnitude
-///
-/// $$
-/// \mathrm{amplitude} \equiv \frac{\left( \max{(m)} - \min{(m)} \right)}{2}
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &'static str = r#"
+Half amplitude of magnitude
+
+$$
+\mathrm{amplitude} \equiv \frac{\left( \max{(m)} - \min{(m)} \right)}{2}
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**    
+"#;
+}
+
+#[doc = DOC!()]
+/// ### Example
 /// ```
 /// use light_curve_feature::*;
 ///
@@ -24,6 +31,10 @@ pub struct Amplitude {}
 impl Amplitude {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

@@ -1,16 +1,22 @@
 use crate::evaluator::*;
 
-/// Ratio of $p$th inter-percentile range to the median
-///
-/// $$
-/// p\mathrm{~percent~difference~magnitude~percentile} \equiv \frac{Q(1-p) - Q(p)}{\mathrm{Median}(m)}.
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+macro_const! {
+    const DOC: &str = r#"
+Ratio of $p$th inter-percentile range to the median
+
+$$
+p\mathrm{~percent~difference~magnitude~percentile} \equiv \frac{Q(1-p) - Q(p)}{\mathrm{Median}(m)}.
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
@@ -60,6 +66,10 @@ impl PercentDifferenceMagnitudePercentile {
     #[inline]
     pub fn default_quantile() -> f32 {
         0.05
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

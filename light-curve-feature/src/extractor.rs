@@ -5,7 +5,17 @@ use crate::time_series::TimeSeries;
 
 use std::marker::PhantomData;
 
-/// The engine that extracts features one by one
+macro_const! {
+    const DOC: &str = r#"
+The engine which extracts features one by one
+
+- Depends on: as reuired by feature evaluators
+- Minimum number of observations: as required by feature evaluators
+- Number of features: total for all feature evaluators
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
     into = "FeatureExtractorParameters<F>",
@@ -54,6 +64,12 @@ where
 
     pub fn add_feature(&mut self, feature: F) {
         self.features.push(feature);
+    }
+}
+
+impl<T, F> FeatureExtractor<T, F> {
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -152,6 +168,8 @@ mod tests {
         FeatureExtractor<f64, Feature<f64>>,
         FeatureExtractor::new(vec![crate::Amplitude{}.into(), crate::BeyondNStd::new(2.0).into()]),
     );
+
+    check_doc_static_method!(feature_extractor_doc_static_method, FeatureExtractor<f64, Feature<f64>>);
 
     #[test]
     fn serialization_empty() {

@@ -1,17 +1,23 @@
 use crate::evaluator::*;
 use itertools::Itertools;
 
-/// Maximum slope between two sub-sequential observations
-///
-/// $$
-/// \mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left|\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right|
-/// $$
-///
-/// - Depends on: **time**, **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+macro_const! {
+    const DOC: &'static str = r#"
+Maximum slope between two sub-sequential observations
+
+$$
+\mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left|\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right|
+$$
+
+- Depends on: **time**, **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct MaximumSlope {}
 
@@ -28,6 +34,10 @@ lazy_info!(
 impl MaximumSlope {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

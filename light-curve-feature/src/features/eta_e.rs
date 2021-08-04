@@ -1,27 +1,37 @@
 use crate::evaluator::*;
 use itertools::Itertools;
 
-/// $\eta^e$ — modernisation of [Eta](./struct.Eta.html) for unevenly time series
-///
-/// $$
-/// \eta^e \equiv \frac{(t_{N-1} - t_0)^2}{(N - 1)^3} \frac{\sum_{i=0}^{N-2} \left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)^2}{\sigma_m^2}
-/// $$
-/// where $N$ is the number of observations,
-/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
-/// Note that this definition is a bit different from both \[Kim et al. 2014] and
-/// [feets](https://feets.readthedocs.io/en/latest/)
-///
-/// - Depends on: **time**, **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
+macro_const! {
+    const DOC: &'static str = r#"
+$\eta^e$ — modernisation of [Eta](crate::Eta) for unevenly time series
+
+$$
+\eta^e \equiv \frac{(t_{N-1} - t_0)^2}{(N - 1)^3} \frac{\sum_{i=0}^{N-2} \left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)^2}{\sigma_m^2}
+$$
+where $N$ is the number of observations,
+$\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+Note that this definition is a bit different from both Kim et al. 2014 and
+[feets](https://feets.readthedocs.io/en/latest/)
+
+- Depends on: **time**, **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)    
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct EtaE {}
 
 impl EtaE {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

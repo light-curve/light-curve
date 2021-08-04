@@ -1,21 +1,31 @@
 use crate::evaluator::*;
 use itertools::Itertools;
 
-/// Maximum time interval between consequent observations
-///
-/// $$
-/// \max{t_{i+1} - t_i}
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
+macro_const! {
+    const DOC: &str = r#"
+Maximum time interval between consequent observations
+
+$$
+\max{t_{i+1} - t_i}
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **2**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct MaximumTimeInterval {}
 
 impl MaximumTimeInterval {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 

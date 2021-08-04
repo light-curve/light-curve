@@ -1,19 +1,25 @@
 use crate::evaluator::*;
 
-/// Standard deviation of magnitude $\sigma_m$
-///
-/// $$
-/// \sigma_m \equiv \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)},
-/// $$
-///
-/// $N$ is the number of observations
-/// and $\langle m \rangle$ is the mean magnitude.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
+macro_const! {
+    const DOC: &'static str = r#"
+Standard deviation of magnitude $\sigma_m$
+
+$$
+\sigma_m \equiv \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)},
+$$
+
+$N$ is the number of observations
+and $\langle m \rangle$ is the mean magnitude.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+[Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)   
+"#;
+}
+
+#[doc = DOC!()]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct StandardDeviation {}
 
@@ -30,6 +36,10 @@ lazy_info!(
 impl StandardDeviation {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
