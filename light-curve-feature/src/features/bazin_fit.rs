@@ -1,28 +1,21 @@
 use crate::evaluator::*;
 use crate::nl_fit::{
-    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, McmcCurveFit,
+    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, F64LikeFloat,
+    McmcCurveFit,
 };
 
 use conv::ConvUtil;
-use std::ops::{Add, Mul, Sub};
-
-#[cfg(feature = "gsl")]
-use hyperdual::Float as HyperdualFloat;
-#[cfg(not(feature = "gsl"))]
-trait HyperdualFloat {}
-#[cfg(not(feature = "gsl"))]
-impl<T> HyperdualFloat for T {}
 
 /// Bazin fit
 ///
-/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of Bazin function developed for
+/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Bazin function developed for
 /// core-collapsed supernovae:
 /// $$
 /// f(t) = A \frac{ \\mathrm{e}^{ -(t-t_0)/\\tau_\\mathrm{fall} } }{ 1 + \\mathrm{e}^{ -(t - t_0) / \\tau_\\mathrm{rise} } } + B.
 /// $$
 ///
-/// Note, that Bazin function is developed to use with fluxes, not magnitudes. Also note a typo in
-/// the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent
+/// Note, that the Bazin function is developed to use with fluxes, not magnitudes. Also note a typo
+/// in the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent.
 ///
 /// Optimization is done using specified `algorithm` which is an instance of the
 /// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
@@ -68,26 +61,35 @@ lazy_info!(
 );
 
 impl BazinFit {
-    fn model<T>(t: f64, param: &[T]) -> T
+    pub fn f<T>(t: T, values: &[T]) -> T
     where
-        T: HyperdualFloat + Add<f64, Output = T> + Mul<f64, Output = T> + Sub<f64, Output = T>,
+        T: Float,
     {
+        Self::model(t, &values[..5])
+    }
+
+    fn model<T, U>(t: T, param: &[U]) -> U
+    where
+        T: Into<U>,
+        U: F64LikeFloat,
+    {
+        let t: U = t.into();
         let x = Params { storage: param };
-        let minus_dt = *x.t0() - t;
-        *x.b() + *x.a() * T::exp(minus_dt / *x.fall()) / (T::exp(minus_dt / *x.rise()) + 1.0_f64)
+        let minus_dt = x.t0() - t;
+        x.b() + x.a() * U::exp(minus_dt / x.fall()) / (U::exp(minus_dt / x.rise()) + U::one())
     }
 
     fn derivatives(t: f64, param: &[f64], jac: &mut [f64]) {
         let x = Params { storage: param };
-        let minus_dt = *x.t0() - t;
-        let exp_rise = f64::exp(minus_dt / *x.rise());
-        let frac = f64::exp(minus_dt / *x.fall()) / (1.0 + exp_rise);
+        let minus_dt = x.t0() - t;
+        let exp_rise = f64::exp(minus_dt / x.rise());
+        let frac = f64::exp(minus_dt / x.fall()) / (1.0 + exp_rise);
         let exp_1p_exp_rise = 1.0 / (1.0 + 1.0 / exp_rise);
         jac[0] = frac;
         jac[1] = 1.0;
-        jac[2] = *x.a() * frac * (1.0 / *x.fall() - exp_1p_exp_rise / *x.rise());
-        jac[3] = *x.a() * minus_dt * frac / x.rise().powi(2) * exp_1p_exp_rise;
-        jac[4] = -*x.a() * minus_dt * frac / x.fall().powi(2);
+        jac[2] = x.a() * frac * (1.0 / x.fall() - exp_1p_exp_rise / x.rise());
+        jac[3] = x.a() * minus_dt * frac / x.rise().powi(2) * exp_1p_exp_rise;
+        jac[4] = -x.a() * minus_dt * frac / x.fall().powi(2);
     }
 
     fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 5], [(f64, f64); 5]) {
@@ -169,7 +171,7 @@ where
                 norm_data.data.clone(),
                 &x0,
                 &bound,
-                Self::model::<f64>,
+                Self::model::<f64, f64>,
                 Self::derivatives,
             );
             x[0] = norm_data.m_to_orig_scale(x[0]); // amplitude
@@ -191,7 +193,7 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec![
             "bazin_fit_amplitude",
-            "bazin_fit_offset",
+            "bazin_fit_baseline",
             "bazin_fit_peak_time",
             "bazin_fit_rise_time",
             "bazin_fit_fall_time",
@@ -202,7 +204,7 @@ where
     fn get_descriptions(&self) -> Vec<&str> {
         vec![
             "half amplitude of the Bazin function (A)",
-            "offset of the Bazin function (B)",
+            "baseline of the Bazin function (B)",
             "peak time of the Bazin fit (t0)",
             "rise time of the Bazin function (tau_rise)",
             "fall time of the Bazin function (tau_fall)",
@@ -215,30 +217,33 @@ struct Params<'a, T> {
     storage: &'a [T],
 }
 
-impl<'a, T> Params<'a, T> {
+impl<'a, T> Params<'a, T>
+where
+    T: Copy,
+{
     #[inline]
-    fn a(&self) -> &T {
-        &self.storage[0]
+    fn a(&self) -> T {
+        self.storage[0]
     }
 
     #[inline]
-    fn b(&self) -> &T {
-        &self.storage[1]
+    fn b(&self) -> T {
+        self.storage[1]
     }
 
     #[inline]
-    fn t0(&self) -> &T {
-        &self.storage[2]
+    fn t0(&self) -> T {
+        self.storage[2]
     }
 
     #[inline]
-    fn rise(&self) -> &T {
-        &self.storage[3]
+    fn rise(&self) -> T {
+        self.storage[3]
     }
 
     #[inline]
-    fn fall(&self) -> &T {
-        &self.storage[4]
+    fn fall(&self) -> T {
+        self.storage[4]
     }
 }
 

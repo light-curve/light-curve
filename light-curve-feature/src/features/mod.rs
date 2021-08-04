@@ -82,5 +82,8 @@ pub use standard_deviation::StandardDeviation;
 mod stetson_k;
 pub use stetson_k::StetsonK;
 
+mod villar_fit;
+pub use villar_fit::VillarFit;
+
 mod weighted_mean;
 pub use weighted_mean::WeightedMean;

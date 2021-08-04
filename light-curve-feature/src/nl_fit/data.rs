@@ -91,6 +91,14 @@ where
         m_norm * self.m_std
     }
 
+    pub fn slope_to_orig(&self, slope_norm: T) -> T {
+        if self.t_std.is_zero() || self.m_std.is_zero() {
+            slope_norm
+        } else {
+            slope_norm * self.m_std / self.t_std
+        }
+    }
+
     #[allow(dead_code)]
     pub fn inv_err_to_orig(&self, inv_err_norm: T) -> T {
         inv_err_norm * self.inv_err_scale
@@ -131,5 +139,13 @@ where
     #[allow(dead_code)]
     pub fn inv_err_to_norm(&self, inv_err_orig: T) -> T {
         inv_err_orig / self.inv_err_scale
+    }
+
+    pub fn slope_to_norm(&self, slope_orig: T) -> T {
+        if self.t_std.is_zero() || self.m_std.is_zero() {
+            slope_orig
+        } else {
+            slope_orig * self.t_std / self.m_std
+        }
     }
 }

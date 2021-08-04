@@ -1,13 +1,11 @@
 use conv::ConvUtil;
 use criterion::{black_box, Criterion};
-use include_dir::{include_dir, Dir};
 use light_curve_feature::*;
+use light_curve_feature_test_util::iter_sn1a_flux_ts;
 use ndarray::Array1;
 use rand::prelude::*;
 use rand_distr::StandardNormal;
-use serde::Deserialize;
 use std::any::type_name;
-use unzip3::Unzip3;
 
 pub fn bench_extractor<T>(c: &mut Criterion)
 where
@@ -85,6 +83,10 @@ where
             "Periodogram",
             FeatureExtractor::new(vec![periodogram.into()]),
         )))
+        .chain(std::iter::once((
+            "VillarFit",
+            FeatureExtractor::new(vec![VillarFit::default().into()]),
+        )))
         .collect();
 
     for &n in N.iter() {
@@ -116,7 +118,7 @@ where
     }
 
     {
-        let mut real_data: Vec<_> = iter_sn1a_flux_ts::<T>().collect();
+        let mut real_data: Vec<_> = iter_sn1a_flux_ts::<T>().map(|(_ztf_id, ts)| ts).collect();
         let curve_fits: Vec<CurveFitAlgorithm> = vec![
             LmsderCurveFit::new(5).into(),
             LmsderCurveFit::new(10).into(),
@@ -127,17 +129,22 @@ where
             McmcCurveFit::new(1024, Some(LmsderCurveFit::new(10).into())).into(),
         ];
         for curve_fit in curve_fits.into_iter() {
-            let eval = BazinFit::new(curve_fit);
-            c.bench_function(
-                format!("SN Ia {:?} {}", eval, type_name::<T>()).as_str(),
-                |b| {
-                    b.iter(|| {
-                        real_data.iter_mut().for_each(|mut ts| {
-                            let _v = eval.eval(black_box(&mut ts)).unwrap();
+            let features: Vec<Feature<_>> = vec![
+                BazinFit::new(curve_fit.clone()).into(),
+                VillarFit::new(curve_fit).into(),
+            ];
+            for f in features {
+                c.bench_function(
+                    format!("SN Ia {:?} {}", f, type_name::<T>()).as_str(),
+                    |b| {
+                        b.iter(|| {
+                            real_data.iter_mut().for_each(|mut ts| {
+                                let _v = f.eval(black_box(&mut ts)).unwrap();
+                            });
                         });
-                    });
-                },
-            );
+                    },
+                );
+            }
         }
     }
 }
@@ -176,55 +183,4 @@ where
     let m = randvec(n);
     let w = randvec(n).mapv(|x: T| x.powi(2));
     TimeSeries::new(t, m, w)
-}
-
-#[derive(Deserialize)]
-struct LightCurveRecord {
-    ant_mjd: f64,
-    ant_mag: f64,
-    ant_magerr: f64,
-    ant_passband: char,
-    ant_survey: u8,
-}
-
-fn iter_sn1a_flux_ts<T>() -> impl Iterator<Item = TimeSeries<'static, T>>
-where
-    T: Float,
-{
-    // Relative to the current file
-    const ZTF_IDS_CSV: &str =
-        include_str!("../../test-data/SNIa/snIa_bandg_minobs10_beforepeak3_afterpeak4.csv");
-
-    // Relative to the project root
-    const LC_DIR: Dir = include_dir!("../test-data/SNIa/light-curves");
-
-    ZTF_IDS_CSV.split_terminator('\n').map(|ztf_id| {
-        let filename = format!("{}.csv", ztf_id);
-        let file = LC_DIR.get_file(&filename).unwrap();
-        let mut reader = csv::ReaderBuilder::new().from_reader(file.contents());
-        let (t, flux, w_flux): (Vec<_>, Vec<_>, Vec<_>) = reader
-            .deserialize()
-            .map(|row| row.unwrap())
-            .filter(|record: &LightCurveRecord| {
-                record.ant_passband == 'g' && record.ant_survey == 1
-            })
-            .map(|record| {
-                let LightCurveRecord {
-                    ant_mjd: t,
-                    ant_mag: m,
-                    ant_magerr: sigma_m,
-                    ..
-                } = record;
-                let flux = 10.0_f64.powf(-0.4_f64 * m);
-                let sigma_flux = f64::ln(10.0_f64) * 0.4_f64 * sigma_m * flux;
-                let w_flux = sigma_flux.powi(-2);
-                (
-                    t.approx_as::<T>().unwrap(),
-                    flux.approx_as::<T>().unwrap(),
-                    w_flux.approx_as::<T>().unwrap(),
-                )
-            })
-            .unzip3();
-        TimeSeries::new(t, flux, w_flux)
-    })
 }
