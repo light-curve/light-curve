@@ -72,7 +72,7 @@ where
             return vec![T::zero(); freq.size.next_power_of_two()];
         }
 
-        let grid = TimeGrid::from_freq_grid(&freq);
+        let grid = TimeGrid::from_freq_grid(freq);
 
         let mut periodogram_arrays_map = self
             .arrays

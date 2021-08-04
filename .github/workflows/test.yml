@@ -9,6 +9,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
     - name: Install FFTW and GSL
       run: |
         sudo apt-get update
@@ -63,6 +65,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
     - name: Install FFTW
       run: |
         sudo apt-get update
@@ -94,7 +98,7 @@ jobs:
     - name: Build package with dynamic FFTW
       run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,nonlinear-fit"
     - name: Build package with dynamic MKL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl-dynamic,nonlinear-fit"
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,nonlinear-fit"
     - name: Check Rust formatting
       uses: actions-rs/cargo@v1
       with:
@@ -105,9 +109,22 @@ jobs:
       with:
         command: clippy
         args: --all-targets -- -D warnings
-    - name: Check Python formatting
-      run: black .
     - name: Run Python tests
       run: tox -p -q
     - name: Check Python formatting
       run: black --check --diff .
+
+
+  arm:
+
+    runs-on: [self-hosted, linux, ARM64]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: build all but python
+      run: cargo build --workspace --all-targets --exclude light-curve-python
+    - name: build python
+      run: maturin build
+      working-directory: python/light-curve

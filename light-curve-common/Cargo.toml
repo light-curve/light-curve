@@ -2,7 +2,7 @@
 name = "light-curve-common"
 version = "0.1.1"
 description = "Common tools for light-curve-* packages"
-repository = "https://github.com/hombit/light-curve"
+repository = "https://github.com/light-curve/light-curve"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "MIT"
 edition = "2018"
