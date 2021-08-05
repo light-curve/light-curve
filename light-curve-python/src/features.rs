@@ -120,7 +120,7 @@ impl PyFeatureEvaluator {
 ///     Feature objects
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(*args)"]
+#[pyo3(text_signature = "(*features)")]
 pub struct Extractor {}
 
 #[pymethods]
@@ -147,7 +147,7 @@ impl Extractor {
 macro_rules! evaluator {
     ($name: ident, $eval: ty $(,)?) => {
         #[pyclass(extends = PyFeatureEvaluator)]
-        #[text_signature = "()"]
+        #[pyo3(text_signature = "()")]
         pub struct $name {}
 
         #[pymethods]
@@ -177,7 +177,7 @@ evaluator!(AndersonDarlingNormal, lcf::AndersonDarlingNormal);
 ///     N
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(nstd, /)"]
+#[pyo3(text_signature = "(nstd, /)")]
 pub struct BeyondNStd {}
 
 #[pymethods]
@@ -208,7 +208,7 @@ evaluator!(BazinFit, lcf::BazinFit);
 ///     Zero time moment
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(features, window, offset)"]
+#[pyo3(text_signature = "(features, window, offset)")]
 pub struct Bins {}
 
 #[pymethods]
@@ -257,7 +257,7 @@ evaluator!(ExcessVariance, lcf::ExcessVariance);
 ///     Range is (100% * quantile, 100% * (1 - quantile))
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile)"]
+#[pyo3(text_signature = "(quantile)")]
 pub struct InterPercentileRange {}
 
 #[pymethods]
@@ -290,7 +290,7 @@ evaluator!(LinearTrend, lcf::LinearTrend);
 ///     Denominator is inter-percentile range (100% * q, 100% (1 - q))
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile_numerator, quantile_denominator)"]
+#[pyo3(text_signature = "(quantile_numerator, quantile_denominator)")]
 pub struct MagnitudePercentageRatio {}
 
 #[pymethods]
@@ -341,7 +341,7 @@ evaluator!(MedianAbsoluteDeviation, lcf::MedianAbsoluteDeviation,);
 ///     Relative range size
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile)"]
+#[pyo3(text_signature = "(quantile)")]
 pub struct MedianBufferRangePercentage {}
 
 #[pymethods]
@@ -368,7 +368,7 @@ evaluator!(PercentAmplitude, lcf::PercentAmplitude);
 ///     Relative range size
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile)"]
+#[pyo3(text_signature = "(quantile)")]
 pub struct PercentDifferenceMagnitudePercentile {}
 
 #[pymethods]
@@ -415,7 +415,9 @@ impl PercentDifferenceMagnitudePercentile {
 ///     Features to extract from periodogram considering it as a time-series
 ///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"]
+#[pyo3(
+    text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
+)]
 pub struct Periodogram {
     eval: lcf::Periodogram<F>,
 }
@@ -527,7 +529,7 @@ impl Periodogram {
     }
 
     /// Angular frequencies and periodogram values
-    #[text_signature = "(t, m)"]
+    #[pyo3(text_signature = "(t, m)")]
     fn freq_power<'py>(
         &self,
         py: Python<'py>,
