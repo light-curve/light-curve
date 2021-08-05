@@ -65,6 +65,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<Amplitude>()?;
     m.add_class::<AndersonDarlingNormal>()?;
+    m.add_class::<BazinFit>()?;
     m.add_class::<BeyondNStd>()?;
     m.add_class::<Bins>()?;
     m.add_class::<Cusum>()?;
