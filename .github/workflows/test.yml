@@ -95,10 +95,10 @@ jobs:
       run: pip install maturin black tox
     - name: Build package with static FFTW
       run: maturin build
-    - name: Build package with dynamic FFTW
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,nonlinear-fit"
-    - name: Build package with dynamic MKL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,nonlinear-fit"
+    - name: Build package with dynamic FFTW and GSL
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,gsl"
+    - name: Build package with dynamic MKL and GSL
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,gsl"
     - name: Check Rust formatting
       uses: actions-rs/cargo@v1
       with:
