@@ -107,8 +107,9 @@ class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
 
 
 if lc._built_with_gsl:
+
     class TestBazinFit(_FeatureTest, _NaiveTest):
-        feature = lc.BazinFit('mcmc-lmsder')
+        feature = lc.BazinFit("mcmc-lmsder")
         rtol = 1e-4  # Precision used in the feature implementation
 
         add_to_all_features = False  # in All* random data is used
