@@ -212,11 +212,11 @@ macro_rules! fit_evaluator {
                 let curve_fit_algorithm: lcf::CurveFitAlgorithm = match algorithm {
                     "mcmc" => lcf::McmcCurveFit::default().into(),
                     #[cfg(feature = "gsl")]
-                    "lmsder" => lcf::LmsderCurveFitAlgorithm::default().into(),
+                    "lmsder" => lcf::LmsderCurveFit::default().into(),
                     #[cfg(feature = "gsl")]
-                    "mcmc-lmsder" => lcf::McmcCurveFitAlgorithm::new(
-                        McmcCurveFitAlgorithm::default_niterations(),
-                        Some(lcf::LmsderCurveFitAlgorithm::default().into()),
+                    "mcmc-lmsder" => lcf::McmcCurveFit::new(
+                        lcf::McmcCurveFit::default_niterations(),
+                        Some(lcf::LmsderCurveFit::default().into()),
                     )
                     .into(),
                     _ => {
