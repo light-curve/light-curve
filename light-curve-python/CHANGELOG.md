@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update `ndarray` to 0.15.3 and compatibility updates: `numpy` (Rust crate) to 0.13.2, `light-curve-dmdt` to 0.4.0. These updates shouldn't break backward compatibility of the Python package
+- Update `ndarray` to 0.15.3 and `light-curve-dmdt` to 0.4.0. These updates shouldn't break backward compatibility of the Python package
+- Update `rust-numpy` and `pyo3` to 0.14, these updates shouldn't break backward compatibility of the Python package
 
 ### Depreceted
 
