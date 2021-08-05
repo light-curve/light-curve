@@ -16,7 +16,7 @@ default = ["fftw-static"]
 fftw-static = ["light-curve-feature/fftw-source"]
 fftw-dynamic = ["light-curve-feature/fftw-system"]
 mkl = ["light-curve-feature/fftw-mkl"]
-nonlinear-fit = ["light-curve-feature/gsl"]
+gsl = ["light-curve-feature/gsl"]
 
 [dependencies]
 conv = "^0.3.3"
