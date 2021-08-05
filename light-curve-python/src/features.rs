@@ -115,16 +115,6 @@ impl PyFeatureEvaluator {
     }
 }
 
-/// Features extractor
-///
-/// Extract multiple features simultaneously, which should be more
-/// performant than calling them separately
-///
-/// Parameters
-/// ----------
-/// *features : iterable
-///     Feature objects
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(*features)")]
 pub struct Extractor {}
@@ -148,6 +138,20 @@ impl Extractor {
             },
         ))
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+*features : iterable
+    Feature objects
+"#,
+            lcf::FeatureExtractor::<F, Feature>::doc().trim_start()
+        )
+    }
 }
 
 macro_rules! evaluator {
@@ -167,6 +171,11 @@ macro_rules! evaluator {
                     },
                 )
             }
+
+            #[classattr]
+            fn __doc__() -> &'static str {
+                <$eval>::doc().trim_start()
+            }
         }
     };
 }
@@ -175,13 +184,6 @@ evaluator!(Amplitude, lcf::Amplitude);
 
 evaluator!(AndersonDarlingNormal, lcf::AndersonDarlingNormal);
 
-/// Fraction of observations beyond N*std from mean
-///
-/// Parameters
-/// ----------
-/// nstd : positive float
-///     N
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(nstd, /)")]
 pub struct BeyondNStd {}
@@ -197,22 +199,25 @@ impl BeyondNStd {
             },
         )
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+nstd : positive float
+    N
+"#,
+            lcf::BeyondNStd::<F>::doc().trim_start()
+        )
+    }
 }
 
 #[cfg(feature = "nonlinear-fit")]
 evaluator!(BazinFit, lcf::BazinFit);
 
-/// Binned time-series
-///
-/// Parameters
-/// ----------
-/// features : iterable
-///     Features to extract from binned time-series
-/// window : positive float
-///     Width of binning interval in units of time
-/// offset : float
-///     Zero time moment
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(features, window, offset)")]
 pub struct Bins {}
@@ -245,6 +250,24 @@ impl Bins {
             },
         ))
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+features : iterable
+    Features to extract from binned time-series
+window : positive float
+    Width of binning interval in units of time
+offset : float
+    Zero time moment
+"#,
+            lcf::Bins::<F, Feature>::doc().trim_start()
+        )
+    }
 }
 
 evaluator!(Cusum, lcf::Cusum);
@@ -255,13 +278,6 @@ evaluator!(EtaE, lcf::EtaE);
 
 evaluator!(ExcessVariance, lcf::ExcessVariance);
 
-/// Inner percentile range
-///
-/// Parameters
-/// ----------
-/// quantile : positive float
-///     Range is (100% * quantile, 100% * (1 - quantile))
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(quantile)")]
 pub struct InterPercentileRange {}
@@ -278,6 +294,20 @@ impl InterPercentileRange {
             },
         )
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile : positive float
+    Range is (100% * quantile, 100% * (1 - quantile))
+"#,
+            lcf::InterPercentileRange::doc().trim_start()
+        )
+    }
 }
 
 evaluator!(Kurtosis, lcf::Kurtosis);
@@ -286,15 +316,6 @@ evaluator!(LinearFit, lcf::LinearFit);
 
 evaluator!(LinearTrend, lcf::LinearTrend);
 
-/// Ratio of two inter-percentile ranges
-///
-/// Parameters
-/// ----------
-/// quantile_numerator: positive float
-///     Numerator is inter-percentile range (100% * q, 100% (1 - q))
-/// quantile_denominator: positive float
-///     Denominator is inter-percentile range (100% * q, 100% (1 - q))
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(quantile_numerator, quantile_denominator)")]
 pub struct MagnitudePercentageRatio {}
@@ -328,6 +349,22 @@ impl MagnitudePercentageRatio {
             },
         ))
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile_numerator: positive float
+    Numerator is inter-percentile range (100% * q, 100% (1 - q))
+quantile_denominator: positive float
+    Denominator is inter-percentile range (100% * q, 100% (1 - q))        
+"#,
+            lcf::MagnitudePercentageRatio::doc().trim_start()
+        )
+    }
 }
 
 evaluator!(MaximumSlope, lcf::MaximumSlope);
@@ -340,13 +377,6 @@ evaluator!(Median, lcf::Median);
 
 evaluator!(MedianAbsoluteDeviation, lcf::MedianAbsoluteDeviation,);
 
-/// Median Buffer Range Percentage
-///
-/// Parameters
-/// ----------
-/// quantile : positive float
-///     Relative range size
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(quantile)")]
 pub struct MedianBufferRangePercentage {}
@@ -363,17 +393,24 @@ impl MedianBufferRangePercentage {
             },
         )
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile : positive float
+    Relative range size      
+"#,
+            lcf::MedianBufferRangePercentage::<F>::doc()
+        )
+    }
 }
 
 evaluator!(PercentAmplitude, lcf::PercentAmplitude);
 
-/// Percent Difference Magnitude Percentile
-///
-/// Parameters
-/// ----------
-/// quantile : positive float
-///     Relative range size
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(quantile)")]
 pub struct PercentDifferenceMagnitudePercentile {}
@@ -390,35 +427,22 @@ impl PercentDifferenceMagnitudePercentile {
             },
         )
     }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile : positive float
+    Relative range size
+"#,
+            lcf::PercentDifferenceMagnitudePercentile::doc()
+        )
+    }
 }
 
-/// Periodogram-based features
-///
-/// Parameters
-/// ----------
-/// peaks : int or None, optional
-///     Number of peaks to find
-///
-/// resolution : float or None, optional
-///     Resolution of frequency grid
-///
-/// max_freq_factor : float or None, optional
-///     Mulitplier for Nyquist frequency
-///
-/// nyquist : str or float or None, optional
-///     Type of Nyquist frequency. Could be one of:
-///      - 'average': "Average" Nyquist frequency
-///      - 'median': Nyquist frequency is defined by median time interval
-///         between observations
-///      - float: Nyquist frequency is defined by given quantile of time
-///         intervals between observations
-///
-/// fast : bool or None, optional
-///     Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
-///
-/// features : iterable or None, optional
-///     Features to extract from periodogram considering it as a time-series
-///
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(
     text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
@@ -537,6 +561,40 @@ impl Periodogram {
         let mut ts = lcf::TimeSeries::new_without_weight(t.deref(), m.deref());
         let (freq, power) = self.eval.freq_power(&mut ts);
         (freq.into_pyarray(py), power.into_pyarray(py))
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+peaks : int or None, optional
+    Number of peaks to find
+
+resolution : float or None, optional
+    Resolution of frequency grid
+
+max_freq_factor : float or None, optional
+    Mulitplier for Nyquist frequency
+
+nyquist : str or float or None, optional
+    Type of Nyquist frequency. Could be one of:
+     - 'average': "Average" Nyquist frequency
+     - 'median': Nyquist frequency is defined by median time interval
+        between observations
+     - float: Nyquist frequency is defined by given quantile of time
+        intervals between observations
+
+fast : bool or None, optional
+    Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
+
+features : iterable or None, optional
+    Features to extract from periodogram considering it as a time-series
+"#,
+            lcf::Periodogram::<F, Feature>::doc()
+        )
     }
 }
 
