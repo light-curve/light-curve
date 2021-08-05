@@ -21,6 +21,8 @@ class _FeatureTest:
     sigma_min = 0.01
     sigma_max = 0.2
 
+    add_to_all_features = True
+
     def generate_data(self):
         t = np.sort(np.random.uniform(self.t_min, self.t_max, self.n_obs))
         m = np.random.uniform(self.m_min, self.m_max, self.n_obs)
@@ -104,11 +106,12 @@ class TestAndersonDarlingNormal(_FeatureTest, _NaiveTest, _FeetsTest):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
-if hasattr(lc, "BazinFit"):
-
+if lc._built_with_gsl:
     class TestBazinFit(_FeatureTest, _NaiveTest):
-        feature = lc.BazinFit()
+        feature = lc.BazinFit('mcmc-lmsder')
         rtol = 1e-4  # Precision used in the feature implementation
+
+        add_to_all_features = False  # in All* random data is used
 
         @staticmethod
         def _model(t, a, b, t0, rise, fall):
@@ -117,10 +120,10 @@ if hasattr(lc, "BazinFit"):
 
         def _params(self):
             a = 1000
-            b = 0
+            b = 100
             t0 = 0.5 * (self.t_min + self.t_max)
-            rise = 0.3 * (self.t_max - self.t_min)
-            fall = 0.4 * (self.t_max - self.t_min)
+            rise = 0.1 * (self.t_max - self.t_min)
+            fall = 0.2 * (self.t_max - self.t_min)
             return a, b, t0, rise, fall
 
         # Random data yields to random results because target function has a lot of local minima
@@ -381,6 +384,8 @@ class TestAllNaive(_FeatureTest, _NaiveTest):
         for cls in _NaiveTest.__subclasses__():
             if cls.naive is None or not hasattr(cls, "feature"):
                 continue
+            if not cls.add_to_all_features:
+                continue
             features.append(cls.feature)
             self.naive_features.append(cls().naive)
         self.feature = lc.Extractor(*features)
@@ -397,6 +402,8 @@ class TestAllFeets(_FeatureTest, _FeetsTest):
         feets_features = []
         for cls in _FeetsTest.__subclasses__():
             if cls.feets_feature is None or not hasattr(cls, "feature"):
+                continue
+            if not cls.add_to_all_features:
                 continue
             features.append(cls.feature)
             feets_features.append(cls.feets_feature)

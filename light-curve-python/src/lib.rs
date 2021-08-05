@@ -57,6 +57,31 @@ mod sorted;
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
+    m.add("_built_with_gsl", {
+        #[cfg(feature = "gsl")]
+        {
+            true
+        }
+        #[cfg(not(feature = "gsl"))]
+        {
+            false
+        }
+    })?;
+    m.add("_fft_backend", {
+        #[cfg(feature = "fftw-static")]
+        {
+            "statically linked FFTW"
+        }
+        #[cfg(feature = "fftw-dynamic")]
+        {
+            "dynamically linked FFTW"
+        }
+        #[cfg(feature = "mkl")]
+        {
+            "Intel MKL"
+        }
+    })?;
+
     m.add_class::<DmDt>()?;
 
     m.add_class::<PyFeatureEvaluator>()?;
