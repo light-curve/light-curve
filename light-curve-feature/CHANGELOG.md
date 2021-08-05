@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (De)serialization with [`serde`](http://serde.rs) is implemented for all features
 - JSON schema generation with [`schemars`](http://graham.cool/schemars/) is implemented for all features  
 - `TimeSeries` and `DataSample` use `ndarray::CowArray` to hold data, their constructors accept `ArrayBase` objects
+- Static method `::doc()` for every feature, it returns language-agnostic feature evaluator description
+- `examples` directory with an example which fits and plots some SN Ia light curves
+- "private" sub-crate `light-curve-feature-test-util` with common tools for tests, benchmarks and examples
 
 ### Changed
 
