@@ -180,28 +180,34 @@ macro_rules! evaluator {
     };
 }
 
+const N_ALGO_CURVE_FIT: usize = {
+    #[cfg(feature = "gsl")]
+    {
+        3
+    }
+    #[cfg(not(feature = "gsl"))]
+    {
+        1
+    }
+};
+
+const SUPPORTED_ALGORITHMS_CURVE_FIT: [&'static str; N_ALGO_CURVE_FIT] = [
+    "mcmc",
+    #[cfg(feature = "gsl")]
+    "lmsder",
+    #[cfg(feature = "gsl")]
+    "mcmc-lmsder",
+];
+
 macro_rules! fit_evaluator {
     ($name: ident, $eval: ty $(,)?) => {
         #[pyclass(extends = PyFeatureEvaluator)]
-        #[pyo3(text_signature = "(algorithm = \"mcmc\")")]
+        #[pyo3(text_signature = "(algorithm)")]
         pub struct $name {}
 
         impl $name {
             fn supported_algorithms_str() -> String {
-                #[cfg(feature = "gsl")]
-                const N_ALGO: usize = 3;
-                #[cfg(not(feature = "gsl"))]
-                const N_ALGO: usize = 1;
-
-                const SUPPORTED_ALGORITHMS: [&'static str; N_ALGO] = [
-                    "mcmc",
-                    #[cfg(feature = "gsl")]
-                    "lmsder",
-                    #[cfg(feature = "gsl")]
-                    "mcmc-lmsder",
-                ];
-
-                return SUPPORTED_ALGORITHMS.join(", ");
+                return SUPPORTED_ALGORITHMS_CURVE_FIT.join(", ");
             }
         }
 
@@ -236,6 +242,11 @@ macro_rules! fit_evaluator {
                         feature_evaluator: eval.into(),
                     },
                 ))
+            }
+
+            #[classattr]
+            fn supported_algorithms() -> [&'static str; N_ALGO_CURVE_FIT] {
+                return SUPPORTED_ALGORITHMS_CURVE_FIT;
             }
 
             #[classattr]
