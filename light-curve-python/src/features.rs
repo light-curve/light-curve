@@ -1,17 +1,20 @@
 use crate::arr_wrapper::ArrWrapper;
 use crate::sorted::is_sorted;
-use light_curve_feature as lcf;
+
+use light_curve_feature::{self as lcf, FeatureEvaluator};
 use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
+use std::ops::Deref;
 
 type F = f64;
 type Arr<T> = PyArray1<T>;
+type Feature = lcf::Feature<F>;
 
 #[pyclass(subclass, name = "_FeatureEvaluator")]
 pub struct PyFeatureEvaluator {
-    feature_evaluator: Box<dyn lcf::FeatureEvaluator<F>>,
+    feature_evaluator: Feature,
 }
 
 #[pymethods]
@@ -84,7 +87,10 @@ impl PyFeatureEvaluator {
             }
         });
 
-        let mut ts = lcf::TimeSeries::new(&t, &m, w.as_deref());
+        let mut ts = match w {
+            Some(ref w) => lcf::TimeSeries::new(t.deref(), m.deref(), w.deref()),
+            None => lcf::TimeSeries::new_without_weight(t.deref(), m.deref()),
+        };
 
         let result = match fill_value {
             Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
@@ -138,7 +144,7 @@ impl Extractor {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::FeatureExtractor::new(evals)),
+                feature_evaluator: lcf::FeatureExtractor::new(evals).into(),
             },
         ))
     }
@@ -157,7 +163,7 @@ macro_rules! evaluator {
                 (
                     Self {},
                     PyFeatureEvaluator {
-                        feature_evaluator: Box::new(<$eval>::new()),
+                        feature_evaluator: <$eval>::new().into(),
                     },
                 )
             }
@@ -187,7 +193,7 @@ impl BeyondNStd {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::BeyondNStd::new(nstd)),
+                feature_evaluator: lcf::BeyondNStd::new(nstd).into(),
             },
         )
     }
@@ -235,7 +241,7 @@ impl Bins {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: eval.into(),
             },
         ))
     }
@@ -268,7 +274,7 @@ impl InterPercentileRange {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::InterPercentileRange::new(quantile)),
+                feature_evaluator: lcf::InterPercentileRange::new(quantile).into(),
             },
         )
     }
@@ -314,10 +320,11 @@ impl MagnitudePercentageRatio {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::MagnitudePercentageRatio::new(
+                feature_evaluator: lcf::MagnitudePercentageRatio::new(
                     quantile_numerator,
                     quantile_denominator,
-                )),
+                )
+                .into(),
             },
         ))
     }
@@ -352,7 +359,7 @@ impl MedianBufferRangePercentage {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::MedianBufferRangePercentage::new(quantile)),
+                feature_evaluator: lcf::MedianBufferRangePercentage::new(quantile).into(),
             },
         )
     }
@@ -379,9 +386,7 @@ impl PercentDifferenceMagnitudePercentile {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::PercentDifferenceMagnitudePercentile::new(
-                    quantile,
-                )),
+                feature_evaluator: lcf::PercentDifferenceMagnitudePercentile::new(quantile).into(),
             },
         )
     }
@@ -419,7 +424,7 @@ impl PercentDifferenceMagnitudePercentile {
     text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
 )]
 pub struct Periodogram {
-    eval: lcf::Periodogram<F>,
+    eval: lcf::Periodogram<F, Feature>,
 }
 
 impl Periodogram {
@@ -431,7 +436,7 @@ impl Periodogram {
         nyquist: Option<PyObject>,
         fast: Option<bool>,
         features: Option<PyObject>,
-    ) -> PyResult<lcf::Periodogram<F>> {
+    ) -> PyResult<lcf::Periodogram<F, Feature>> {
         let mut eval = match peaks {
             Some(peaks) => lcf::Periodogram::new(peaks),
             None => lcf::Periodogram::default(),
@@ -443,17 +448,17 @@ impl Periodogram {
             eval.set_max_freq_factor(max_freq_factor);
         }
         if let Some(nyquist) = nyquist {
-            let nyquist_freq: Box<dyn lcf::NyquistFreq<F>> =
+            let nyquist_freq: lcf::NyquistFreq =
                 if let Ok(s) = nyquist.extract::<&str>(py) {
                     match s {
-                        "average" => Box::new(lcf::AverageNyquistFreq {}),
-                        "median" => Box::new(lcf::MedianNyquistFreq {}),
+                        "average" => lcf::AverageNyquistFreq {}.into(),
+                        "median" => lcf::MedianNyquistFreq {}.into(),
                         _ => return Err(PyValueError::new_err(
                             "nyquist must be one of: None, 'average', 'median' or quantile value",
                         )),
                     }
                 } else if let Ok(quantile) = nyquist.extract::<f32>(py) {
-                    Box::new(lcf::QuantileNyquistFreq { quantile })
+                    lcf::QuantileNyquistFreq { quantile }.into()
                 } else {
                     return Err(PyValueError::new_err(
                         "nyquist must be one of: None, 'average', 'median' or quantile value",
@@ -463,9 +468,9 @@ impl Periodogram {
         }
         if let Some(fast) = fast {
             if fast {
-                eval.set_periodogram_algorithm(Box::new(lcf::PeriodogramPowerFft::new()));
+                eval.set_periodogram_algorithm(lcf::PeriodogramPowerFft::new().into());
             } else {
-                eval.set_periodogram_algorithm(Box::new(lcf::PeriodogramPowerDirect {}));
+                eval.set_periodogram_algorithm(lcf::PeriodogramPowerDirect {}.into());
             }
         }
         if let Some(features) = features {
@@ -502,28 +507,19 @@ impl Periodogram {
         fast: Option<bool>,
         features: Option<PyObject>,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
+        let eval = Self::create_eval(
+            py,
+            peaks,
+            resolution,
+            max_freq_factor,
+            nyquist,
+            fast,
+            features,
+        )?;
         Ok((
-            Self {
-                eval: Self::create_eval(
-                    py,
-                    peaks,
-                    resolution,
-                    max_freq_factor,
-                    nyquist.as_ref().map(|x| x.clone_ref(py)),
-                    fast,
-                    features.as_ref().map(|x| x.clone_ref(py)),
-                )?,
-            },
+            Self { eval: eval.clone() },
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(Self::create_eval(
-                    py,
-                    peaks,
-                    resolution,
-                    max_freq_factor,
-                    nyquist,
-                    fast,
-                    features,
-                )?),
+                feature_evaluator: eval.into(),
             },
         ))
     }
@@ -538,7 +534,7 @@ impl Periodogram {
     ) -> (&'py PyArray1<F>, &'py PyArray1<F>) {
         let t = ArrWrapper::new(t, true);
         let m = ArrWrapper::new(m, true);
-        let mut ts = lcf::TimeSeries::new(&t, &m, None);
+        let mut ts = lcf::TimeSeries::new_without_weight(t.deref(), m.deref());
         let (freq, power) = self.eval.freq_power(&mut ts);
         (freq.into_pyarray(py), power.into_pyarray(py))
     }
