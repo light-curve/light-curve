@@ -180,6 +180,83 @@ macro_rules! evaluator {
     };
 }
 
+macro_rules! fit_evaluator {
+    ($name: ident, $eval: ty $(,)?) => {
+        #[pyclass(extends = PyFeatureEvaluator)]
+        #[pyo3(text_signature = "(algorithm = \"mcmc\")")]
+        pub struct $name {}
+
+        impl $name {
+            fn supported_algorithms_str() -> String {
+                #[cfg(feature = "gsl")]
+                const N_ALGO: usize = 3;
+                #[cfg(not(feature = "gsl"))]
+                const N_ALGO: usize = 1;
+
+                const SUPPORTED_ALGORITHMS: [&'static str; N_ALGO] = [
+                    "mcmc",
+                    #[cfg(feature = "gsl")]
+                    "lmsder",
+                    #[cfg(feature = "gsl")]
+                    "mcmc-lmsder",
+                ];
+
+                return SUPPORTED_ALGORITHMS.join(", ");
+            }
+        }
+
+        #[pymethods]
+        impl $name {
+            #[new]
+            fn __new__(algorithm: &str) -> PyResult<(Self, PyFeatureEvaluator)> {
+                let curve_fit_algorithm: lcf::CurveFitAlgorithm = match algorithm {
+                    "mcmc" => lcf::McmcCurveFit::default().into(),
+                    #[cfg(feature = "gsl")]
+                    "lmsder" => lcf::LmsderCurveFitAlgorithm::default().into(),
+                    #[cfg(feature = "gsl")]
+                    "mcmc-lmsder" => lcf::McmcCurveFitAlgorithm::new(
+                        McmcCurveFitAlgorithm::default_niterations(),
+                        Some(lcf::LmsderCurveFitAlgorithm::default().into()),
+                    )
+                    .into(),
+                    _ => {
+                        return Err(PyValueError::new_err(format!(
+                            r#"wrong algorithm value "{}", supported values are: {}"#,
+                            algorithm,
+                            Self::supported_algorithms_str()
+                        )))
+                    }
+                };
+
+                let eval = <$eval>::new(curve_fit_algorithm);
+
+                Ok((
+                    Self {},
+                    PyFeatureEvaluator {
+                        feature_evaluator: eval.into(),
+                    },
+                ))
+            }
+
+            #[classattr]
+            fn __doc__() -> String {
+                format!(
+                    r#"{}
+
+Parameters
+----------
+algorithm : str, optional
+    Non-linear least-square algorithm, supported values are:
+    {}.
+"#,
+                    <$eval>::doc(),
+                    Self::supported_algorithms_str(),
+                )
+            }
+        }
+    };
+}
+
 evaluator!(Amplitude, lcf::Amplitude);
 
 evaluator!(AndersonDarlingNormal, lcf::AndersonDarlingNormal);
@@ -215,78 +292,7 @@ nstd : positive float
     }
 }
 
-#[pyclass(extends = PyFeatureEvaluator)]
-#[pyo3(text_signature = "(algorithm = \"mcmc\")")]
-pub struct BazinFit {}
-
-impl BazinFit {
-    fn supported_algorithms_str() -> String {
-        #[cfg(feature = "gsl")]
-        const N_ALGO: usize = 3;
-        #[cfg(not(feature = "gsl"))]
-        const N_ALGO: usize = 1;
-
-        const SUPPORTED_ALGORITHMS: [&'static str; N_ALGO] = [
-            "mcmc",
-            #[cfg(feature = "gsl")]
-            "lmsder",
-            #[cfg(feature = "gsl")]
-            "mcmc-lmsder",
-        ];
-
-        return SUPPORTED_ALGORITHMS.join(", ");
-    }
-}
-
-#[pymethods]
-impl BazinFit {
-    #[new]
-    fn __new__(algorithm: &str) -> PyResult<(Self, PyFeatureEvaluator)> {
-        let curve_fit_algorithm: lcf::CurveFitAlgorithm = match algorithm {
-            "mcmc" => lcf::McmcCurveFit::default().into(),
-            #[cfg(feature = "gsl")]
-            "lmsder" => lcf::LmsderCurveFitAlgorithm::default().into(),
-            #[cfg(feature = "gsl")]
-            "mcmc-lmsder" => lcf::McmcCurveFitAlgorithm::new(
-                McmcCurveFitAlgorithm::default_niterations(),
-                Some(lcf::LmsderCurveFitAlgorithm::default().into()),
-            )
-            .into(),
-            _ => {
-                return Err(PyValueError::new_err(format!(
-                    r#"wrong algorithm value "{}", supported values are: {}"#,
-                    algorithm,
-                    Self::supported_algorithms_str()
-                )))
-            }
-        };
-
-        let eval = lcf::BazinFit::new(curve_fit_algorithm);
-
-        Ok((
-            Self {},
-            PyFeatureEvaluator {
-                feature_evaluator: eval.into(),
-            },
-        ))
-    }
-
-    #[classattr]
-    fn __doc__() -> String {
-        format!(
-            r#"{}
-
-Parameters
-----------
-algorithm : str, optional
-    Non-linear least-square algorithm, supported values are:
-    {}.
-"#,
-            lcf::BazinFit::doc(),
-            Self::supported_algorithms_str(),
-        )
-    }
-}
+fit_evaluator!(BazinFit, lcf::BazinFit);
 
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(text_signature = "(features, window, offset)")]
@@ -675,6 +681,8 @@ evaluator!(Skew, lcf::Skew);
 evaluator!(StandardDeviation, lcf::StandardDeviation);
 
 evaluator!(StetsonK, lcf::StetsonK);
+
+fit_evaluator!(VillarFit, lcf::VillarFit);
 
 evaluator!(WeightedMean, lcf::WeightedMean);
 

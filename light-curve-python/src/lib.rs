@@ -89,6 +89,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Skew>()?;
     m.add_class::<StandardDeviation>()?;
     m.add_class::<StetsonK>()?;
+    m.add_class::<VillarFit>()?;
     m.add_class::<WeightedMean>()?;
 
     #[cfg(feature = "nonlinear-fit")]
