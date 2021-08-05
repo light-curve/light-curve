@@ -191,7 +191,7 @@ const N_ALGO_CURVE_FIT: usize = {
     }
 };
 
-const SUPPORTED_ALGORITHMS_CURVE_FIT: [&'static str; N_ALGO_CURVE_FIT] = [
+const SUPPORTED_ALGORITHMS_CURVE_FIT: [&str; N_ALGO_CURVE_FIT] = [
     "mcmc",
     #[cfg(feature = "gsl")]
     "lmsder",
