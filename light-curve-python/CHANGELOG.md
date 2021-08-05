@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update `rust-numpy` and `pyo3` to 0.14
 - Update `light-curve-feature` to 0.3.0-alpha.1
 - `BazinFit` takes `algorithm` argument, GSL is optional now. MCMC is always available, LMSDER requires building with GSL
+- Rename `nonlinear-fit` Cargo feature to `gsl`
 
 ### Depreceted
 
