@@ -21,7 +21,6 @@ where
     // features
     Amplitude,
     AndersonDarlingNormal,
-    #[cfg(feature = "gsl")]
     BazinFit,
     BeyondNStd(BeyondNStd<T>),
     Bins(Bins<T, Self>),
