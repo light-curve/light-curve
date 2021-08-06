@@ -54,7 +54,7 @@ impl<'a, T> DataSample<'a, T>
 where
     T: Float,
 {
-    fn new(sample: CowArray1<'a, T>) -> Self {
+    pub fn new(sample: CowArray1<'a, T>) -> Self {
         Self {
             sample,
             sorted: None,
@@ -177,6 +177,15 @@ where
 {
     fn from(a: Array1<T>) -> Self {
         Self::new(a.into())
+    }
+}
+
+impl<'a, T> From<CowArray1<'a, T>> for DataSample<'a, T>
+where
+    T: Float,
+{
+    fn from(a: CowArray1<'a, T>) -> Self {
+        Self::new(a)
     }
 }
 
