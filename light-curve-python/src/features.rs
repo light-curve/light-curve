@@ -1,15 +1,14 @@
-use crate::arr_wrapper::ArrWrapper;
+use crate::cont_array::ContCowArray;
 use crate::sorted::is_sorted;
 
 use light_curve_feature::{self as lcf, FeatureEvaluator};
-use numpy::{IntoPyArray, PyArray1};
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
-use std::ops::Deref;
 
 type F = f64;
-type Arr<T> = PyArray1<T>;
+type Arr<'a, T> = PyReadonlyArray1<'a, T>;
 type Feature = lcf::Feature<F>;
 
 #[pyclass(subclass, name = "_FeatureEvaluator")]
@@ -24,16 +23,16 @@ impl PyFeatureEvaluator {
     fn __call__<'py>(
         &self,
         py: Python<'py>,
-        t: &Arr<F>,
-        m: &Arr<F>,
-        sigma: Option<&Arr<F>>,
+        t: Arr<F>,
+        m: Arr<F>,
+        sigma: Option<Arr<F>>,
         sorted: Option<bool>,
         fill_value: Option<F>,
     ) -> PyResult<&'py PyArray1<F>> {
         if t.len() != m.len() {
             return Err(PyValueError::new_err("t and m must have the same size"));
         }
-        if let Some(sigma) = sigma {
+        if let Some(ref sigma) = sigma {
             if t.len() != sigma.len() {
                 return Err(PyValueError::new_err("t and sigma must have the same size"));
             }
@@ -60,7 +59,7 @@ impl PyFeatureEvaluator {
             // neither t or sorting is required
             (false, false, _) => false,
         };
-        let t = ArrWrapper::new(t, is_t_required);
+        let t = ContCowArray::from_view(t.as_array(), is_t_required);
         match sorted {
             Some(true) => {}
             Some(false) => {
@@ -69,27 +68,28 @@ impl PyFeatureEvaluator {
                 ))
             }
             None => {
-                if self.feature_evaluator.is_sorting_required() & !is_sorted(&t) {
+                if self.feature_evaluator.is_sorting_required() & !is_sorted(t.as_slice()) {
                     return Err(PyValueError::new_err("t must be in ascending order"));
                 }
             }
         }
 
-        let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required());
+        let m = ContCowArray::from_view(m.as_array(), self.feature_evaluator.is_m_required());
 
         let w = sigma.and_then(|sigma| {
             if self.feature_evaluator.is_w_required() {
-                let mut w = sigma.to_owned_array();
-                w.mapv_inplace(|x| x.powi(-2));
-                Some(ArrWrapper::Owned(w))
+                let cow: ContCowArray<_> = sigma.as_array().into();
+                let mut a = cow.into_owned();
+                a.0.mapv_inplace(|x| x.powi(-2));
+                Some(a)
             } else {
                 None
             }
         });
 
         let mut ts = match w {
-            Some(ref w) => lcf::TimeSeries::new(t.deref(), m.deref(), w.deref()),
-            None => lcf::TimeSeries::new_without_weight(t.deref(), m.deref()),
+            Some(w) => lcf::TimeSeries::new(t.0, m.0, w.0),
+            None => lcf::TimeSeries::new_without_weight(t.0, m.0),
         };
 
         let result = match fill_value {
@@ -640,12 +640,12 @@ impl Periodogram {
     fn freq_power<'py>(
         &self,
         py: Python<'py>,
-        t: &Arr<F>,
-        m: &Arr<F>,
+        t: Arr<F>,
+        m: Arr<F>,
     ) -> (&'py PyArray1<F>, &'py PyArray1<F>) {
-        let t = ArrWrapper::new(t, true);
-        let m = ArrWrapper::new(m, true);
-        let mut ts = lcf::TimeSeries::new_without_weight(t.deref(), m.deref());
+        let t: ContCowArray<_> = t.as_array().into();
+        let m: ContCowArray<_> = m.as_array().into();
+        let mut ts = lcf::TimeSeries::new_without_weight(t.0, m.0);
         let (freq, power) = self.eval.freq_power(&mut ts);
         (freq.into_pyarray(py), power.into_pyarray(py))
     }

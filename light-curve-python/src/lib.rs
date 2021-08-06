@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::wrap_pymodule;
 
-mod arr_wrapper;
+mod cont_array;
 
 mod dmdt;
 use dmdt::DmDt;
