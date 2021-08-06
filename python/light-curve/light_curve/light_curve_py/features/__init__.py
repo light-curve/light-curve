@@ -32,3 +32,4 @@ from .extractor import *
 from .plateau import *
 from .bins import *
 from .otsu import *
+from .stetsonj import *
