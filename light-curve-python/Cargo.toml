@@ -2,7 +2,7 @@
 name = "light-curve-python"
 version = "0.2.6"
 edition = "2018"
-authors = ["Konstantin Malanchev <hombit@gmail.com>"]
+authors = ["Konstantin Malanchev <hombit@gmail.com>", "Anastasia Lavrukhina"]
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/light-curve/light-curve"
 license = "GPL-3.0-or-later"
