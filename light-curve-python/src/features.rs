@@ -244,6 +244,18 @@ macro_rules! fit_evaluator {
                 ))
             }
 
+            #[staticmethod]
+            fn model<'py>(
+                py: Python<'py>,
+                t: Arr<'py, F>,
+                params: Arr<'py, F>,
+            ) -> &'py PyArray1<F> {
+                let params = ContCowArray::from_view(params.as_array(), true);
+                t.as_array()
+                    .mapv(|x| <$eval>::f(x, params.as_slice()))
+                    .into_pyarray(py)
+            }
+
             #[classattr]
             fn supported_algorithms() -> [&'static str; N_ALGO_CURVE_FIT] {
                 return SUPPORTED_ALGORITHMS_CURVE_FIT;
