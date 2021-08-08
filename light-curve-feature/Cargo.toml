@@ -3,6 +3,7 @@ name = "light-curve-feature"
 version = "0.3.0-alpha.4"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/light-curve/light-curve"
+readme = "README.md"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "GPL-3.0-or-later"
 edition = "2018"
