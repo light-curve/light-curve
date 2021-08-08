@@ -783,22 +783,17 @@ py_dmdt_batches!(
 
 /// dm-dt map producer
 ///
-/// THIS IS AN EXPERIMENTAL FEATURE
-/// INTERFACE COULD CHANGE WHEN PATCH VERSION IS CHANGED
-///
-/// Each pair of observations is mapped to dm-dt plane bringing unity
-/// value. dmdt-map is a rectangle on this plane consisted of
-/// `dt_size` x `dm_size` cells, and limited by `[min_dt; max_dt)` and
-/// `[min_dm; max_dm)` intervals. `.points*()` methods assigns unity
-/// value of each observation to a single cell, while `.gausses*()` methods
-/// smears this unity value over all cells with given dt value using
-/// normal distribution `N(m2 - m1, sigma1^2 + sigma2^2)`, where
-/// `(t1, m1, sigma1)` and `(t2, m2, sigma2)` are a pair of observations
-/// including uncertainties. Optionally after the map is built, normalisation
-/// is performed ("norm" parameter): "dt" means divide each dt = const
-/// column by the total number of all observations corresponded to given dt;
-/// "max" means divide all values by the maximum value; both options can be
-/// combined, then "max" is performed after "dt".
+/// Each pair of observations is mapped to dm-dt plane bringing unity value. dmdt-map is a rectangle
+/// on this plane consisted of `dt_size` x `dm_size` cells, and limited by `[min_dt; max_dt)` and
+/// `[min_dm; max_dm)` intervals. `.points*()` methods assigns unity value of each observation to a
+/// single cell, while `.gausses*()` methods smears this unity value over all cells with given dt
+/// value using normal distribution `N(m2 - m1, sigma1^2 + sigma2^2)`, where `(t1, m1, sigma1)` and
+/// `(t2, m2, sigma2)` are a pair of observations including uncertainties. Optionally, after the map
+/// is built, normalisation is performed ("norm" parameter): "dt" means divide each dt = const
+/// column by the total number of all observations corresponded to given dt (in this case
+/// `gausses()` output can be interpreted as conditional probability p(dm|dt)); "max" means divide
+/// all values by the maximum value; both options can be combined, then "max" is performed after
+/// "dt".
 ///
 /// Parameters
 /// ----------
@@ -816,13 +811,13 @@ py_dmdt_batches!(
 ///     - 'asis' means using the given array as a grid
 /// dm_type : str, optional
 ///     Type of `dm` grid, see `dt_type` for details
-/// norm : list of str, opional
+/// norm : list of str, optional
 ///     Types of normalisation, cab be any combination of "dt" and "max",
 ///     default is an empty list `[]` which means no normalisation
 /// n_jobs : int, optional
-///     Number of parallel threads to run in bulk transformation methods such
-///     as `points_many()` or `gausses_batches()` default is `-1` which means
-///     to use as many threads as CPU cores
+///     Number of parallel threads to run bulk methods such as `points_many()`
+///     or `gausses_batches()` default is `-1` which means to use as many
+///     threads as CPU cores
 /// approx_erf : bool, optional
 ///     Use approximation normal CDF in `gausses*` methods, reduces accuracy,
 ///     but has better performance, default is `False`
