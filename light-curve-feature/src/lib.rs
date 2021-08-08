@@ -1,23 +1,4 @@
-//!
-//! `light-curve-feature` is a part of [`light-curve`](https://docs.rs/light-curve) family that
-//! implements extraction of numerous light curve features used in astrophysics.
-//!
-//! ```
-//! use light_curve_feature::*;
-//!
-//! // Let's find amplitude and reduced Chi-squared of the light curve
-//! let fe = FeatureExtractor::<_, Feature<_>>::new(vec![Amplitude::default().into(), ReducedChi2::default().into()]);
-//! // Define light curve
-//! let time = [0.0, 1.0, 2.0, 3.0, 4.0];
-//! let magn = [-1.0, 2.0, 1.0, 3.0, 4.5];
-//! let weights = [5.0, 10.0, 2.0, 10.0, 5.0]; // inverse squared magnitude errors
-//! let mut ts = TimeSeries::new(&time, &magn, &weights);
-//! // Get results and print
-//! let result = fe.eval(&mut ts)?;
-//! let names = fe.get_names();
-//! println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
-//! # Ok::<(), EvaluatorError>(())
-//! ```
+#![doc = include_str!("../README.md")]
 
 #[cfg(test)]
 #[macro_use]
@@ -62,9 +43,11 @@ pub use periodogram::{
 mod sorted_array;
 
 mod straight_line_fit;
+#[doc(hidden)]
 pub use straight_line_fit::fit_straight_line;
 
 mod peak_indices;
+#[doc(hidden)]
 pub use peak_indices::peak_indices;
 
 mod time_series;
