@@ -21,14 +21,13 @@
 
 #[cfg(test)]
 #[macro_use]
-pub mod tests;
+mod tests;
 
 #[macro_use]
 mod macros;
 
 mod evaluator;
 pub use evaluator::FeatureEvaluator;
-pub use features::antifeatures;
 
 mod error;
 pub use error::EvaluatorError;
@@ -36,10 +35,11 @@ pub use error::EvaluatorError;
 mod extractor;
 pub use extractor::FeatureExtractor;
 
-pub mod feature;
+mod feature;
 pub use feature::Feature;
 
 pub mod features;
+pub use features::antifeatures;
 pub use features::*;
 
 mod float_trait;
@@ -50,7 +50,7 @@ mod lnerfc;
 mod nl_fit;
 #[cfg(feature = "gsl")]
 pub use nl_fit::LmsderCurveFit;
-pub use nl_fit::{CurveFitAlgorithm, CurveFitResult, CurveFitTrait, McmcCurveFit};
+pub use nl_fit::{CurveFitAlgorithm, McmcCurveFit};
 
 pub mod periodogram;
 pub use periodogram::recurrent_sin_cos::RecurrentSinCos;
@@ -59,13 +59,15 @@ pub use periodogram::{
     PeriodogramPowerFft, QuantileNyquistFreq,
 };
 
-pub mod sorted_array;
+mod sorted_array;
 
-pub mod straight_line_fit;
+mod straight_line_fit;
+pub use straight_line_fit::fit_straight_line;
 
-pub mod peak_indices;
+mod peak_indices;
+pub use peak_indices::peak_indices;
 
-pub mod time_series;
-pub use time_series::TimeSeries;
+mod time_series;
+pub use time_series::{DataSample, TimeSeries};
 
 mod types;

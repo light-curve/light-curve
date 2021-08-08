@@ -1,3 +1,5 @@
+//! Time-series features highly dependent on the cadence
+
 mod duration;
 pub use duration::Duration;
 

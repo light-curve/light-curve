@@ -5,6 +5,9 @@ use ndarray::Zip;
 
 // See Press et al. sec. 15.2 Fitting Data to a Straight Line, p. 661
 
+/// Straight line fitter
+///
+/// It considers both known and unknown observation error cases
 #[allow(clippy::many_single_char_names)]
 pub fn fit_straight_line<T: Float>(
     ts: &TimeSeries<T>,

@@ -1,3 +1,4 @@
+/// Error returned from [crate::FeatureEvaluator]
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum EvaluatorError {
     #[error("time-series' length {actual} is smaller than the minimum required length {minimum}")]
@@ -12,8 +13,8 @@ pub enum EvaluatorError {
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum SortedArrayError {
-    #[error("SortedVec constructors accept only sorted arrays")]
+    #[error("SortedVec constructors accept sorted arrays only")]
     Unsorted,
-    #[error("SortedVec constructors accept only contiguous arrays")]
+    #[error("SortedVec constructors accept contiguous arrays only")]
     NonContiguous,
 }

@@ -1,3 +1,5 @@
+//! Periodogram-related stuff
+
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
@@ -10,7 +12,7 @@ mod fft;
 pub use fft::{FftwComplex, FftwFloat};
 
 mod freq;
-pub use freq::FreqGrid;
+use freq::FreqGrid;
 pub use freq::{AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, QuantileNyquistFreq};
 
 mod power_fft;
@@ -24,6 +26,7 @@ pub use power_trait::PeriodogramPowerTrait;
 
 pub mod recurrent_sin_cos;
 
+/// Periodogram execution algorithm
 #[enum_dispatch(PeriodogramPowerTrait<T>)]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(bound = "T: Float")]

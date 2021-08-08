@@ -6,11 +6,15 @@ use num_complex::Complex;
 use std::collections::HashMap;
 use std::fmt;
 
+/// Complex number trait for `fftw` crate
 pub trait FftwComplex<T>: AlignedAllocable + Send
 where
     T: AlignedAllocable + Send,
 {
+    /// Real part
     fn get_re(&self) -> T;
+
+    /// Imaginary part
     fn get_im(&self) -> T;
 }
 
@@ -38,6 +42,7 @@ impl FftwComplex<f64> for Complex<f64> {
     }
 }
 
+/// Floating number trait for `fftw` crate
 pub trait FftwFloat: AlignedAllocable + Send {
     type FftwComplex: FftwComplex<Self>;
     type FftwPlan: R2CPlan<Real = Self, Complex = Self::FftwComplex> + Send;
