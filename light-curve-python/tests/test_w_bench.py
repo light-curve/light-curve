@@ -227,7 +227,8 @@ class TestLinearTrend(_FeatureTest, _NaiveTest, _FeetsTest):
 
     def naive(self, t, m, sigma):
         (slope, _), ((slope_sigma2, _), _) = np.polyfit(t, m, deg=1, cov=True)
-        return np.array([slope, np.sqrt(slope_sigma2)])
+        sigma_noise = np.sqrt(np.polyfit(t, m, deg=1, full=True)[1][0] / (t.size - 2))
+        return np.array([slope, np.sqrt(slope_sigma2), sigma_noise])
 
 
 class _TestMagnitudePercentageRatio(_FeatureTest, _FeetsTest):
