@@ -3,7 +3,7 @@ use crate::straight_line_fit::fit_straight_line;
 
 macro_const! {
     const DOC: &str = r#"
-The slope, its error and reduced $\chi^2$ of the light curve in the linear fit
+Slope, its error and reduced $\chi^2$ of the light curve in the linear fit
 
 Least squares fit of the linear stochastic model with Gaussian noise described by observation
 errors $\{\delta_i\}$:

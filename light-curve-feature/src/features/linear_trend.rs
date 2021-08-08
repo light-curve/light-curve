@@ -3,7 +3,7 @@ use crate::straight_line_fit::fit_straight_line;
 
 macro_const! {
     const DOC: &str = r#"
-The slope and noise of the light curve without observation errors in the linear fit
+The slope, its error and noise level of the light curve in the linear fit
 
 Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
 observation errors to be zero:
@@ -11,13 +11,12 @@ $$
 m_i = c + \mathrm{slope}\,t_i + \Sigma \varepsilon_i,
 $$
 where $c$ and $\Sigma$ are constants,
-$\{\varepsilon_i\}$ are standard distributed random variables.
-$\mathrm{slope}$ and $\sigma_\mathrm{slope}$ are returned, if $N = 2$ than no least squares fit is done, a
-slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $0$ are returned.
+$\{\varepsilon_i\}$ are standard distributed random variables. $\mathrm{slope}$,
+$\sigma_\mathrm{slope}$ and $\Sigma$ are returned.
 
 - Depends on: **time**, **magnitude**
-- Minimum number of observations: **2**
-- Number of features: **2**    
+- Minimum number of observations: **3**
+- Number of features: **3**
 "#;
 }
 
@@ -37,8 +36,8 @@ impl LinearTrend {
 
 lazy_info!(
     LINEAR_TREND_INFO,
-    size: 2,
-    min_ts_length: 2,
+    size: 3,
+    min_ts_length: 3,
     t_required: true,
     m_required: true,
     w_required: false,
@@ -50,15 +49,13 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        let size = self.check_ts_length(ts)?;
-        if size == 2 {
-            return Ok(vec![
-                (ts.m.sample[1] - ts.m.sample[0]) / (ts.t.sample[1] - ts.t.sample[0]),
-                T::zero(),
-            ]);
-        }
+        self.check_ts_length(ts)?;
         let result = fit_straight_line(ts, false);
-        Ok(vec![result.slope, T::sqrt(result.slope_sigma2)])
+        Ok(vec![
+            result.slope,
+            T::sqrt(result.slope_sigma2),
+            T::sqrt(result.reduced_chi2),
+        ])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
@@ -66,13 +63,14 @@ where
     }
 
     fn get_names(&self) -> Vec<&str> {
-        vec!["linear_trend", "linear_trend_sigma"]
+        vec!["linear_trend", "linear_trend_sigma", "linear_trend_noise"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {
         vec![
             "linear trend without respect to observation errors",
             "error of slope of linear fit without respect to observation errors",
+            "standard deviation of noise for linear fit without respect to observation errors",
         ]
     }
 }
@@ -89,7 +87,7 @@ mod tests {
     feature_test!(
         linear_trend,
         [LinearTrend::new()],
-        [1.38198758, 0.24532195657979344],
+        [1.38198758, 0.24532195657979344, 2.54157969],
         [1.0_f32, 3.0, 5.0, 7.0, 11.0, 13.0],
         [1.0_f32, 2.0, 3.0, 8.0, 10.0, 19.0],
     );
