@@ -15,14 +15,11 @@ mod sorted;
 
 /// High-performance time-series feature extractor
 ///
-/// The module provides a collection of features to be extracted from unevenly
-/// separated time-series. This module if based on Rust crates
-/// `light-curve-feature` & `light-curve-dmdt`.
+/// The module provides a collection of features to be extracted from unevenly separated
+/// time-series. This module if based on Rust crates `light-curve-feature` & `light-curve-dmdt`.
 ///
-/// dm-lg(dt) maps generator is represented by `DmDt` class, it has different
-/// interface from all other features, see its documentation for details.
-///
-/// Features documentation can be found on https://docs.rs/light-curve-feature
+/// dm-lg(dt) maps generator is represented by `DmDt` class, while all other classes are
+/// feature extractors
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
