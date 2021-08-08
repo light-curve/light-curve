@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update `rust-numpy` and `pyo3` to 0.14
 - Update `light-curve-feature` to 0.3.0
 - Rename `nonlinear-fit` Cargo feature to `gsl`
+- Docstrings impove
 
 ### Depreceted
 
