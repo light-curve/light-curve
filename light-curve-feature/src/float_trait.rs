@@ -20,6 +20,7 @@ lazy_static! {
     static ref ARRAY0_UNITY_F64: Array0<f64> = Array0::from_elem((), 1.0);
 }
 
+/// Floating number trait, it is implemented for [f32] and [f64] only
 pub trait Float:
     'static
     + Sized

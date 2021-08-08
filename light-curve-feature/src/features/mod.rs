@@ -1,3 +1,5 @@
+//! Feature sctructs implements [crate::FeatureEvaluator] trait
+
 pub mod antifeatures;
 
 mod amplitude;

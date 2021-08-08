@@ -1,6 +1,6 @@
 use criterion::{black_box, Criterion};
 use light_curve_common::linspace;
-use light_curve_feature::straight_line_fit::fit_straight_line;
+use light_curve_feature::fit_straight_line;
 use light_curve_feature::TimeSeries;
 use rand::prelude::*;
 

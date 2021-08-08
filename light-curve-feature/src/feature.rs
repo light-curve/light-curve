@@ -8,6 +8,9 @@ use crate::time_series::TimeSeries;
 use enum_dispatch::enum_dispatch;
 use std::fmt::Debug;
 
+/// All features are available as variants of this enum
+///
+/// Consider to import [crate::FeatureEvaluator] as well
 #[enum_dispatch(FeatureEvaluator<T>)]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(bound = "T: Float")]

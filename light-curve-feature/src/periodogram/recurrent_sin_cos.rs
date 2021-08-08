@@ -1,11 +1,17 @@
+//! Recurrent sine-cosine implementation
+
 use crate::float_trait::Float;
 
+/// Iterator over sin(kx), cos(kx) pairs
+///
+/// It starts with sin(x), cos(x) and yields values for 2x, 3x, ... while iterating
 pub struct RecurrentSinCos<T> {
     first: (T, T),
     current: (T, T),
 }
 
 impl<T: Float> RecurrentSinCos<T> {
+    /// Construct [RecurrentSinCos] from angle x
     pub fn new(x: T) -> Self {
         let first = x.sin_cos();
         Self {

@@ -1,7 +1,7 @@
 use criterion::{black_box, Criterion};
 use light_curve_common::linspace;
 use light_curve_feature::periodogram::*;
-use light_curve_feature::time_series::TimeSeries;
+use light_curve_feature::TimeSeries;
 
 pub fn bench_periodogram(c: &mut Criterion) {
     let ns_power_resolution: [(Vec<usize>, PeriodogramPower<f32>, f32); 2] = [

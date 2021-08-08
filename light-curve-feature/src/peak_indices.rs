@@ -2,6 +2,7 @@ use crate::float_trait::Float;
 
 use ndarray::ArrayView1;
 
+/// Find local maxima of the array and return their indices
 pub fn peak_indices<'a, T>(a: impl Into<ArrayView1<'a, T>>) -> Vec<usize>
 where
     T: Float,
@@ -22,6 +23,7 @@ where
         .0
 }
 
+/// Find local maxima of the array and return their indices sorted in descending peak value
 pub fn peak_indices_reverse_sorted<'a, T>(a: impl Into<ArrayView1<'a, T>>) -> Vec<usize>
 where
     T: Float,

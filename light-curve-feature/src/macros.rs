@@ -1,5 +1,4 @@
 /// Helper for static EvaluatorInfo creation
-#[macro_export]
 macro_rules! lazy_info {
     (
         $name: ident,
@@ -27,7 +26,6 @@ macro_rules! lazy_info {
 /// You must implement:
 /// - method `transform_ts(ts: &mut TimeSeries<T>) -> Result<impl OwnedArrays<T>, EvaluatorError>`
 /// - attribute `properties: Box<EvaluatorProperties>`
-#[macro_export]
 macro_rules! transformer_eval {
     () => {
         fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
@@ -67,7 +65,7 @@ macro_rules! transformer_eval {
     };
 }
 
-#[macro_export]
+/// Helper implementing JsonSchema crate
 macro_rules! json_schema {
     ($parameters: ty, $is_referenceable: expr) => {
         fn is_referenceable() -> bool {

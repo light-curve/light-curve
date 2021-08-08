@@ -1,21 +1,29 @@
 use crate::float_trait::Float;
 use crate::sorted_array::SortedArray;
+
 use conv::{ConvAsUtil, ConvUtil, RoundToNearest};
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
+use macro_const::macro_const;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-/// Derive Nyquist frequency from time series
-///
-/// Nyquist frequency for unevenly time series is not well-defined. Here we define it as
-/// $\pi / \delta t$, where $\delta t$ is some typical interval between consequent observations
+macro_const! {
+    const NYQUIST_FREQ_DOC: &'static str = r#"Derive Nyquist frequency from time series
+
+Nyquist frequency for unevenly time series is not well-defined. Here we define it as
+$\pi / \delta t$, where $\delta t$ is some typical interval between consequent observations
+"#;
+}
+
+#[doc = NYQUIST_FREQ_DOC!()]
 #[enum_dispatch]
 trait NyquistFreqTrait: Send + Sync + Clone + Debug {
     fn nyquist_freq<T: Float>(&self, t: &[T]) -> T;
 }
 
+#[doc = NYQUIST_FREQ_DOC!()]
 #[enum_dispatch(NyquistFreqTrait)]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
