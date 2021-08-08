@@ -1,6 +1,7 @@
 use crate::cont_array::ContCowArray;
 use crate::sorted::is_sorted;
 
+use const_format::formatcp;
 use light_curve_feature::{self as lcf, FeatureEvaluator};
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
@@ -10,6 +11,43 @@ use pyo3::types::PyTuple;
 type F = f64;
 type Arr<'a, T> = PyReadonlyArray1<'a, T>;
 type Feature = lcf::Feature<F>;
+
+const ATTRIBUTES_DOC: &str = r#"Attributes
+----------
+names : list of str
+    Feature names
+descriptions : list of str
+    Feature descriptions"#;
+
+const METHODS_DOC: &str = r#"Methods
+-------
+__call__(t, m, sigma=None, sorted=None, fill_value=None)
+    Extract features and return them as a numpy array
+
+    Parameters
+    ----------
+    t : numpy.ndarray of np.float64 dtype
+        Time moments
+    m : numpy.ndarray of np.float64 dtype
+        Power of observed signal (magnitude or flux)
+    sigma : numpy.ndarray of np.float64 dtype or None, optional
+        Observation error, if None it is assumed to be unity
+    sorted : bool or None, optional
+        Specifies if input array are sorted by time moments.
+        True is for certainly sorted, False is for unsorted.
+        If None is specified than sorting is checked and an exception is
+        raised for unsorted `t`
+    fill_value : float or None, optional
+        Value to fill invalid feature values, for example if count of
+        observations is not enough to find a proper value.
+        None causes exception for invalid features
+        
+    Returns
+    -------
+    ndarray of np.float64
+        Extracted feature array"#;
+
+const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHODS_DOC);
 
 #[pyclass(subclass, name = "_FeatureEvaluator")]
 pub struct PyFeatureEvaluator {
@@ -148,8 +186,10 @@ Parameters
 ----------
 *features : iterable
     Feature objects
+{}
 "#,
-            lcf::FeatureExtractor::<F, Feature>::doc().trim_start()
+            lcf::FeatureExtractor::<F, Feature>::doc().trim_start(),
+            COMMON_FEATURE_DOC,
         )
     }
 }
@@ -173,8 +213,8 @@ macro_rules! evaluator {
             }
 
             #[classattr]
-            fn __doc__() -> &'static str {
-                <$eval>::doc().trim_start()
+            fn __doc__() -> String {
+                format!("{}{}", <$eval>::doc().trim_start(), COMMON_FEATURE_DOC)
             }
         }
     };
@@ -264,16 +304,54 @@ macro_rules! fit_evaluator {
             #[classattr]
             fn __doc__() -> String {
                 format!(
-                    r#"{}
-
+                    r#"{intro}
 Parameters
 ----------
 algorithm : str, optional
     Non-linear least-square algorithm, supported values are:
-    {}.
+    {supported_algo}.
+
+{attr}
+supported_algorithms : list of str
+    Available argument values for the constructor
+
+{methods}
+
+model(t, params)
+    Underlying parametric model function
+    
+    Parameters
+    ----------
+    t : np.ndarray of np.float64
+        Time moments, can be unsorted
+    params : np.ndaarray of np.float64
+        Parameters of the model, this array can be longer than actual parameter
+        list, the beginning part of the array will be used in this case
+        
+    Returns
+    -------
+    np.ndarray of np.float64
+        Array of model values corresponded to the given time moments
+        
+Examples
+--------
+>>> import numpy as np
+>>> from light_curve import {feature}
+>>> 
+>>> fit = {feature}('mcmc')
+>>> t = np.linspace(0, 10, 101)
+>>> flux = 1 + (t - 3) ** 2
+>>> fluxerr = np.sqrt(flux)
+>>> result = fit(t, flux, fluxerr, sorted=True)
+>>> # Result is built from a model parameters and reduced chi^2
+>>> # So we can use as a `params` array
+>>> model = {feature}.model(t, result)
 "#,
-                    <$eval>::doc(),
-                    Self::supported_algorithms_str(),
+                    intro = <$eval>::doc().trim_start(),
+                    supported_algo = Self::supported_algorithms_str(),
+                    attr = ATTRIBUTES_DOC,
+                    methods = METHODS_DOC,
+                    feature = stringify!($name),
                 )
             }
         }
@@ -309,8 +387,9 @@ Parameters
 ----------
 nstd : positive float
     N
-"#,
-            lcf::BeyondNStd::<F>::doc().trim_start()
+{}"#,
+            lcf::BeyondNStd::<F>::doc().trim_start(),
+            COMMON_FEATURE_DOC,
         )
     }
 }
@@ -403,8 +482,9 @@ Parameters
 ----------
 quantile : positive float
     Range is (100% * quantile, 100% * (1 - quantile))
-"#,
-            lcf::InterPercentileRange::doc().trim_start()
+{}"#,
+            lcf::InterPercentileRange::doc().trim_start(),
+            COMMON_FEATURE_DOC
         )
     }
 }
@@ -460,8 +540,9 @@ quantile_numerator: positive float
     Numerator is inter-percentile range (100% * q, 100% (1 - q))
 quantile_denominator: positive float
     Denominator is inter-percentile range (100% * q, 100% (1 - q))        
-"#,
-            lcf::MagnitudePercentageRatio::doc().trim_start()
+{}"#,
+            lcf::MagnitudePercentageRatio::doc().trim_start(),
+            COMMON_FEATURE_DOC
         )
     }
 }
@@ -502,8 +583,9 @@ Parameters
 ----------
 quantile : positive float
     Relative range size      
-"#,
-            lcf::MedianBufferRangePercentage::<F>::doc()
+{}"#,
+            lcf::MedianBufferRangePercentage::<F>::doc(),
+            COMMON_FEATURE_DOC
         )
     }
 }
@@ -536,8 +618,9 @@ Parameters
 ----------
 quantile : positive float
     Relative range size
-"#,
-            lcf::PercentDifferenceMagnitudePercentile::doc()
+{}"#,
+            lcf::PercentDifferenceMagnitudePercentile::doc(),
+            COMMON_FEATURE_DOC
         )
     }
 }
@@ -665,8 +748,7 @@ impl Periodogram {
     #[classattr]
     fn __doc__() -> String {
         format!(
-            r#"{}
-
+            r#"{intro}
 Parameters
 ----------
 peaks : int or None, optional
@@ -691,8 +773,38 @@ fast : bool or None, optional
 
 features : iterable or None, optional
     Features to extract from periodogram considering it as a time-series
+
+{common}
+freq_power(t, m)
+    Get periodogram
+    
+    Parameters
+    ----------
+    t : np.ndarray of np.float64
+        Time array
+    m : np.ndarray of np.float64
+        Magnitude (flux) array
+    
+    Returns
+    -------
+    freq : np.ndarray of np.float64
+        Frequency grid
+    power : np.ndarray of np.float64
+        Periodogram power
+
+Examples
+--------
+>>> import numpy as np
+>>> from light_curve import Periodogram
+>>> periodogram = Periodogram(peaks=2, resolution=20.0, max_freq_factor=2.0,
+...                           nyquist='average', fast=True)
+>>> t = np.linspace(0, 10, 101)
+>>> m = np.sin(2*np.pi * t / 0.7) + 0.5 * np.cos(2*np.pi * t / 3.3)
+>>> peaks = periodogram(t, m, sorted=True)[::2]
+>>> frequency, power = periodogram.freq_power(t, m) 
 "#,
-            lcf::Periodogram::<F, Feature>::doc()
+            intro = lcf::Periodogram::<F, Feature>::doc(),
+            common = ATTRIBUTES_DOC,
         )
     }
 }
