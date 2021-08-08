@@ -7,6 +7,7 @@ use itertools::Itertools;
 use ndarray::{s, Array1, ArrayView1, Zip};
 use ndarray_stats::SummaryStatisticsExt;
 
+/// A [TimeSeries] component
 #[derive(Clone, Debug)]
 pub struct DataSample<'a, T>
 where
@@ -189,6 +190,10 @@ where
     }
 }
 
+/// Time series object to be put into [Feature](crate::Feature)
+///
+/// This struct caches it's properties, like mean magnitude value, etc., that's why mutable
+/// reference is required fot feature evaluation
 #[derive(Clone, Debug)]
 pub struct TimeSeries<'a, T>
 where
@@ -226,6 +231,13 @@ impl<'a, T> TimeSeries<'a, T>
 where
     T: Float,
 {
+    /// Construct `TimeSeries` from array-like objects
+    ///
+    /// `t` is time, `m` is magnitude (or flux), `w` is weights.
+    ///
+    /// All arrays must have the same length, `t` must increase monotonically. Input arrays could be
+    /// [ndarray::Array1], [ndarray::ArrayView1], 1-D [ndarray::CowArray], or `&[T]`. Several
+    /// features assumes that `w` array corresponds to inverse square errors of `m`.
     pub fn new(
         t: impl Into<DataSample<'a, T>>,
         m: impl Into<DataSample<'a, T>>,
@@ -258,6 +270,11 @@ where
         }
     }
 
+    /// Construct [TimeSeries] from time and magnitude (flux)
+    ///
+    /// It is the same as [TimeSeries::new], but sets unity weights. It doesn't recommended to use
+    /// it for features dependent on weights / observation errors like [crate::StetsonK] or
+    /// [crate::LinearFit].
     pub fn new_without_weight(
         t: impl Into<DataSample<'a, T>>,
         m: impl Into<DataSample<'a, T>>,
@@ -285,11 +302,13 @@ where
         }
     }
 
+    /// Time series length
     #[inline]
     pub fn lenu(&self) -> usize {
         self.t.sample.len()
     }
 
+    /// Time series length
     pub fn lenf(&self) -> T {
         self.lenu().value_as::<T>().unwrap()
     }
