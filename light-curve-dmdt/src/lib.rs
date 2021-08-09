@@ -16,56 +16,7 @@ pub use erf::{Eps1Over1e3Erf, ErfFloat, ErrorFunction, ExactErf};
 mod float_trait;
 pub use float_trait::Float;
 
-pub trait Normalisable:
-    ApproxInto<u8, DefaultApprox>
-    + ValueFrom<u64>
-    + num_traits::Num
-    + num_traits::NumOps
-    + PartialOrd
-    + ScalarOperand
-    + Copy
-{
-    fn clamp(self, min: Self, max: Self) -> Self;
-    fn max_u8() -> Self;
-}
-
-impl Normalisable for u64 {
-    fn clamp(self, min: Self, max: Self) -> Self {
-        match self {
-            _ if self < min => min,
-            x if self <= max => x,
-            _ => max,
-        }
-    }
-
-    #[inline]
-    fn max_u8() -> Self {
-        255
-    }
-}
-
-impl Normalisable for f32 {
-    fn clamp(self, min: Self, max: Self) -> Self {
-        self.clamp(min, max)
-    }
-
-    #[inline]
-    fn max_u8() -> Self {
-        255.0
-    }
-}
-
-impl Normalisable for f64 {
-    fn clamp(self, min: Self, max: Self) -> Self {
-        self.clamp(min, max)
-    }
-
-    #[inline]
-    fn max_u8() -> Self {
-        255.0
-    }
-}
-
+/// Grid for dm or dt axis
 #[clonable]
 pub trait Grid<T>: Clone + Debug + Send + Sync
 where
