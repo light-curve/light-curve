@@ -39,11 +39,10 @@ jobs:
         command: build
         args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-mkl
     - name: Check light-curve-dmdt/{README.md,example.png}
+      working-directory: light-curve-dmdt
       run: |
         ./.ci/compose-readme.py
         git diff --word-diff --exit-code
-      with:
-        working-directory: light-curve-dmdt
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
