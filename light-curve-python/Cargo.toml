@@ -1,8 +1,8 @@
 [package]
 name = "light-curve-python"
-version = "0.3.0-beta.0"
+version = "0.3.0-beta.1"
 edition = "2018"
-authors = ["Konstantin Malanchev <hombit@gmail.com>", "Anastasia Lavrukhina"]
+authors = ["Konstantin Malanchev <hombit@gmail.com>", "Anastasia Lavrukhina <lavrukhina.ad@gmail.com>"]
 description = "Feature extractor from noisy time series"
 readme = "README.md"
 repository = "https://github.com/light-curve/light-curve"
