@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - README.md
+- Documentation comments
 
 ### Changed
 
-— Remove unused `Normalisable` trait
+- Remove unused `Normalisable` trait
+- Make `is_sorted()` private
 
 ### Depreceted
 
