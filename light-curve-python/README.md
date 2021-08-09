@@ -2,6 +2,14 @@
 
 This package provides a collection of light curve feature extractions classes.
 
+## Installation
+
+```sh
+python3 -mpip install light-curve-python
+```
+
+Note that in the future the package will be renamed to `light-curve`
+
 ## Feature evaluators 
 
 Most of the classes implement various feature evaluators useful for astrophysical sources classification and
