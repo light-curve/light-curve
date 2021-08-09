@@ -53,9 +53,9 @@ where
 
 /// Checks if slice is sorted and have no duplicates
 ///
-/// It could be replacce with the corresponding standard library method when it will be stabilized
+/// It could be replace with the corresponding standard library method when it will be stabilized
 /// <https://github.com/rust-lang/rust/issues/53485>
-pub fn is_sorted<T>(a: &[T]) -> bool
+fn is_sorted<T>(a: &[T]) -> bool
 where
     T: PartialOrd,
 {
