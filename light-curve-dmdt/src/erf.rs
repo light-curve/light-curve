@@ -2,6 +2,11 @@ use crate::float_trait::Float;
 use conv::*;
 use std::fmt::Debug;
 
+/// Error function trait
+///
+/// Error function is used to find integral over cell of the Gaussian distribution.
+///
+/// [Wikipedia article](https://en.wikipedia.org/wiki/Error_function)
 pub trait ErrorFunction<T>: Clone + Debug
 where
     T: ErfFloat,
@@ -19,6 +24,7 @@ where
     }
 }
 
+/// "Exact" value of the error function
 #[derive(Copy, Clone, Debug)]
 pub struct ExactErf;
 
@@ -35,6 +41,9 @@ where
     }
 }
 
+/// Approximate error function with maximum absolute error to be bellow 1e-3
+///
+/// It uses pre-compute error function grid and interpolate linearly over it
 #[derive(Copy, Clone, Debug)]
 pub struct Eps1Over1e3Erf;
 
@@ -51,6 +60,7 @@ where
     }
 }
 
+/// Float trait for [ErrorFunction], implemented for [f32] and [f64] only
 pub trait ErfFloat: Float + ApproxInto<usize, RoundToZero> + num_traits::Float {
     const SQRT_2_ERFINV_UNITY_MINUS_EPS: Self;
 

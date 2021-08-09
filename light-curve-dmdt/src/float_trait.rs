@@ -1,5 +1,6 @@
 use conv::*;
 
+/// Float number trait, it is implemented for [f32] and [f64] only
 pub trait Float:
     ndarray::NdFloat
     + num_traits::FloatConst
