@@ -8,7 +8,7 @@ use conv::ConvUtil;
 
 macro_const! {
     const DOC: &str = r#"
-Bazin fit:
+Bazin function fit
 
 Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Bazin function developed for
 core-collapsed supernovae:

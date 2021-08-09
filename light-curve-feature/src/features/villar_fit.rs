@@ -8,9 +8,9 @@ use conv::ConvUtil;
 
 macro_const! {
     const DOC: &str = r#"
-Villar fit
+Villar function fit
 
-Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Villar function developed for
+Seven fit parameters and goodness of fit (reduced $\Chi^2$) of the Villar function developed for
 supernovae classification:
 $$
 f(t) = c + \frac{ A + \beta (t - t_0) }{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{split} &1, t < t_0 + \gamma \\ &\exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, t \geq t_0 + \gamma \end{split} \right.
