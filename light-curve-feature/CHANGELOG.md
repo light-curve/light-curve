@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+—
+
+### Changed
+
+—
+
+### Deprecated
+
+—
+
+### Removed
+
+—
+
+### Fixed
+
+—
+
+### Security
+
+—
+
+## [0.3.0]
+
+### Added
+
 - This `CHANGELOG.md` file
 - `Feature` enum containing all available features, it implements `FeatureEvaluator`
 - (De)serialization with [`serde`](http://serde.rs) is implemented for all features
@@ -28,22 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `VillarFit` feature for the Villar function [arXiv:1905.07422](http://arxiv.org/abs/1905.07422), see `BazinFit` above for technical details
 - `LinearTrend` requires at least three observations and returns three values: slope, its error and standard deviation of noise (new) 
 - Publicly exported stuff
-
-### Depreceted
-
-—
-
-### Removed
-
-—
-
-### Fixed
-
-—
-
-### Security
-
-—
 
 ## [0.2.x]
 
