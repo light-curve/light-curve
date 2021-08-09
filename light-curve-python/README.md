@@ -34,7 +34,7 @@ print('\n'.join(f'{name} = {value:.2f}' for name, value in zip(extractor.names, 
 
 ## dm-dt map
 
-Class `DmDt` provides dm–dt mapper ([Mahabal et al. 2011](https://ui.adsabs.harvard.edu/abs/2011BASI...39..387M/abstract), [Soraisam et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...892..112S/abstract)).
+Class `DmDt` provides dm–dt mapper (based on [Mahabal et al. 2011](https://ui.adsabs.harvard.edu/abs/2011BASI...39..387M/abstract), [Soraisam et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...892..112S/abstract)).
 
 ```python
 import numpy as np

@@ -36,7 +36,7 @@ thiserror = "^1.0.24"
 unzip3 = "1.0.0"
 
 [dependencies.light-curve-feature]
-version = "0.3.0-beta.0"
+version = "0.3.0"
 default_features = false
 
 [dependencies.pyo3]
