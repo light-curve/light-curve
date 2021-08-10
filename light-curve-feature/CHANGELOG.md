@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-—
+- `periodogram` module is hidden from the docs
 
 ### Deprecated
 
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Docs for `Extractor`, `VillarFit` and `BazinFit`
+- Docs for `Extractor`, `FeatureEvaluator`, `VillarFit` and `BazinFit`
 
 ### Security
 
