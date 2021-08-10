@@ -5,8 +5,8 @@ implements extraction of numerous light curve features used in astrophysics.
 
 All features are available in [Feature](crate::Feature) enum, and the recommended way to extract multiple features at
 once is [FeatureExtractor](crate::FeatureExtractor) struct built from a `Vec<Feature>`. Data is represented by
-[TimeSeries](crate::TimeSeries) struct built from time, magnitude (or flux) and weights arrays of the same length. Note
-that multiple features interprets weight array as inversed squared observation errors. 
+[TimeSeries](crate::TimeSeries) struct built from time, magnitude (or flux) and weights arrays, all having the same length. Note
+that multiple features interpret weight array as inversed squared observation errors. 
 
 ```rust
 use light_curve_feature::*;
@@ -26,7 +26,7 @@ println!("{:?}", names.iter().zip(result.iter()).collect::<Vec<_>>());
 ```
 
 There are a couple of meta-features, which transform a light curve before feature extraction. For example
-[Bins](crate::Bins) feature which accumulate data inside time-windows and evaluate features on this new light curve 
+[Bins](crate::Bins) feature accumulates data inside time-windows and extracts features from this new light curve. 
 
 ```rust
 use light_curve_feature::*;
