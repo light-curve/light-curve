@@ -8,13 +8,13 @@ Slope, its error and reduced $\chi^2$ of the light curve in the linear fit
 Least squares fit of the linear stochastic model with Gaussian noise described by observation
 errors $\{\delta_i\}$:
 $$
-m_i = c + \mathrm{slope}\,t_i + \delta_i \varepsilon_i
+m_i = c + \mathrm{slope} t_i + \delta_i \varepsilon_i
 $$
 where $c$ is a constant,
 $\{\varepsilon_i\}$ are standard distributed random variables.
 
 Feature values are $\mathrm{slope}$, $\sigma_\mathrm{slope}$ and
-$\frac{\sum{((m_i - c - \mathrm{slope}\,t_i) / \delta_i)^2}}{N - 2}$.
+$\frac{\sum{((m_i - c - \mathrm{slope} t_i) / \delta_i)^2}}{N - 2}$.
 
 - Depends on: **time**, **magnitude**, **magnitude error**
 - Minimum number of observations: **3**

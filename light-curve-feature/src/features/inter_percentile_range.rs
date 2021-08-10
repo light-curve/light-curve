@@ -5,7 +5,7 @@ macro_const! {
 Inter-percentile range
 
 $$
-\mathrm{inter-percetile range} \equiv Q(1 - p) - Q(p),
+Q(1 - p) - Q(p),
 $$
 where $Q(p)$ is the $p$th quantile of the magnitude distribution.
 

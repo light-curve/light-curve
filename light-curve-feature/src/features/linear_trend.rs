@@ -8,9 +8,9 @@ The slope, its error and noise level of the light curve in the linear fit
 Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
 observation errors to be zero:
 $$
-m_i = c + \mathrm{slope}\,t_i + \Sigma \varepsilon_i,
+m_i = c + \mathrm{slope} t_i + \Sigma \varepsilon_i,
 $$
-where $c$ and $\Sigma$ are constants,
+where $c$ is a constant,
 $\{\varepsilon_i\}$ are standard distributed random variables. $\mathrm{slope}$,
 $\sigma_\mathrm{slope}$ and $\Sigma$ are returned.
 

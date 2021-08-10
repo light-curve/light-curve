@@ -10,8 +10,9 @@ macro_const! {
     const DOC: &str = r#"
 Bazin function fit
 
-Five fit parameters and goodness of fit (reduced $\Chi^2$) of the Bazin function developed for
+Five fit parameters and goodness of fit (reduced $\chi^2$) of the Bazin function developed for
 core-collapsed supernovae:
+
 $$
 f(t) = A \frac{ \mathrm{e}^{ -(t-t_0)/\tau_\mathrm{fall} } }{ 1 + \mathrm{e}^{ -(t - t_0) / \tau_\mathrm{rise} } } + B.
 $$

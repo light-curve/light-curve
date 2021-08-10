@@ -5,7 +5,7 @@ macro_const! {
 Median magnitude
 
 $$
-\mathrm{Median}
+\mathrm{Median}(m_i)
 $$
 
 - Depends on: **magnitude**

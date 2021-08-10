@@ -14,6 +14,8 @@ and $\bar{m}$ is the weighted mean magnitude.
 - Minimum number of observations: **2**
 - Number of features: **1**
 
+This is a good measure of variability which takes into account observations uncertainties.
+
 [Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)    
 "#;
 }

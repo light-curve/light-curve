@@ -6,7 +6,7 @@ use unzip3::Unzip3;
 
 macro_const! {
     const DOC: &str = r#"
-Bins — sampled time series
+Sampled time series meta-feature
 
 Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
 $j-th$ bin interval is
@@ -22,11 +22,11 @@ $$
 \delta_j^* = \frac{N_j}{\sum{\delta_i^{-2}}},
 $$
 where $N_j$ is a number of sampling observations and all sums are over observations inside
-considering bin
+considering bin. Bins takes any other feature evaluators to extract features from sample time series
 
 - Depends on: **time**, **magnitude**, **magnitude error**
-- Minimum number of observations: **1** (or as required by sub-features)
-- Number of features: **$...$**   
+- Minimum number of observations: as required by sub-features, but at least **1**
+- Number of features: as provided by sub-features
 "#;
 }
 
