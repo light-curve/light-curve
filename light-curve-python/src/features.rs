@@ -2,7 +2,7 @@ use crate::cont_array::ContCowArray;
 use crate::sorted::is_sorted;
 
 use const_format::formatcp;
-use light_curve_feature::{self as lcf, FeatureEvaluator};
+use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator, Float};
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
@@ -97,7 +97,11 @@ impl PyFeatureEvaluator {
             // neither t or sorting is required
             (false, false, _) => false,
         };
-        let t = ContCowArray::from_view(t.as_array(), is_t_required);
+        let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
+            t.as_array().into()
+        } else {
+            F::array0_unity().broadcast(t.len()).unwrap().into()
+        };
         match sorted {
             Some(true) => {}
             Some(false) => {
@@ -112,13 +116,16 @@ impl PyFeatureEvaluator {
             }
         }
 
-        let m = ContCowArray::from_view(m.as_array(), self.feature_evaluator.is_m_required());
+        let m: lcf::DataSample<_> = if self.feature_evaluator.is_m_required() || m.is_contiguous() {
+            m.as_array().into()
+        } else {
+            F::array0_unity().broadcast(m.len()).unwrap().into()
+        };
 
         let w = sigma.and_then(|sigma| {
             if self.feature_evaluator.is_w_required() {
-                let cow: ContCowArray<_> = sigma.as_array().into();
-                let mut a = cow.into_owned();
-                a.0.mapv_inplace(|x| x.powi(-2));
+                let mut a = sigma.to_owned_array();
+                a.mapv_inplace(|x| x.powi(-2));
                 Some(a)
             } else {
                 None
@@ -126,8 +133,8 @@ impl PyFeatureEvaluator {
         });
 
         let mut ts = match w {
-            Some(w) => lcf::TimeSeries::new(t.0, m.0, w.0),
-            None => lcf::TimeSeries::new_without_weight(t.0, m.0),
+            Some(w) => lcf::TimeSeries::new(t, m, w),
+            None => lcf::TimeSeries::new_without_weight(t, m),
         };
 
         let result = match fill_value {
@@ -738,9 +745,9 @@ impl Periodogram {
         t: Arr<F>,
         m: Arr<F>,
     ) -> (&'py PyArray1<F>, &'py PyArray1<F>) {
-        let t: ContCowArray<_> = t.as_array().into();
-        let m: ContCowArray<_> = m.as_array().into();
-        let mut ts = lcf::TimeSeries::new_without_weight(t.0, m.0);
+        let t: DataSample<_> = t.as_array().into();
+        let m: DataSample<_> = m.as_array().into();
+        let mut ts = lcf::TimeSeries::new_without_weight(t, m);
         let (freq, power) = self.eval.freq_power(&mut ts);
         (freq.into_pyarray(py), power.into_pyarray(py))
     }
