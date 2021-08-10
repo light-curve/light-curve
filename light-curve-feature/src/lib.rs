@@ -33,6 +33,7 @@ mod nl_fit;
 pub use nl_fit::LmsderCurveFit;
 pub use nl_fit::{CurveFitAlgorithm, McmcCurveFit};
 
+#[doc(hidden)]
 pub mod periodogram;
 pub use periodogram::recurrent_sin_cos::RecurrentSinCos;
 pub use periodogram::{

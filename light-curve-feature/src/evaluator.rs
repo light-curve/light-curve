@@ -33,10 +33,10 @@ pub struct EvaluatorProperties {
 pub trait FeatureEvaluator<T: Float>:
     Send + Clone + Debug + Serialize + DeserializeOwned + JsonSchema
 {
-    /// Should return the vector of feature values or `EvaluatorError`
+    /// Vector of feature values or `EvaluatorError`
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
 
-    /// Should return the vector of feature values and fill invalid components with given value
+    /// Returns vector of feature values and fill invalid components with given value
     fn eval_or_fill(&self, ts: &mut TimeSeries<T>, fill_value: T) -> Vec<T> {
         match self.eval(ts) {
             Ok(v) => v,
@@ -47,40 +47,47 @@ pub trait FeatureEvaluator<T: Float>:
     /// Get feature evaluator meta-information
     fn get_info(&self) -> &EvaluatorInfo;
 
-    /// Should return the vector of feature names. The length and feature order should
-    /// correspond to `eval()` output
+    /// Vector of feature names. The length and feature order corresponds to
+    /// [eval()](FeatureEvaluator::eval) output
     fn get_names(&self) -> Vec<&str>;
 
-    /// Should return the vector of feature descriptions. The length and feature order should
-    /// correspond to `eval()` output
+    /// Vector of feature descriptions. The length and feature order corresponds to
+    /// [eval()](FeatureEvaluator::eval) output
     fn get_descriptions(&self) -> Vec<&str>;
 
-    /// Should return the size of vectors returned by `eval()` and `get_names()`
+    /// Size of vectors returned by [eval()](FeatureEvaluator::eval),
+    /// [get_names()](FeatureEvaluator::get_names) and
+    /// [get_descriptions()](FeatureEvaluator::get_descriptions)
     fn size_hint(&self) -> usize {
         self.get_info().size
     }
 
-    /// Should return minimum time series length to successfully find feature value
+    /// Minimum time series length required to successfully evaluate feature
     fn min_ts_length(&self) -> usize {
         self.get_info().min_ts_length
     }
 
+    /// If time array used by the feature
     fn is_t_required(&self) -> bool {
         self.get_info().t_required
     }
 
+    /// If magnitude array is used by the feature
     fn is_m_required(&self) -> bool {
         self.get_info().m_required
     }
 
+    /// If weight array is used by the feature
     fn is_w_required(&self) -> bool {
         self.get_info().w_required
     }
 
+    /// If feature requires time-sorting on the input [TimeSeries]
     fn is_sorting_required(&self) -> bool {
         self.get_info().sorting_required
     }
 
+    /// Checks if [TimeSeries] has enough points to evaluate the feature
     fn check_ts_length(&self, ts: &TimeSeries<T>) -> Result<usize, EvaluatorError> {
         let length = ts.lenu();
         if length < self.min_ts_length() {
