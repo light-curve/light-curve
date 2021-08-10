@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 
 macro_const! {
     const DOC: &str = r#"
-The engine which extracts features one by one
+Bulk feature extractor
 
 - Depends on: as reuired by feature evaluators
 - Minimum number of observations: as required by feature evaluators
