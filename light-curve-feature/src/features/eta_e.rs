@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 macro_const! {
     const DOC: &'static str = r#"
-$\eta^e$ — modernisation of [Eta](crate::Eta) for unevenly time series
+$\eta^e$ — modification of [Eta](crate::Eta) for unevenly time series
 
 $$
 \eta^e \equiv \frac{(t_{N-1} - t_0)^2}{(N - 1)^3} \frac{\sum_{i=0}^{N-2} \left(\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right)^2}{\sigma_m^2}

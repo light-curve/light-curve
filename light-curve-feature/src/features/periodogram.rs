@@ -26,6 +26,7 @@ Peak evaluator for [Periodogram]
 "#;
 }
 
+#[doc(hidden)]
 #[doc = PERIODOGRAM_PEAK_DOC!()]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
@@ -158,23 +159,23 @@ impl JsonSchema for PeriodogramPeaks {
 
 macro_const! {
     const DOC: &str = r#"
-A number of features based on Lomb–Scargle periodogram
+Peaks of Lomb–Scargle periodogram and periodogram as a meta-feature
 
-Periodogram $P(\omega)$ is an estimate of spectral density of unevenly time series.
-`Periodogram::new`'s `peaks` argument corresponds to a number of the most significant spectral
-density peaks to return. For each peak its period and "signal to noise" ratio is returned.
+Periodogram $P(\omega)$ is an estimate of spectral density of unevenly time series. `peaks` argument
+corresponds to a number of the most significant spectral density peaks to return. For each peak its
+period and "signal to noise" ratio is returned:
 
 $$
 \mathrm{signal~to~noise~of~peak} \equiv \frac{P(\omega_\mathrm{peak}) - \langle P(\omega) \rangle}{\sigma\_{P(\omega)}}.
 $$
 
-`Periodogram` can accept another `dyn FeatureEvaluator` for feature extraction from periodogram
-as it was time series without observation errors. You can even pass one `Periodogram` to another
-one if you are crazy enough
+[Periodogram] can accept other features for feature extraction from periodogram as it was time
+series without observation errors (unity weights are used if required). You can even pass one
+[Periodogram] to another one if you are crazy enough
 
 - Depends on: **time**, **magnitude**
-- Minimum number of observations: **2** (or as required by sub-features)
-- Number of features: **$2 \times \mathrm{peaks}~+...$**
+- Minimum number of observations: as required by sub-features, but at least two
+- Number of features: **$2 \times \mathrm{peaks}$** plus sub-features
 "#;
 }
 

@@ -6,7 +6,7 @@ Maximum deviation of magnitude from its median
 
 $$
 \mathrm{percent~amplitude} \equiv \max_i\left|m_i - \mathrm{Median}(m)\right|
-    = \max\{\max(m) - \mathrm{Median}(m), \mathrm{Median}(m) - \min(m)\}.
+    = \max(\max(m) - \mathrm{Median}(m), \mathrm{Median}(m) - \min(m)).
 $$
 
 - Depends on: **magnitude**

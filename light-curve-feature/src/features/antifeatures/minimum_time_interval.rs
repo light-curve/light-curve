@@ -6,7 +6,7 @@ macro_const! {
 Minimum time interval between consequent observations
 
 $$
-\min{t_{i+1} - t_i}
+\min{(t_{i+1} - t_i)}
 $$
 
 - Depends on: **time**

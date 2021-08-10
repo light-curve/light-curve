@@ -9,7 +9,7 @@ $$
 $$
 where
 $$
-S_j \equiv \frac1{N\,\sigma_m} \sum_{i=0}^j{\left(m\_i - \langle m \rangle\right)},
+S_j \equiv \frac1{N\sigma_m} \sum_{i=0}^j{\left(m\_i - \langle m \rangle\right)},
 $$
 $N$ is the number of observations,
 $\langle m \rangle$ is the mean magnitude

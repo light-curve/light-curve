@@ -6,7 +6,7 @@ macro_const! {
 Maximum time interval between consequent observations
 
 $$
-\max{t_{i+1} - t_i}
+\max{(t_{i+1} - t_i)}
 $$
 
 - Depends on: **time**
