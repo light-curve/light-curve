@@ -40,6 +40,20 @@ result = extractor(t, m, err)
 print('\n'.join(f'{name} = {value:.2f}' for name, value in zip(extractor.names, result)))
 ```
 
+Print feature classes list
+```python
+import light_curve as lc
+
+print(lc._FeatureEvaluator.__subclasses__())
+```
+
+Read feature docs
+```python
+import light_curve as lc
+
+help(lc.BazinFit)
+```
+
 ## dm-dt map
 
 Class `DmDt` provides dm–dt mapper (based on [Mahabal et al. 2011](https://ui.adsabs.harvard.edu/abs/2011BASI...39..387M/abstract), [Soraisam et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...892..112S/abstract)).
