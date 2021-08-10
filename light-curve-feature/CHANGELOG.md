@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Docs for `VillarFit` and `BazinFit`
+- Docs for `Extractor`, `VillarFit` and `BazinFit`
 
 ### Security
 
