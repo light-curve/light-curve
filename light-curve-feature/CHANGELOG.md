@@ -13,8 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `periodogram` module and `_PeriodogramPeaks` are hidden from the docs
-- Update katex for <http://docs.rs> to 0.13.13 
+—
 
 ### Deprecated
 
@@ -26,11 +25,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Docs for `Extractor`, `FeatureEvaluator`, `AndersonDarlingNormal`, `Bins`, `Cusum`, `EtaE`, `InterPercentileRange`, `LinearFit`, `LinearTrend`, `Median`, `PercentAmplitude`, `Periodogram`, `ReducedChi2`, `VillarFit` and `BazinFit`
+—
 
 ### Security
 
 —
+
+## [0.3.1]
+
+### Changed
+
+- `periodogram` module and `_PeriodogramPeaks` are hidden from the docs
+- Update katex for <http://docs.rs> to 0.13.13
+
+### Fixed
+
+- Docs for `Extractor`, `FeatureEvaluator`, `AndersonDarlingNormal`, `Bins`, `Cusum`, `EtaE`, `InterPercentileRange`, `LinearFit`, `LinearTrend`, `Median`, `PercentAmplitude`, `Periodogram`, `ReducedChi2`, `VillarFit` and `BazinFit`
 
 ## [0.3.0]
 
