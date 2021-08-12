@@ -31,5 +31,5 @@ from .percampl import *
 from .extractor import *
 from .plateau import *
 from .bins import *
-from .otsu import *
+from .otsusplit import *
 from .stetsonj import *
