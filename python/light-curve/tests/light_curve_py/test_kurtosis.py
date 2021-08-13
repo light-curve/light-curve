@@ -19,5 +19,5 @@ def test_kurtosis():
     ]
     feature = Kurtosis()
     desired = -0.704411
-    actual = feature(m, m, None)
+    actual = feature(np.linspace(0, 1, len(m)), m, None)
     assert_allclose(actual, desired)
