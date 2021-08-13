@@ -4,7 +4,7 @@ from ._base import BaseFeature
 
 
 class StetsonJ(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         n = len(m)
         mean = np.average(m, weights=np.power(sigma, -2))
         delta = ((m - mean) / np.power(sigma, -2)) * np.sqrt(n / (n - 1))

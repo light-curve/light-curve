@@ -5,7 +5,7 @@ from ._lstsq import least_squares
 
 
 class LinearTrend(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         n = len(t)
 
         if n == 2:

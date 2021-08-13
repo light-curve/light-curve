@@ -4,7 +4,7 @@ from ._base import BaseFeature
 
 
 class Kurtosis(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         n = len(m)
         m_mean = np.mean(m)
         m_st = np.std(m, ddof=1) ** 4

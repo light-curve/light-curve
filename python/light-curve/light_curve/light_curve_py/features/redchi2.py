@@ -4,7 +4,7 @@ from ._base import BaseFeature
 
 
 class ReducedChi2(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         n = len(m)
         weights = sigma ** -2
         m_wmean = np.average(m, weights=weights)

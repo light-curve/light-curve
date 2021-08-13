@@ -20,6 +20,6 @@ class BaseMetaFeature(BaseFeature):
         """Must return temporarily sorted arrays (t, m, sigma)"""
         pass
 
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         t, m, sigma = self.transform(t, m, sigma)
-        return self.extractor(t, m, sigma, sorted=True, fill_value=fill_value)
+        return self.extractor(t, m, sigma)

@@ -8,7 +8,7 @@ from ._base import BaseFeature
 class BeyondNStd(BaseFeature):
     nstd: float = 1.0
 
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         mean = np.mean(m)
         std = np.std(m, ddof=1)
         return np.count_nonzero(np.abs(m - mean) > self.nstd * std) / len(m)

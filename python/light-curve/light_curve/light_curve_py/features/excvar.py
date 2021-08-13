@@ -4,7 +4,7 @@ from ._base import BaseFeature
 
 
 class ExcessVariance(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         m_mean = np.mean(m)
         d_mean = np.mean(np.power(sigma, 2))
         m_std = np.std(m, ddof=1)

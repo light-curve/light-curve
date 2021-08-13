@@ -4,7 +4,7 @@ from ._base import BaseFeature
 
 
 class StandardDeviation(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         return np.std(m, ddof=1)
 
 

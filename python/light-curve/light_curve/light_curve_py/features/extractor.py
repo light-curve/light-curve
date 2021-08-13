@@ -11,10 +11,8 @@ from light_curve.light_curve_ext import Extractor as _RustExtractor, _FeatureEva
 class _PyExtractor(BaseFeature):
     features: Collection[Union[BaseFeature, _RustBaseFeature]] = ()
 
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
-        return np.concatenate(
-            [np.atleast_1d(feature(t, m, sigma, sorted=sorted, fill_value=fill_value)) for feature in self.features]
-        )
+    def _eval(self, t, m, sigma=None):
+        return np.concatenate([np.atleast_1d(feature._eval(t, m, sigma)) for feature in self.features])
 
 
 class Extractor:

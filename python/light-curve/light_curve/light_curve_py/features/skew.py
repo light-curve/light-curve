@@ -5,7 +5,7 @@ from scipy.stats import skew
 
 
 class Skew(BaseFeature):
-    def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
+    def _eval(self, t, m, sigma=None):
         return skew(m, bias=False)
 
 
