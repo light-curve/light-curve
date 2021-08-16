@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Amd64 PyPI packages are manylinux2014
+- PyPI releases compiled with `gsl` feature enabled 
 
 ### Depreceted
 
