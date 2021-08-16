@@ -20,6 +20,10 @@ The most of the code base is written on Rust and split into several crates.
 - `.ci` Continuous integration related stuff, currently it is just a custom Docker [maturin](https://github.com/pyo3/maturin) image used to publish x86-64 Linux Python packages via Github Actions
 - `.github` GitHub related utils, such as dependabot configuration and Actions workflows
 
+### Visioning
+
+All package versions are unrelated, which means that `light-curve-python v0.a.b` can depend on `light-curve-dmdt v0.d.e` and `light-curve-feature v0.f.g`. We use [semver](https://semver.org), so a release `0.3.0` can be backward incompatible with `0.2.5` version of the same crate. Please refer to `CHAMGELOG.md` in sub-directories for the changes between versions.
+
 ### Citation
 
 If you found this project useful for your research please cite [Malanchev et al., 2021](https://ui.adsabs.harvard.edu/abs/2021MNRAS.502.5147M/abstract)
