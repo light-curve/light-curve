@@ -6,3 +6,4 @@ dist/
 .benchmarks/
 .pytest_cache/
 .tox/
+*.pyc
