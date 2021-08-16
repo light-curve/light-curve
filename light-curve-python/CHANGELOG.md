@@ -9,16 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `mcmc_niter` and `lmsder_niter` parameters of `*Fit` features
+—
 
 ### Changed
 
-- Amd64 PyPI packages are manylinux2014
-- PyPI releases compiled with `gsl` feature enabled 
+—
 
-### Depreceted
+### Deprecated
 
-- `gsl` will become a default feature in future releases
+—
 
 ### Removed
 
@@ -26,11 +25,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `*Fit` `algorithm` parameter was marked as optional in the docstrings
+—
 
 ### Security
 
 —
+
+## [0.3.1]
+
+### Added
+
+- `mcmc_niter` and `lmsder_niter` parameters of `*Fit` features
+
+### Changed
+
+- Amd64 PyPI packages are manylinux2014
+- PyPI releases compiled with `gsl` feature enabled 
+
+### Deprecated
+
+- `gsl` will become a default feature in future releases
+
+### Fixed
+
+- `*Fit` `algorithm` parameter was marked as optional in the docstrings
 
 ## [0.3.0]
 
