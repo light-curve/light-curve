@@ -13,9 +13,11 @@ Villar function fit
 Seven fit parameters and goodness of fit (reduced $\chi^2$) of the Villar function developed for
 supernovae classification:
 
+<span>
 $$
-f(t) = c + \frac{ A + \beta (t - t_0) }{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{split} &1, t < t_0 + \gamma \\ &\exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, t \geq t_0 + \gamma \end{split} \right.
+f(t) = c + \frac{ A + \beta (t - t_0) }{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{array}{ll} 1, &t < t_0 + \gamma \\ \exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, &t \geq t_0 + \gamma \end{array} \right.
 $$
+</span>
 
 Note, that the Villar function is developed to use with fluxes, not magnitudes.
 
