@@ -249,7 +249,7 @@ const SUPPORTED_ALGORITHMS_CURVE_FIT: [&str; N_ALGO_CURVE_FIT] = [
 macro_rules! fit_evaluator {
     ($name: ident, $eval: ty $(,)?) => {
         #[pyclass(extends = PyFeatureEvaluator)]
-        #[pyo3(text_signature = "(algorithm)")]
+        #[pyo3(text_signature = "(algorithm, mcmc_niter=None, lmsder_niter=None)")]
         pub struct $name {}
 
         impl $name {
@@ -261,15 +261,25 @@ macro_rules! fit_evaluator {
         #[pymethods]
         impl $name {
             #[new]
-            fn __new__(algorithm: &str) -> PyResult<(Self, PyFeatureEvaluator)> {
+            #[args(algorithm, mcmc_niter="None", lmsder_niter="None")]
+            fn __new__(algorithm: &str, mcmc_niter: Option<u32>, lmsder_niter: Option<u16>) -> PyResult<(Self, PyFeatureEvaluator)> {
+                let mcmc_niter = mcmc_niter.unwrap_or_else(lcf::McmcCurveFit::default_niterations);
+
+                #[cfg(feature = "gsl")]
+                let lmsder_fit: lcf::CurveFitAlgorithm = lcf::LmsderCurveFit::new(lmsder_niter.unwrap_or_else(lcf::LmsderCurveFit::default_niterations)).into();
+                #[cfg(not(feature = "gsl"))]
+                if lmsder_niter.is_some() {
+                    return Err(PyValueError::new_err("Compiled without GSL support, lmsder_niter is not supported"));
+                }
+
                 let curve_fit_algorithm: lcf::CurveFitAlgorithm = match algorithm {
-                    "mcmc" => lcf::McmcCurveFit::default().into(),
+                    "mcmc" => lcf::McmcCurveFit::new(mcmc_niter, None).into(),
                     #[cfg(feature = "gsl")]
-                    "lmsder" => lcf::LmsderCurveFit::default().into(),
+                    "lmsder" => lmsder_fit,
                     #[cfg(feature = "gsl")]
                     "mcmc-lmsder" => lcf::McmcCurveFit::new(
-                        lcf::McmcCurveFit::default_niterations(),
-                        Some(lcf::LmsderCurveFit::default().into()),
+                        mcmc_niter,
+                        Some(lmsder_fit),
                     )
                     .into(),
                     _ => {
@@ -292,6 +302,7 @@ macro_rules! fit_evaluator {
             }
 
             #[staticmethod]
+            #[args(t, params)]
             fn model<'py>(
                 py: Python<'py>,
                 t: Arr<'py, F>,
@@ -310,14 +321,24 @@ macro_rules! fit_evaluator {
 
             #[classattr]
             fn __doc__() -> String {
+                #[cfg(feature = "gsl")]
+                let lmsder_niter = format!(r#"lmsder_niter : int, optional
+    Number of LMSDER iterations, default is {}
+"#,
+                lcf::LmsderCurveFit::default_niterations());
+                #[cfg(not(feature = "gsl"))]
+                let lmsder_niter = "";
+
                 format!(
                     r#"{intro}
 Parameters
 ----------
-algorithm : str, optional
+algorithm : str
     Non-linear least-square algorithm, supported values are:
     {supported_algo}.
-
+mcmc_niter : int, optional
+    Number of MCMC iterations, default is {mcmc_niter}
+{lmsder_niter}
 {attr}
 supported_algorithms : list of str
     Available argument values for the constructor
@@ -356,6 +377,8 @@ Examples
 "#,
                     intro = <$eval>::doc().trim_start(),
                     supported_algo = Self::supported_algorithms_str(),
+                    mcmc_niter = lcf::McmcCurveFit::default_niterations(),
+                    lmsder_niter = lmsder_niter,
                     attr = ATTRIBUTES_DOC,
                     methods = METHODS_DOC,
                     feature = stringify!($name),
@@ -376,6 +399,7 @@ pub struct BeyondNStd {}
 #[pymethods]
 impl BeyondNStd {
     #[new]
+    #[args(nstd)]
     fn __new__(nstd: F) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
