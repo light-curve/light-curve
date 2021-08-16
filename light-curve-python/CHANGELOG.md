@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-—
+- Amd64 PyPI packages are manylinux2014
 
 ### Depreceted
 
-—
+- `gsl` will become a default feature in future releases
 
 ### Removed
 
