@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rust-specific docs for `BazinFit` and `VillarFit` are moved from struct docs to `::new()` docs 
+—
 
 ### Deprecated
 
@@ -25,11 +25,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Equation rendering in `VillarFit` HTML docs
+—
 
 ### Security
 
 —
+
+## [0.3.2]
+
+### Changed
+
+- Rust-specific docs for `BazinFit` and `VillarFit` are moved from struct docs to `::new()` docs
+
+### Fixed
+
+- Equation rendering in `VillarFit` HTML docs
+
 
 ## [0.3.1]
 
