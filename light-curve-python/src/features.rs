@@ -29,7 +29,8 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
     t : numpy.ndarray of np.float64 dtype
         Time moments
     m : numpy.ndarray of np.float64 dtype
-        Power of observed signal (magnitude or flux)
+        Signal in magnitude or fluxes. Refer to the feature description to
+        decide which would work better in your case
     sigma : numpy.ndarray of np.float64 dtype or None, optional
         Observation error, if None it is assumed to be unity
     sorted : bool or None, optional

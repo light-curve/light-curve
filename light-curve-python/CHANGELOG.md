@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-—
+- Update `light-curve-feature` to `0.3.2`
+- `__call__` docs for features
 
 ### Deprecated
 
