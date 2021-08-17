@@ -11,5 +11,9 @@ class Cusum(BaseFeature):
         result = m_new / (len(m) * m_std)
         return np.ptp(result)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("Cusum",)

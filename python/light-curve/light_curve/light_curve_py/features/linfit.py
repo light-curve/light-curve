@@ -19,5 +19,9 @@ class LinearFit(BaseFeature):
 
         return np.array([slope, np.sqrt(1 / ((weighted_t2 - weighted_t) * sigma_sum)), red_chi2])
 
+    @property
+    def size(self):
+        return 3
+
 
 __all__ = ("LinearFit",)

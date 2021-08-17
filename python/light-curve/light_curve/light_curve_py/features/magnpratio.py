@@ -13,5 +13,9 @@ class MagnitudePercentageRatio(BaseFeature):
         d1, d2 = mquantiles(m, [self.d, 1 - self.d], alphap=0.5, betap=0.5)
         return (n2 - n1) / (d2 - d1)
 
+    @property
+    def size(self):
+        return 1
+
 
 __all__ = ("MagnitudePercentageRatio",)

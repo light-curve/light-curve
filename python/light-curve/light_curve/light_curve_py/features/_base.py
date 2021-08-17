@@ -23,9 +23,22 @@ class BaseFeature(ABC):
 
         return t, m, sigma
 
+    def _eval_and_fill(self, t, m, sigma, fill_value):
+        try:
+            return self._eval(t, m, sigma)
+        except ValueError as e:
+            if fill_value is not None:
+                return np.full(self.size, fill_value)
+            raise e
+
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         t, m, sigma = self._normalize_input(t, m, sigma, sorted)
-        return self._eval(t, m, sigma)
+        return self._eval_and_fill(t, m, sigma, fill_value)
+
+    @property
+    @abstractmethod
+    def size(self):
+        pass
 
     @abstractmethod
     def _eval(self, t, m, sigma=None):

@@ -12,5 +12,9 @@ class MedianBufferRangePercentage(BaseFeature):
         median = np.median(m)
         return np.count_nonzero(np.abs(median - m) < self.q * (np.max(m) - np.min(m)) / 2) / len(m)
 
+    @property
+    def size(self):
+        return 1
+
 
 __all__ = ("MedianBufferRangePercentage",)

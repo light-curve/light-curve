@@ -9,5 +9,9 @@ class AndersonDarlingNormal(BaseFeature):
         n = len(m)
         return anderson(m).statistic * (1 + 4 / n - 25 / n ** 2)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("AndersonDarlingNormal",)

@@ -11,5 +11,9 @@ class ReducedChi2(BaseFeature):
         s = (m - m_wmean) ** 2 * weights
         return np.sum(s) / (n - 1)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("ReducedChi2",)

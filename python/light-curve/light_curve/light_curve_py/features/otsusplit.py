@@ -61,5 +61,9 @@ class OtsuSplit(BaseFeature):
             "ratio of quantity of observations above the threshold given by Otsu method to quantity of all observations",
         )
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("OtsuSplit",)

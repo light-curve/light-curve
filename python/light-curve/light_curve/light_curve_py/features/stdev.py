@@ -7,5 +7,9 @@ class StandardDeviation(BaseFeature):
     def _eval(self, t, m, sigma=None):
         return np.std(m, ddof=1)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("StandardDeviation",)

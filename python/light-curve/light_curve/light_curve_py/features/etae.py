@@ -10,5 +10,9 @@ class EtaE(BaseFeature):
         m_sum = np.sum(((m[1:] - m[:-1]) / (t[1:] - t[:-1])) ** 2)
         return m_sum * (t[n - 1] - t[0]) ** 2 / ((n - 1) ** 3 * m_std)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("EtaE",)

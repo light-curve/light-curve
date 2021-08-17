@@ -10,5 +10,9 @@ class StetsonK(BaseFeature):
         chisq = np.sum(((m - m_mean) / sigma) ** 2)
         return numerator / np.sqrt(len(m) * chisq)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("StetsonK",)

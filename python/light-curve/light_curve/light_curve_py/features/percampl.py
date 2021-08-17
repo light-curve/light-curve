@@ -8,5 +8,9 @@ class PercentAmplitude(BaseFeature):
         median = np.median(m)
         return np.max((np.max(m) - median, median - np.min(m)))
 
+    @property
+    def size(self):
+        return 1
+
 
 __all__ = ("PercentAmplitude",)

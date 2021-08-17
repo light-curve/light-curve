@@ -17,5 +17,9 @@ class LinearTrend(BaseFeature):
         sxx = np.var(t, ddof=n - 1)
         return np.array([slope, np.sqrt(red_chi2 / sxx), red_chi2])
 
+    @property
+    def size(self):
+        return 3
+
 
 __all__ = ("LinearTrend",)

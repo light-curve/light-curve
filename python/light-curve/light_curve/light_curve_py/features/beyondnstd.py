@@ -13,5 +13,9 @@ class BeyondNStd(BaseFeature):
         std = np.std(m, ddof=1)
         return np.count_nonzero(np.abs(m - mean) > self.nstd * std) / len(m)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("BeyondNStd",)

@@ -10,5 +10,9 @@ class MaximumSlope(BaseFeature):
         div = np.abs(np.divide(m_span, t_span))
         return np.amax(div)
 
+    @property
+    def size(self):
+        return 2
+
 
 __all__ = ("MaximumSlope",)

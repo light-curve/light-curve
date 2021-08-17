@@ -12,7 +12,16 @@ class _PyExtractor(BaseFeature):
     features: Collection[Union[BaseFeature, _RustBaseFeature]] = ()
 
     def _eval(self, t, m, sigma=None):
-        return np.concatenate([np.atleast_1d(feature._eval(t, m, sigma)) for feature in self.features])
+        raise NotImplementedError("_eval is missed for _PyExtractor")
+
+    def _eval_and_fill(self, t, m, sigma, fill_value):
+        return np.concatenate(
+            [np.atleast_1d(feature._eval_and_fill(t, m, sigma, fill_value)) for feature in self.features]
+        )
+
+    @property
+    def size(self):
+        return sum(feature.size for feature in self.features)
 
 
 class Extractor:

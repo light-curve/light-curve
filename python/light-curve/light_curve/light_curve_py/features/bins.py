@@ -12,12 +12,10 @@ class Bins(BaseMetaFeature):
 
     def transform(self, t, m, sigma=None, sorted=None, fill_value=None):
         assert self.window > 0, "Window should be a positive number."
-        # offset = self.offset % self.window * self.window
         n = np.ceil((t[-1] - t[0]) / self.window) + 1
         j = np.arange(0, n)
-        bins = j * self.window  # + self.offset
-        ####
-        # uniq_idx = uniq_idx[uniq_idx != 0]
+        bins = j * self.window
+
         delta = self.window * np.floor((t[0] - self.offset) / self.window)
         time = t - self.offset - delta
 
@@ -30,8 +28,12 @@ class Bins(BaseMetaFeature):
         s = ndimage.sum(weights, labels=idx, index=uniq_idx)
         new_magn = ndimage.sum(m * weights, labels=idx, index=uniq_idx) / s
         new_sigma = np.sqrt(nums / s)
-        # тестировать разные оффсеты 1/3, -999.7
+
         return new_time, new_magn, new_sigma
+
+    @property
+    def size(self):
+        return 1
 
 
 __all__ = ("Bins",)
