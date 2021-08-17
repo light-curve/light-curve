@@ -13,8 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update `light-curve-feature` to `0.3.2`
-- `__call__` docs for features
+—
 
 ### Deprecated
 
@@ -31,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 —
+
+## [0.3.2]
+
+### Added
+
+- Publish Linux aarch64 packages via CI
+
+### Changed
+
+- Update `light-curve-feature` to `0.3.2`
+- `__call__` docs for features
 
 ## [0.3.1]
 
