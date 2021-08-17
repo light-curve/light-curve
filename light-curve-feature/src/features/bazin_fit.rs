@@ -17,13 +17,8 @@ $$
 f(t) = A \frac{ \mathrm{e}^{ -(t-t_0)/\tau_\mathrm{fall} } }{ 1 + \mathrm{e}^{ -(t - t_0) / \tau_\mathrm{rise} } } + B.
 $$
 
-Note, that the Bazin function is developed to use with fluxes, not magnitudes. Also note a typo
+Note, that the Bazin function is developed to be used with fluxes, not magnitudes. Also note a typo
 in the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent.
-
-Optimization is done using specified `algorithm` which is an instance of the
-[CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
-[LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
-`gsl` Cargo feature).
 
 - Depends on: **time**, **magnitude**, **magnitude error**
 - Minimum number of observations: **6**
@@ -40,6 +35,12 @@ pub struct BazinFit {
 }
 
 impl BazinFit {
+    /// New [BazinFit] instance
+    ///
+    /// `algorithm` specifies which optimization method is used, it is an instance of the
+    /// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+    /// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification,
+    /// requires `gsl` Cargo feature).
     pub fn new(algorithm: CurveFitAlgorithm) -> Self {
         Self { algorithm }
     }

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-—
+- Rust-specific docs for `BazinFit` and `VillarFit` are moved from struct docs to `::new()` docs 
 
 ### Deprecated
 

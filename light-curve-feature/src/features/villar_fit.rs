@@ -19,12 +19,7 @@ f(t) = c + \frac{ A + \beta (t - t_0) }{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm
 $$
 </span>
 
-Note, that the Villar function is developed to use with fluxes, not magnitudes.
-
-Optimization is done using specified `algorithm` which is an instance of the
-[CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
-[LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification, requires
-`gsl` Cargo feature).
+Note, that the Villar function is developed to be used with fluxes, not magnitudes.
 
 - Depends on: **time**, **magnitude**, **magnitude error**
 - Minimum number of observations: **8**
@@ -41,6 +36,12 @@ pub struct VillarFit {
 }
 
 impl VillarFit {
+    /// New [VillarFit] instance
+    ///
+    /// `algorithm` specifies which optimization method is used, it is an instance of the
+    /// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+    /// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification,
+    /// requires `gsl` Cargo feature).
     pub fn new(algorithm: CurveFitAlgorithm) -> Self {
         Self { algorithm }
     }
