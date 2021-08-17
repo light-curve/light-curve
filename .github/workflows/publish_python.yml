@@ -14,13 +14,15 @@ jobs:
         include:
           - os: ubuntu-latest
             fftw_feature: mkl
+            arch: x86_64
           - os: [self-hosted, linux, ARM64]
             fftw_feature: fftw-static
+            arch: aarch64
 
     steps:
     - uses: actions/checkout@v2
     - name: Build docker image
-      run: docker build --no-cache --tag maturin -f .ci/Dockerfile.maturin .ci
+      run: docker build --build-arg='ARCH=${{ matrix.arch }}' --no-cache --tag maturin -f .ci/Dockerfile.maturin .ci
     - name: Build wheels for tests
       run: docker run --rm -v $(realpath light-curve-python):/io maturin build --release -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features ${{ matrix.fftw_feature }},gsl"
     - name: Run Python tests
