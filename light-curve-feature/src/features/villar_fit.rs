@@ -94,7 +94,7 @@ impl VillarFit {
         let dt = x.dt(t);
         let t1 = x.t1();
         let rise = U::recip(U::one() + U::exp(-dt / x.tau_rise()));
-        let plateau = x.a() - x.b().abs() * U::min(dt, x.gamma());
+        let plateau = x.a() + x.beta() * U::min(dt, x.gamma());
         let fall = if t < t1 {
             U::one()
         } else {
@@ -110,7 +110,6 @@ impl VillarFit {
         let x = Params { storage: param };
         let dt = x.dt(t);
         let t1 = x.t1();
-        let beta = -x.b().abs();
         let rise = T::recip(T::one() + T::exp(-dt / x.tau_rise()));
         let is_rise = t <= t1;
         let fall = if is_rise {
@@ -118,11 +117,11 @@ impl VillarFit {
         } else {
             T::exp(-(t - t1) / x.tau_fall())
         };
-        let plateau = x.a() + beta * T::min(x.gamma(), dt);
+        let plateau = x.a() + x.beta() * T::min(x.gamma(), dt);
         let f_minus_c = plateau * rise * fall;
 
         // A
-        jac[0] = rise * fall;
+        jac[0] = x.sgn_a() * rise * fall;
         // c
         jac[1] = T::one();
         // t0
@@ -130,25 +129,25 @@ impl VillarFit {
             * fall
             * (-(T::one() - rise) * plateau / x.tau_rise()
                 + if is_rise {
-                    -beta
+                    -x.beta()
                 } else {
                     plateau / x.tau_fall()
                 });
         // tau_rise
-        jac[3] = -f_minus_c * (T::one() - rise) * dt / x.tau_rise().powi(2);
+        jac[3] = -x.sgn_tau_rise() * f_minus_c * (T::one() - rise) * dt / x.tau_rise().powi(2);
         // tau_fall
         jac[4] = if is_rise {
             T::zero()
         } else {
-            f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
+            x.sgn_tau_fall() * f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
         };
         // beta = -abs(b)
-        jac[5] = -x.b().signum() * rise * fall * if is_rise { dt } else { x.gamma() };
+        jac[5] = -x.sgn_b() * rise * fall * if is_rise { dt } else { x.gamma() };
         // gamma
         jac[6] = if is_rise {
             T::zero()
         } else {
-            rise * fall * beta + f_minus_c / x.tau_fall()
+            x.sgn_gamma() * (rise * fall * x.beta() + f_minus_c / x.tau_fall())
         };
     }
 
@@ -256,9 +255,7 @@ where
 
         let result = {
             let CurveFitResult {
-                mut x,
-                reduced_chi2,
-                ..
+                x, reduced_chi2, ..
             } = self.algorithm.curve_fit(
                 norm_data.data.clone(),
                 &x0,
@@ -266,15 +263,20 @@ where
                 Self::model::<f64, f64>,
                 Self::derivatives::<f64>,
             );
-            x[0] = norm_data.m_to_orig_scale(x[0]); // amplitude
-            x[1] = norm_data.m_to_orig(x[1]); // offset
-            x[2] = norm_data.t_to_orig(x[2]); // peak time
-            x[3] = norm_data.t_to_orig_scale(x[3]); // rise time
-            x[4] = norm_data.t_to_orig_scale(x[4]); // fall time
-            x[5] = norm_data.slope_to_orig(-x[5].abs()); // plateau slope
-            x[6] = norm_data.t_to_orig_scale(x[6]); // plateau duration
-            x.push(reduced_chi2);
-            x.iter().map(|&x| x.approx_as::<T>().unwrap()).collect()
+            let x = Params { storage: &x };
+            let mut result = vec![0.0; 8];
+            result[0] = norm_data.m_to_orig_scale(x.a()); // amplitude
+            result[1] = norm_data.m_to_orig(x.c()); // offset
+            result[2] = norm_data.t_to_orig(x.t0()); // peak time
+            result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // rise time
+            result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // fall time
+            result[5] = norm_data.slope_to_orig(x.beta()); // plateau slope
+            result[6] = norm_data.t_to_orig_scale(x.gamma()); // plateau duration
+            result[7] = reduced_chi2;
+            result
+                .iter()
+                .map(|&x| x.approx_as::<T>().unwrap())
+                .collect()
         };
 
         Ok(result)
@@ -317,11 +319,16 @@ struct Params<'a, T> {
 
 impl<'a, T> Params<'a, T>
 where
-    T: Copy + std::ops::Add<T, Output = T> + std::ops::Sub<T, Output = T>,
+    T: F64LikeFloat,
 {
     #[inline]
     fn a(&self) -> T {
-        self.storage[0]
+        self.storage[0].abs()
+    }
+
+    #[inline]
+    fn sgn_a(&self) -> T {
+        self.storage[0].signum()
     }
 
     #[inline]
@@ -336,23 +343,43 @@ where
 
     #[inline]
     fn tau_rise(&self) -> T {
-        self.storage[3]
+        self.storage[3].abs()
+    }
+
+    #[inline]
+    fn sgn_tau_rise(&self) -> T {
+        self.storage[3].signum()
     }
 
     #[inline]
     fn tau_fall(&self) -> T {
-        self.storage[4]
+        self.storage[4].abs()
+    }
+
+    #[inline]
+    fn sgn_tau_fall(&self) -> T {
+        self.storage[4].signum()
+    }
+
+    #[inline]
+    fn beta(&self) -> T {
+        -self.storage[5].abs()
     }
 
     /// beta = -abs(b)
     #[inline]
-    fn b(&self) -> T {
-        self.storage[5]
+    fn sgn_b(&self) -> T {
+        self.storage[5].signum()
     }
 
     #[inline]
     fn gamma(&self) -> T {
-        self.storage[6]
+        self.storage[6].abs()
+    }
+
+    #[inline]
+    fn sgn_gamma(&self) -> T {
+        self.storage[6].signum()
     }
 
     #[inline]
@@ -444,7 +471,7 @@ mod tests {
         for _ in 0..REPEAT {
             let t = 10.0 * rng.gen::<f64>();
 
-            let param: Vec<_> = (0..7).map(|_| rng.gen::<f64>()).collect();
+            let param: Vec<_> = (0..7).map(|_| rng.gen::<f64>() - 0.5).collect();
             println!("{:?}", param);
             let actual = {
                 let mut jac = [0.0; 7];

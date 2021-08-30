@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Equation in `VillarFit` was different from the paper
+- `VillarFit`'s amplitude, tau_rise, tau_fall and plateau duration are insured to be positive 
 
 ### Security
 
