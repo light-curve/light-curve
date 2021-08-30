@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-feature"
-version = "0.3.3-beta.0"
+version = "0.3.3"
 description = "Feature extractor from noisy time series"
 repository = "https://github.com/light-curve/light-curve"
 readme = "README.md"
