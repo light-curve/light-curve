@@ -15,9 +15,9 @@ jobs:
           - os: ubuntu-latest
             fftw_feature: mkl
             arch: x86_64
-          - os: [self-hosted, linux, ARM64]
-            fftw_feature: fftw-static
-            arch: aarch64
+          # - os: [self-hosted, linux, ARM64]
+          #   fftw_feature: fftw-static
+          #   arch: aarch64
 
     steps:
     - uses: actions/checkout@v2
