@@ -25,12 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Equation in `VillarFit` was different from the paper
-- `VillarFit`'s and `BazinFit`'s amplitude, tau_rise, tau_fall and plateau duration (for `VillarFit`) are insured to be positive 
+—
 
 ### Security
 
 —
+
+## [0.3.3]
+
+### Fixed
+
+- Equation in `VillarFit` was different from the paper
+- `VillarFit`'s and `BazinFit`'s amplitude, tau_rise, tau_fall and plateau duration (for `VillarFit`) are insured to be positive
 
 ## [0.3.2]
 
