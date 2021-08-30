@@ -88,20 +88,27 @@ impl BazinFit {
         let t: U = t.into();
         let x = Params { storage: param };
         let minus_dt = x.t0() - t;
-        x.b() + x.a() * U::exp(minus_dt / x.fall()) / (U::exp(minus_dt / x.rise()) + U::one())
+        x.b()
+            + x.a() * U::exp(minus_dt / x.tau_fall()) / (U::exp(minus_dt / x.tau_rise()) + U::one())
     }
 
     fn derivatives(t: f64, param: &[f64], jac: &mut [f64]) {
         let x = Params { storage: param };
         let minus_dt = x.t0() - t;
-        let exp_rise = f64::exp(minus_dt / x.rise());
-        let frac = f64::exp(minus_dt / x.fall()) / (1.0 + exp_rise);
+        let exp_rise = f64::exp(minus_dt / x.tau_rise());
+        let frac = f64::exp(minus_dt / x.tau_fall()) / (1.0 + exp_rise);
         let exp_1p_exp_rise = 1.0 / (1.0 + 1.0 / exp_rise);
-        jac[0] = frac;
+        // a
+        jac[0] = x.sgn_a() * frac;
+        // b
         jac[1] = 1.0;
-        jac[2] = x.a() * frac * (1.0 / x.fall() - exp_1p_exp_rise / x.rise());
-        jac[3] = x.a() * minus_dt * frac / x.rise().powi(2) * exp_1p_exp_rise;
-        jac[4] = -x.a() * minus_dt * frac / x.fall().powi(2);
+        // t0
+        jac[2] = x.a() * frac * (1.0 / x.tau_fall() - exp_1p_exp_rise / x.tau_rise());
+        // tau_rise
+        jac[3] =
+            x.sgn_tau_rise() * x.a() * minus_dt * frac / x.tau_rise().powi(2) * exp_1p_exp_rise;
+        // tau_fall
+        jac[4] = -x.sgn_tau_fall() * x.a() * minus_dt * frac / x.tau_fall().powi(2);
     }
 
     fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 5], [(f64, f64); 5]) {
@@ -176,9 +183,7 @@ where
 
         let result = {
             let CurveFitResult {
-                mut x,
-                reduced_chi2,
-                ..
+                x, reduced_chi2, ..
             } = self.algorithm.curve_fit(
                 norm_data.data.clone(),
                 &x0,
@@ -186,13 +191,18 @@ where
                 Self::model::<f64, f64>,
                 Self::derivatives,
             );
-            x[0] = norm_data.m_to_orig_scale(x[0]); // amplitude
-            x[1] = norm_data.m_to_orig(x[1]); // offset
-            x[2] = norm_data.t_to_orig(x[2]); // peak time
-            x[3] = norm_data.t_to_orig_scale(x[3]); // rise time
-            x[4] = norm_data.t_to_orig_scale(x[4]); // fall time
-            x.push(reduced_chi2);
-            x.iter().map(|&x| x.approx_as::<T>().unwrap()).collect()
+            let x = Params { storage: &x };
+            let mut result = vec![0.0; 6];
+            result[0] = norm_data.m_to_orig_scale(x.a()); // amplitude
+            result[1] = norm_data.m_to_orig(x.b()); // offset
+            result[2] = norm_data.t_to_orig(x.t0()); // peak time
+            result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // rise time
+            result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // fall time
+            result[5] = reduced_chi2;
+            result
+                .iter()
+                .map(|&x| x.approx_as::<T>().unwrap())
+                .collect()
         };
 
         Ok(result)
@@ -231,11 +241,16 @@ struct Params<'a, T> {
 
 impl<'a, T> Params<'a, T>
 where
-    T: Copy,
+    T: F64LikeFloat,
 {
     #[inline]
     fn a(&self) -> T {
-        self.storage[0]
+        self.storage[0].abs()
+    }
+
+    #[inline]
+    fn sgn_a(&self) -> T {
+        self.storage[0].signum()
     }
 
     #[inline]
@@ -249,13 +264,23 @@ where
     }
 
     #[inline]
-    fn rise(&self) -> T {
-        self.storage[3]
+    fn tau_rise(&self) -> T {
+        self.storage[3].abs()
     }
 
     #[inline]
-    fn fall(&self) -> T {
-        self.storage[4]
+    fn sgn_tau_rise(&self) -> T {
+        self.storage[3].signum()
+    }
+
+    #[inline]
+    fn tau_fall(&self) -> T {
+        self.storage[4].abs()
+    }
+
+    #[inline]
+    fn sgn_tau_fall(&self) -> T {
+        self.storage[4].signum()
     }
 }
 
@@ -335,7 +360,7 @@ mod tests {
         for _ in 0..REPEAT {
             let t = 10.0 * rng.gen::<f64>();
 
-            let param: Vec<_> = (0..5).map(|_| rng.gen::<f64>()).collect();
+            let param: Vec<_> = (0..5).map(|_| rng.gen::<f64>() - 0.5).collect();
             let actual = {
                 let mut jac = [0.0; 5];
                 BazinFit::derivatives(t, &param, &mut jac);
