@@ -1,6 +1,6 @@
 [package]
 name = "light-curve-python"
-version = "0.3.2-beta.1"
+version = "0.3.2-beta.2"
 edition = "2018"
 authors = ["Konstantin Malanchev <hombit@gmail.com>", "Anastasia Lavrukhina <lavrukhina.ad@gmail.com>"]
 description = "Feature extractor from noisy time series"
@@ -36,7 +36,7 @@ thiserror = "^1.0.24"
 unzip3 = "1.0.0"
 
 [dependencies.light-curve-feature]
-version = "0.3.2"
+version = "0.3.3"
 default_features = false
 
 [dependencies.pyo3]

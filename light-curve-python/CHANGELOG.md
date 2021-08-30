@@ -33,14 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.2]
 
-### Added
-
-- Publish Linux aarch64 packages via CI
-
 ### Changed
 
-- Update `light-curve-feature` to `0.3.2`
+- Update `light-curve-feature` to `0.3.3`
 - `__call__` docs for features
+
+### Fixed
+
+- `light-curve-feature` 0.3.3 fixes wrong `VillarFit` equation
 
 ## [0.3.1]
 
