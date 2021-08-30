@@ -15,7 +15,7 @@ supernovae classification:
 
 <span>
 $$
-f(t) = c + \frac{ A + \beta (t - t_0) }{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{array}{ll} 1, &t < t_0 + \gamma \\ \exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, &t \geq t_0 + \gamma \end{array} \right.
+f(t) = c + \frac1{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{array}{ll} A + \beta (t - t_0), &t < t_0 + \gamma \\ (A + \beta \gamma) \exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, &t \geq t_0 + \gamma \end{array} \right.
 $$
 </span>
 
@@ -93,12 +93,14 @@ impl VillarFit {
         let x = Params { storage: param };
         let dt = x.dt(t);
         let t1 = x.t1();
-        let mut f = (x.a() - x.b().abs() * dt) / (U::one() + U::exp(-dt / x.tau_rise()));
-        if t > t1 {
-            f *= U::exp(-(t - t1) / x.tau_fall());
-        }
-        f += x.c();
-        f
+        let rise = U::recip(U::one() + U::exp(-dt / x.tau_rise()));
+        let plateau = x.a() - x.b().abs() * U::min(dt, x.gamma());
+        let fall = if t < t1 {
+            U::one()
+        } else {
+            U::exp(-(t - t1) / x.tau_fall())
+        };
+        x.c() + rise * plateau * fall
     }
 
     fn derivatives<T>(t: T, param: &[T], jac: &mut [T])
@@ -109,15 +111,14 @@ impl VillarFit {
         let dt = x.dt(t);
         let t1 = x.t1();
         let beta = -x.b().abs();
-        let exp_rise = T::exp(-dt / x.tau_rise());
-        let rise = T::recip(T::one() + exp_rise);
-        let is_fall = t > t1;
-        let fall = if is_fall {
-            T::exp(-(t - t1) / x.tau_fall())
-        } else {
+        let rise = T::recip(T::one() + T::exp(-dt / x.tau_rise()));
+        let is_rise = t <= t1;
+        let fall = if is_rise {
             T::one()
+        } else {
+            T::exp(-(t - t1) / x.tau_fall())
         };
-        let plateau = x.a() + beta * dt;
+        let plateau = x.a() + beta * T::min(x.gamma(), dt);
         let f_minus_c = plateau * rise * fall;
 
         // A
@@ -125,28 +126,29 @@ impl VillarFit {
         // c
         jac[1] = T::one();
         // t0
-        jac[2] = {
-            let mut df_dt0 = -beta * rise - plateau * rise.powi(2) * exp_rise / x.tau_rise();
-            if is_fall {
-                df_dt0 = df_dt0 * fall + f_minus_c / x.tau_fall();
-            }
-            df_dt0
-        };
+        jac[2] = rise
+            * fall
+            * (-(T::one() - rise) * plateau / x.tau_rise()
+                + if is_rise {
+                    -beta
+                } else {
+                    plateau / x.tau_fall()
+                });
         // tau_rise
-        jac[3] = -f_minus_c * rise * dt * exp_rise / x.tau_rise().powi(2);
+        jac[3] = -f_minus_c * (T::one() - rise) * dt / x.tau_rise().powi(2);
         // tau_fall
-        jac[4] = if is_fall {
-            f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
-        } else {
+        jac[4] = if is_rise {
             T::zero()
+        } else {
+            f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
         };
         // beta = -abs(b)
-        jac[5] = -x.b().signum() * dt * rise * fall;
+        jac[5] = -x.b().signum() * rise * fall * if is_rise { dt } else { x.gamma() };
         // gamma
-        jac[6] = if is_fall {
-            f_minus_c / x.tau_fall()
-        } else {
+        jac[6] = if is_rise {
             T::zero()
+        } else {
+            rise * fall * beta + f_minus_c / x.tau_fall()
         };
     }
 
@@ -407,15 +409,15 @@ mod tests {
         println!("{:?}\n{:?}\n{:?}\n{:?}", t, model, m, w);
         let mut ts = TimeSeries::new(&t, &m, &w);
 
-        // curve_fit(lambda t, a, c, t0, tau_rise, tau_fall, beta, gamma: c + (a + beta * (t - t0)) / (1 + np.exp(-(t-t0) / tau_rise)) * np.where(t > t0 + gamma, np.exp(-(t-t0-gamma) / tau_fall), 1.0), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 30, 10, 30, -2e3/20, 20])
+        // curve_fit(lambda t, a, c, t0, tau_rise, tau_fall, beta, gamma: c + (a + beta * np.where(t - t0 < gamma, t - t0, gamma)) / (1 + np.exp(-(t-t0) / tau_rise)) * np.where(t > t0 + gamma, np.exp(-(t-t0-gamma) / tau_fall), 1.0), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 30, 10, 30, -2e3/20, 20])
         let desired = [
-            9.96814599e+03,
-            1.07192395e+03,
-            3.02341667e+01,
-            9.71799521e+00,
-            3.00318779e+01,
-            -1.03862245e+02,
-            1.96983192e+01,
+            1.00889920e+04,
+            1.07252610e+03,
+            3.05265792e+01,
+            9.72828707e+00,
+            2.95601316e+01,
+            -1.11089712e+02,
+            1.93909272e+01,
         ];
 
         let values = eval.eval(&mut ts).unwrap();
