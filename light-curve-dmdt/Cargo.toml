@@ -32,7 +32,7 @@ itertools = "^0.10.0"
 libm = "^0.2.1" # erf
 ndarray = "^0.15.3"
 num-traits = "^0.2.14"
-png = "^0.16.8"
+png = "^0.17.1"
 thiserror = "^1.0.24"
 
 [dev-dependencies]
