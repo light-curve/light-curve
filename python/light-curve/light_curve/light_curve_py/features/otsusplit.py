@@ -1,17 +1,3 @@
-"""
-Difference of subset means, standard deviation of the lower subset, standard deviation
-of the upper subset and upper-to-all observation count ratio for two subsets of magnitudes
-obtained by Otsu's method split.
-
-Otsu's method is used to perform automatic thresholding. The algorithm returns a single
-threshold that separate values into two classes. This threshold is determined by minimizing
-intra-class intensity variance, or equivalently, by maximizing inter-class variance.
-
-Otsu, Nobuyuki. “A Threshold Selection Method from Gray-Level Histograms.” IEEE Transactions on
-Systems, Man, and Cybernetics 9, no. 1 (January 1979): 62–66. doi:10.1109/tsmc.1979.4310076.
-"""
-
-
 from dataclasses import dataclass
 import numpy as np
 
@@ -20,6 +6,17 @@ from ._base import BaseFeature
 
 @dataclass()
 class OtsuSplit(BaseFeature):
+    """Difference of subset means, standard deviation of the lower subset, standard deviation
+    of the upper subset and upper-to-all observation count ratio for two subsets of magnitudes
+    obtained by Otsu's method split.
+
+    Otsu's method is used to perform automatic thresholding. The algorithm returns a single
+    threshold that separate values into two classes. This threshold is determined by minimizing
+    intra-class intensity variance, or equivalently, by maximizing inter-class variance.
+
+    Otsu, Nobuyuki 1979. [DOI:10.1109/tsmc.1979.4310076]
+    """
+
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         n = len(m)
         amounts = np.arange(1, n)
@@ -46,6 +43,14 @@ class OtsuSplit(BaseFeature):
         up_to_all_ratio = (arg + 1) / n
 
         return mean1[arg] - mean0[arg], std_lower, std_upper, up_to_all_ratio
+
+    @property
+    def names(self):
+        pass
+
+    @property
+    def descriptions(self):
+        pass
 
 
 __all__ = ("OtsuSplit",)
