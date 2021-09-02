@@ -14,7 +14,7 @@ class InterPercentileRange(BaseFeature):
 
     @property
     def size(self):
-        return 2
+        return 1
 
 
 __all__ = ("InterPercentileRange",)

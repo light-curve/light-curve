@@ -10,7 +10,7 @@ class Skew(BaseFeature):
 
     @property
     def size(self):
-        return 3
+        return 1
 
 
 __all__ = ("Skew",)

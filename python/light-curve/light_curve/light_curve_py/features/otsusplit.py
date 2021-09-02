@@ -63,7 +63,7 @@ class OtsuSplit(BaseFeature):
 
     @property
     def size(self):
-        return 2
+        return 4
 
 
 __all__ = ("OtsuSplit",)

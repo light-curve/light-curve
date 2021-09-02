@@ -15,7 +15,7 @@ class Kurtosis(BaseFeature):
 
     @property
     def size(self):
-        return 4
+        return 1
 
 
 __all__ = ("Kurtosis",)
