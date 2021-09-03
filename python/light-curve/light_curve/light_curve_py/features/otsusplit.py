@@ -14,7 +14,11 @@ class OtsuSplit(BaseFeature):
     threshold that separate values into two classes. This threshold is determined by minimizing
     intra-class intensity variance, or equivalently, by maximizing inter-class variance.
 
-    Otsu, Nobuyuki 1979. [DOI:10.1109/tsmc.1979.4310076]
+    - Depends on: **magnitude**
+    - Minimum number of observations: **2**
+    - Number of features: **4**
+
+    Otsu, Nobuyuki 1979. [DOI:10.1109/tsmc.1979.4310076](https://doi.org/10.1109/tsmc.1979.4310076)
     """
 
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
@@ -46,11 +50,16 @@ class OtsuSplit(BaseFeature):
 
     @property
     def names(self):
-        pass
+        return "mean_diff", "std_lower", "std_upper", "up_to_all_ratio"
 
     @property
     def descriptions(self):
-        pass
+        return (
+            "difference between mean values of received subsets",
+            "standard deviation for subset of values smaller than threshold",
+            "standard deviation for subset of values bigger than threshold",
+            "ratio of the number of elements in each subset",
+        )
 
 
 __all__ = ("OtsuSplit",)
