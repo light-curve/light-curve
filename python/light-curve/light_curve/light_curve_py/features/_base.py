@@ -25,7 +25,10 @@ class BaseFeature(ABC):
 
     def _eval_and_fill(self, t, m, sigma, fill_value):
         try:
-            return self._eval(t, m, sigma)
+            # return self._eval(t, m, sigma)
+            a = self._eval(t, m, sigma)
+            if np.any(np.isnan(a)):
+                raise ValueError
         except ValueError as e:
             if fill_value is not None:
                 return np.full(self.size, fill_value)
