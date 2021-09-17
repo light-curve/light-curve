@@ -50,15 +50,16 @@ class OtsuSplit(BaseFeature):
 
     @property
     def names(self):
-        return "mean_diff", "std_lower", "std_upper", "up_to_all_ratio"
+        return "otsu_mean_diff", "otsu_std_lower", "otsu_std_upper", "otsu_up_to_all_ratio"
 
     @property
     def descriptions(self):
         return (
-            "difference between mean values of received subsets",
-            "standard deviation for subset of values smaller than threshold",
-            "standard deviation for subset of values bigger than threshold",
-            "ratio of the number of elements in each subset",
+            "difference between mean values of Otsu split subsets",
+            "standard deviation for observations below the threshold given by Otsu method",
+            "standard deviation for observations above the threshold given by Otsu method",
+            "ratio of quantity of observations above the threshold given by Otsu method \
+            to quantity of all observations",
         )
 
 
