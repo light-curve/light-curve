@@ -58,8 +58,7 @@ class OtsuSplit(BaseFeature):
             "difference between mean values of Otsu split subsets",
             "standard deviation for observations below the threshold given by Otsu method",
             "standard deviation for observations above the threshold given by Otsu method",
-            "ratio of quantity of observations above the threshold given by Otsu method \
-            to quantity of all observations",
+            "ratio of quantity of observations above the threshold given by Otsu method to quantity of all observations",
         )
 
 
