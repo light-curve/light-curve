@@ -12,7 +12,6 @@ class BaseFeature(ABC):
             sigma = np.asarray(sigma)
 
         if sorted is None:
-
             if np.any(np.diff(t) <= 0):
                 raise ValueError("t must be sorted")
         elif not sorted:
