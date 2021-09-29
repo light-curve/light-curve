@@ -1,55 +1,56 @@
 import numpy as np
-from numpy.testing import assert_allclose
-from light_curve.light_curve_py import Extractor, Amplitude, OtsuSplit, Eta
-from light_curve.light_curve_py.features._base import BaseFeature
+from light_curve.light_curve_py import Extractor, Amplitude, OtsuSplit
+from light_curve.light_curve_ext import Eta, Mean, _FeatureEvaluator as _RustBaseFeature
+from light_curve.light_curve_py.features._base import BaseFeature as _PythonBaseFeature
 
 
-class PythonFeature(BaseFeature):
-    def _eval(self, t, m, sigma=None):
-        return m
-
-    @property
-    def size(self):
-        return 1
-
-
-def test_extractor_1():  # all python features
+def test_extractor_all_python():
     t = np.linspace(0.0, 1.0, 50)
     perfect_m = 1e3 * t + 1e2
     err = np.sqrt(perfect_m)
     m = perfect_m + np.random.normal(0, err)
 
     otsusplit = OtsuSplit()
-    testfeature = PythonFeature()
-    extractor = Extractor((otsusplit, testfeature))
+    amplitude = Amplitude()
+
+    assert isinstance(otsusplit, _PythonBaseFeature)
+    assert isinstance(amplitude, _PythonBaseFeature)
+
+    extractor = Extractor((otsusplit, amplitude))
     actual = extractor(t, m, err)
-    desired = np.concatenate([otsusplit(t, m, err), testfeature(t, m, err)])
+    desired = np.concatenate([np.atleast_1d(otsusplit(t, m, err)), np.atleast_1d(amplitude(t, m, err))])
     assert np.all(actual == desired)
 
 
-def test_extractor_2():  # all rust features
+def test_extractor_all_rust():
     t = np.linspace(0.0, 1.0, 50)
     perfect_m = 1e3 * t + 1e2
     err = np.sqrt(perfect_m)
     m = perfect_m + np.random.normal(0, err)
-
-    amplitude = Amplitude()
+    mean = Mean()
     eta = Eta()
-    extractor = Extractor((amplitude, eta))
+
+    assert isinstance(mean, _RustBaseFeature)
+    assert isinstance(eta, _RustBaseFeature)
+
+    extractor = Extractor((mean, eta))
     actual = extractor(t, m, err)
-    desired = np.concatenate([np.atleast_1d(amplitude(t, m, err)), np.atleast_1d(eta(t, m, err))])
+    desired = np.concatenate([np.atleast_1d(mean(t, m, err)), np.atleast_1d(eta(t, m, err))])
     assert np.all(actual == desired)
 
 
-def test_extractor_3():  # python / rust mixed
+def test_extractor_mixed_python_rust():
     t = np.linspace(0.0, 1.0, 50)
     perfect_m = 1e3 * t + 1e2
     err = np.sqrt(perfect_m)
     m = perfect_m + np.random.normal(0, err)
-
-    amplitude = Amplitude()
+    eta = Eta()
     otsusplit = OtsuSplit()
-    extractor = Extractor((amplitude, otsusplit))
+
+    assert isinstance(eta, _RustBaseFeature)
+    assert isinstance(otsusplit, _PythonBaseFeature)
+
+    extractor = Extractor((eta, otsusplit))
     actual = extractor(t, m, err)
-    desired = np.concatenate([np.atleast_1d(amplitude(t, m, err)), np.atleast_1d(otsusplit(t, m, err))])
+    desired = np.concatenate([np.atleast_1d(eta(t, m, err)), np.atleast_1d(otsusplit(t, m, err))])
     assert np.all(actual == desired)

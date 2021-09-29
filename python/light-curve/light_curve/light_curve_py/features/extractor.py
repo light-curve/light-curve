@@ -25,7 +25,7 @@ class _PyExtractor(BaseFeature):
 class Extractor:
     def __new__(cls, features: Collection[Union[BaseFeature, _RustBaseFeature]]):
         if len(features) > 0 and all(isinstance(feature, _RustBaseFeature) for feature in features):
-            return _RustExtractor(features)
+            return _RustExtractor(*features)
         else:
             return _PyExtractor(features)
 
