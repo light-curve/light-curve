@@ -16,7 +16,7 @@ def test_extractor_all_python():
     assert isinstance(otsusplit, _PythonBaseFeature)
     assert isinstance(amplitude, _PythonBaseFeature)
 
-    extractor = Extractor((otsusplit, amplitude))
+    extractor = Extractor(otsusplit, amplitude)
     actual = extractor(t, m, err)
     desired = np.concatenate([np.atleast_1d(otsusplit(t, m, err)), np.atleast_1d(amplitude(t, m, err))])
     assert np.all(actual == desired)
@@ -33,7 +33,7 @@ def test_extractor_all_rust():
     assert isinstance(mean, _RustBaseFeature)
     assert isinstance(eta, _RustBaseFeature)
 
-    extractor = Extractor((mean, eta))
+    extractor = Extractor(mean, eta)
     actual = extractor(t, m, err)
     desired = np.concatenate([np.atleast_1d(mean(t, m, err)), np.atleast_1d(eta(t, m, err))])
     assert np.all(actual == desired)
@@ -50,7 +50,7 @@ def test_extractor_mixed_python_rust():
     assert isinstance(eta, _RustBaseFeature)
     assert isinstance(otsusplit, _PythonBaseFeature)
 
-    extractor = Extractor((eta, otsusplit))
+    extractor = Extractor(eta, otsusplit)
     actual = extractor(t, m, err)
     desired = np.concatenate([np.atleast_1d(eta(t, m, err)), np.atleast_1d(otsusplit(t, m, err))])
     assert np.all(actual == desired)
