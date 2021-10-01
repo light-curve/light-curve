@@ -25,7 +25,7 @@ emcee = "^0.3.0"
 emcee_rand = { version = "^0.3.15", package = "rand" }
 enum_dispatch = "^0.3.7"
 fftw = { version = "0.7.0", default-features = false }
-GSL = { version = "~4.0.0", default-features = false, optional = true }
+GSL = { version = "~6.0.0", default-features = false, optional = true }
 itertools = "^0.10.0"
 lazy_static = "^1.4.0"
 libm = "~0.2.1"
