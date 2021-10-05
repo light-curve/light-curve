@@ -294,7 +294,7 @@ mod tests {
     use crate::TimeSeries;
 
     use approx::assert_relative_eq;
-    use hyperdual::{Hyperdual, U6};
+    use hyperdual::Hyperdual;
 
     check_feature!(BazinFit);
 
@@ -368,7 +368,7 @@ mod tests {
             };
 
             let desired: Vec<_> = {
-                let param: Vec<Hyperdual<f64, U6>> = param
+                let param: Vec<Hyperdual<f64, 6>> = param
                     .iter()
                     .enumerate()
                     .map(|(i, &x)| {
