@@ -403,7 +403,7 @@ mod tests {
     use crate::TimeSeries;
 
     use approx::assert_relative_eq;
-    use hyperdual::{Hyperdual, U8};
+    use hyperdual::Hyperdual;
 
     check_feature!(VillarFit);
 
@@ -480,7 +480,7 @@ mod tests {
             };
 
             let desired: Vec<_> = {
-                let param: Vec<Hyperdual<f64, U8>> = param
+                let param: Vec<Hyperdual<f64, 8>> = param
                     .iter()
                     .enumerate()
                     .map(|(i, &x)| {

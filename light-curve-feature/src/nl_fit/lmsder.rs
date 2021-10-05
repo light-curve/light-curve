@@ -194,9 +194,7 @@ impl NlsProblem {
     fn from_dual_f<RF, DF>(t_size: usize, real_f: RF, dual_f: DF) -> Self
     where
         RF: 'static + Clone + Fn(&[f64], &mut [f64]),
-        DF: 'static
-            + Clone
-            + Fn(&[Hyperdual<f64, hyperdual::U4>], &mut [Hyperdual<f64, hyperdual::U4>]),
+        DF: 'static + Clone + Fn(&[Hyperdual<f64, 4>], &mut [Hyperdual<f64, 4>]),
     {
         let x_size = 4 - 1;
 
@@ -244,10 +242,10 @@ impl NlsProblem {
 // Cannot make it dimension-generic for now
 // https://github.com/rust-lang/rust/issues/78220
 #[cfg(test)]
-fn slice_to_hyperdual_vec<T>(s: &[T]) -> Vec<Hyperdual<f64, hyperdual::U4>>
+fn slice_to_hyperdual_vec<T>(s: &[T]) -> Vec<Hyperdual<f64, 4>>
 where
     T: Float + hyperdual::Float,
-    Hyperdual<f64, hyperdual::U4>: hyperdual::Float,
+    Hyperdual<f64, 4>: hyperdual::Float,
 {
     assert_eq!(s.len() + 1, 4, "slice size should equals hyperdual order");
     s.iter()
@@ -583,7 +581,7 @@ mod tests {
                     *r = nonlinear_func(x, t) - y;
                 }
             },
-            move |x: &[Hyperdual<f64, _>], result: &mut [Hyperdual<f64, _>]| {
+            move |x: &[Hyperdual<f64, 4>], result: &mut [Hyperdual<f64, 4>]| {
                 for (t, (&y, r)) in data_dual
                     .t
                     .iter()
