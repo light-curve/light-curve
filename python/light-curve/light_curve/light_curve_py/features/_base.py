@@ -10,10 +10,11 @@ class BaseFeature(ABC):
         m = np.asarray(m)
         if sigma is not None:
             sigma = np.asarray(sigma)
-
         if sorted is None:
-
-            if np.any(np.diff(t) <= 0):
+            diff = np.diff(t)
+            if np.any(diff == 0):
+                raise ValueError("t must be unique")
+            if np.any(diff < 0):
                 raise ValueError("t must be sorted")
         elif not sorted:
             idx = np.argsort(t)
