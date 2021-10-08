@@ -32,3 +32,5 @@ from .features.extractor import *
 from .features.plateau import *
 from .features.bins import *
 from .features.otsusplit import *
+from .features.flux_n_not_det_before_fd import *
+from .features.magnitude_n_not_det_before_fd import *

@@ -14,8 +14,8 @@ class MagnitudeNNotDetBeforeFd(BaseFeature):
 
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         detections = np.argwhere(sigma != self.sigma_non_detection).flatten()
-        first_non_inf_idx = detections[0]
-        return first_non_inf_idx
+        first_det_idx = detections[0]
+        return first_det_idx
 
 
 __all__ = ("MagnitudeNNotDetBeforeFd",)
