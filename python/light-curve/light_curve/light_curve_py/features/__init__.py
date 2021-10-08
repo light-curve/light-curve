@@ -33,3 +33,5 @@ from .plateau import *
 from .bins import *
 from .otsusplit import *
 from .stetsonj import *
+from .magnitude_n_not_det_before_fd import *
+from .flux_n_not_det_before_fd import *
