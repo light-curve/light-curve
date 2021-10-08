@@ -411,7 +411,7 @@ class TestAllPy(_Test):
                 continue
             features.append(getattr(lc_ext, cls.name)(*cls.args))
         self.rust = lc_ext.Extractor(*features)
-        self.py_feature = lc_py.Extractor(py_features)
+        self.py_feature = lc_py.Extractor(*py_features)
 
 
 class TestAllNaive(_Test):
