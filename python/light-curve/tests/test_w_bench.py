@@ -139,10 +139,11 @@ class TestAndersonDarlingNormal(_Test):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
-if lc._built_with_gsl:
+if lc_ext._built_with_gsl:
 
-    class TestBazinFit(_FeatureTest, _NaiveTest):
-        feature = lc.BazinFit("mcmc-lmsder")
+    class TestBazinFit(_Test):
+        name = "BazinFit"
+        args = ("mcmc-lmsder",)
         rtol = 1e-4  # Precision used in the feature implementation
 
         add_to_all_features = False  # in All* random data is used
