@@ -1,12 +1,14 @@
+//! Feature sctructs implements [crate::FeatureEvaluator] trait
+
+pub mod antifeatures;
+
 mod amplitude;
 pub use amplitude::Amplitude;
 
 mod anderson_darling_normal;
 pub use anderson_darling_normal::AndersonDarlingNormal;
 
-#[cfg(feature = "gsl")]
 mod bazin_fit;
-#[cfg(feature = "gsl")]
 pub use bazin_fit::BazinFit;
 
 mod beyond_n_std;
@@ -68,6 +70,7 @@ pub use percent_difference_magnitude_percentile::PercentDifferenceMagnitudePerce
 
 mod periodogram;
 pub use periodogram::Periodogram;
+pub use periodogram::PeriodogramPeaks as _PeriodogramPeaks;
 
 mod reduced_chi2;
 pub use reduced_chi2::ReducedChi2;
@@ -80,6 +83,9 @@ pub use standard_deviation::StandardDeviation;
 
 mod stetson_k;
 pub use stetson_k::StetsonK;
+
+mod villar_fit;
+pub use villar_fit::VillarFit;
 
 mod weighted_mean;
 pub use weighted_mean::WeightedMean;

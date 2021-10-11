@@ -1,5 +1,5 @@
 # `light-curve`
-## Irregular time series processing tools for Rust and Python
+## Irregular time series analysis toolbox for Rust and Python
 
 The project is aimed to build high-performance tools for light curve analysis suitable to process alert and archival data of current [ZTF](https://ztf.caltech.edu) and future [Vera Rubin Observatory LSST](https://lsst.org) photometric surveys.
 
@@ -19,6 +19,10 @@ The most of the code base is written on Rust and split into several crates.
 - `test-data` is [a Git submodule](https://git-scm.com/book/en/v2/Git-Tools-Submodules) linking to [the `test-data` repository](https://github.com/light-curve/test-data) containing light curves required for testing, benchmarking and development of the new features. Use `git clone --recurse-submodules` to download this repo with all submodules
 - `.ci` Continuous integration related stuff, currently it is just a custom Docker [maturin](https://github.com/pyo3/maturin) image used to publish x86-64 Linux Python packages via Github Actions
 - `.github` GitHub related utils, such as dependabot configuration and Actions workflows
+
+### Visioning
+
+All package versions are unrelated, which means that `light-curve-python v0.a.b` can depend on `light-curve-dmdt v0.d.e` and `light-curve-feature v0.f.g`. We use [semver](https://semver.org), so a release `0.3.0` can be backward incompatible with `0.2.5` version of the same crate. Please refer to `CHAMGELOG.md` in sub-directories for the changes between versions.
 
 ### Citation
 

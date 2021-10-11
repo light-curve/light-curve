@@ -1,17 +1,28 @@
 use crate::evaluator::*;
 
-/// Ratio of $p$th inter-percentile range to the median
-///
-/// $$
-/// p\mathrm{~percent~difference~magnitude~percentile} \equiv \frac{Q(1-p) - Q(p)}{\mathrm{Median}(m)}.
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Ratio of $p$th inter-percentile range to the median
+
+$$
+p\mathrm{~percent~difference~magnitude~percentile} \equiv \frac{Q(1-p) - Q(p)}{\mathrm{Median}(m)}.
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "PercentDifferenceMagnitudePercentileParameters",
+    from = "PercentDifferenceMagnitudePercentileParameters"
+)]
 pub struct PercentDifferenceMagnitudePercentile {
     quantile: f32,
     name: String,
@@ -56,6 +67,10 @@ impl PercentDifferenceMagnitudePercentile {
     pub fn default_quantile() -> f32 {
         0.05
     }
+
+    pub fn doc() -> &'static str {
+        DOC
+    }
 }
 
 impl Default for PercentDifferenceMagnitudePercentile {
@@ -93,6 +108,30 @@ where
     }
 }
 
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(rename = "PercentDifferenceMagnitudePercentile")]
+struct PercentDifferenceMagnitudePercentileParameters {
+    quantile: f32,
+}
+
+impl From<PercentDifferenceMagnitudePercentile> for PercentDifferenceMagnitudePercentileParameters {
+    fn from(f: PercentDifferenceMagnitudePercentile) -> Self {
+        Self {
+            quantile: f.quantile,
+        }
+    }
+}
+
+impl From<PercentDifferenceMagnitudePercentileParameters> for PercentDifferenceMagnitudePercentile {
+    fn from(p: PercentDifferenceMagnitudePercentileParameters) -> Self {
+        Self::new(p.quantile)
+    }
+}
+
+impl JsonSchema for PercentDifferenceMagnitudePercentile {
+    json_schema!(PercentDifferenceMagnitudePercentileParameters, false);
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
@@ -100,17 +139,16 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        percent_difference_magnitude_percentile_info,
-        PercentDifferenceMagnitudePercentile::default()
-    );
+    use serde_test::{assert_tokens, Token};
+
+    check_feature!(PercentDifferenceMagnitudePercentile);
 
     feature_test!(
         percent_difference_magnitude_percentile,
         [
-            Box::new(PercentDifferenceMagnitudePercentile::default()),
-            Box::new(PercentDifferenceMagnitudePercentile::new(0.05)), // should be the same
-            Box::new(PercentDifferenceMagnitudePercentile::new(0.1)),
+            PercentDifferenceMagnitudePercentile::default(),
+            PercentDifferenceMagnitudePercentile::new(0.05), // should be the same
+            PercentDifferenceMagnitudePercentile::new(0.1),
         ],
         [4.85, 4.85, 4.6],
         [
@@ -118,4 +156,23 @@ mod tests {
             10.0, 70.0, 80.0, 92.0, 97.0, 17.0
         ],
     );
+
+    #[test]
+    fn serialization() {
+        const QUANTILE: f32 = 0.017;
+        let percent_difference_magnitude_percentile =
+            PercentDifferenceMagnitudePercentile::new(QUANTILE);
+        assert_tokens(
+            &percent_difference_magnitude_percentile,
+            &[
+                Token::Struct {
+                    len: 1,
+                    name: "PercentDifferenceMagnitudePercentile",
+                },
+                Token::String("quantile"),
+                Token::F32(QUANTILE),
+                Token::StructEnd,
+            ],
+        )
+    }
 }

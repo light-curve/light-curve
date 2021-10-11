@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::wrap_pymodule;
 
-mod arr_wrapper;
+mod cont_array;
 
 mod dmdt;
 use dmdt::DmDt;
@@ -15,47 +15,39 @@ mod sorted;
 
 /// High-performance time-series feature extractor
 ///
-/// The module provides a collection of features to be extracted from unevenly
-/// separated time-series. This module if based on Rust crates
-/// `light-curve-feature` & `light-curve-dmdt`.
+/// The module provides a collection of features to be extracted from unevenly separated
+/// time-series. This module if based on Rust crates `light-curve-feature` & `light-curve-dmdt`.
 ///
-/// dm-lg(dt) maps generator is represented by `DmDt` class, it has different
-/// interface from all other features, see its documentation for details.
-///
-/// Features documentation can be found on https://docs.rs/light-curve-feature
-/// All features are represented by classes with callable instances, which have
-/// the same attributes and call signature:
-///
-/// Attributes
-/// ----------
-/// names : list of feature names
-///
-/// Methods
-/// -------
-/// __call__(t, m, sigma=None, sorted=None, fill_value=None)
-///     Extract features and return them as numpy array.
-///
-///     Parameters
-///     ----------
-///     t : numpy.ndarray of np.float64 dtype
-///         Time moments
-///     m : numpy.ndarray of np.float64 dtype
-///         Power of observed signal (magnitude or flux)
-///     sigma : numpy.ndarray of np.float64 dtype or None, optional
-///         Observation error, if None it is assumed to be unity
-///     sorted : bool or None, optional
-///         Specifies if input array are sorted by time moments.
-///         True is for certainly sorted, False is for unsorted.
-///         If None is specified than sorting is checked and an exception is
-///         raised for unsorted `t`
-///     fill_value : float or None, optional
-///         Value to fill invalid feature values, for example if count of
-///         observations is not enough to find a proper value.
-///         None causes exception for invalid features
-///
+/// dm-lg(dt) maps generator is represented by `DmDt` class, while all other classes are
+/// feature extractors
 #[pymodule]
 fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
+    m.add("_built_with_gsl", {
+        #[cfg(feature = "gsl")]
+        {
+            true
+        }
+        #[cfg(not(feature = "gsl"))]
+        {
+            false
+        }
+    })?;
+    m.add("_fft_backend", {
+        #[cfg(feature = "fftw-static")]
+        {
+            "statically linked FFTW"
+        }
+        #[cfg(feature = "fftw-dynamic")]
+        {
+            "dynamically linked FFTW"
+        }
+        #[cfg(feature = "mkl")]
+        {
+            "Intel MKL"
+        }
+    })?;
 
     m.add_class::<DmDt>()?;
 
@@ -65,6 +57,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<Amplitude>()?;
     m.add_class::<AndersonDarlingNormal>()?;
+    m.add_class::<BazinFit>()?;
     m.add_class::<BeyondNStd>()?;
     m.add_class::<Bins>()?;
     m.add_class::<Cusum>()?;
@@ -89,6 +82,7 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Skew>()?;
     m.add_class::<StandardDeviation>()?;
     m.add_class::<StetsonK>()?;
+    m.add_class::<VillarFit>()?;
     m.add_class::<WeightedMean>()?;
 
     #[cfg(feature = "nonlinear-fit")]

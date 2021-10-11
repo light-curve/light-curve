@@ -1,16 +1,22 @@
 use crate::evaluator::*;
 
-/// Mean magnitude
-///
-/// $$
-/// \langle m \rangle \equiv \frac1{N} \sum_i m_i.
-/// $$
-/// This is non-weighted mean, see [WeightedMean](crate::WeightedMean) for weighted mean.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Mean magnitude
+
+$$
+\langle m \rangle \equiv \frac1{N} \sum_i m_i.
+$$
+This is non-weighted mean, see [WeightedMean](crate::WeightedMean) for weighted mean.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Mean {}
 
 lazy_info!(
@@ -26,6 +32,10 @@ lazy_info!(
 impl Mean {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -58,11 +68,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(mean_info, Mean::default());
+    check_feature!(Mean);
 
     feature_test!(
         mean,
-        [Box::new(Mean::new())],
+        [Mean::new()],
         [14.0],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
     );

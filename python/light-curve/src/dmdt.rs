@@ -1,11 +1,12 @@
-use crate::arr_wrapper::ArrWrapper;
+use crate::cont_array::{ContArray, ContCowArray};
 use crate::errors::{Exception, Res};
 use crate::sorted::check_sorted;
+
 use conv::{ApproxFrom, ApproxInto, ConvAsUtil};
 use enumflags2::{bitflags, BitFlags};
 use light_curve_dmdt as lcdmdt;
 use ndarray::IntoNdProducer;
-use numpy::{Element, IntoPyArray, PyArray1, ToPyArray};
+use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::class::iter::PyIterProtocol;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -19,15 +20,17 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use unzip3::Unzip3;
 
+type Arr<'a, T> = PyReadonlyArray1<'a, T>;
+
 #[derive(FromPyObject)]
 enum GenericFloatArray1<'a> {
     #[pyo3(transparent, annotation = "np.ndarray[float32]")]
-    Float32(&'a PyArray1<f32>),
+    Float32(Arr<'a, f32>),
     #[pyo3(transparent, annotation = "np.ndarray[float64]")]
-    Float64(&'a PyArray1<f64>),
+    Float64(Arr<'a, f64>),
 }
 
-impl<'a> TryFrom<GenericFloatArray1<'a>> for &'a PyArray1<f32> {
+impl<'a> TryFrom<GenericFloatArray1<'a>> for Arr<'a, f32> {
     type Error = ();
 
     fn try_from(value: GenericFloatArray1<'a>) -> Result<Self, Self::Error> {
@@ -38,7 +41,7 @@ impl<'a> TryFrom<GenericFloatArray1<'a>> for &'a PyArray1<f32> {
     }
 }
 
-impl<'a> TryFrom<GenericFloatArray1<'a>> for &'a PyArray1<f64> {
+impl<'a> TryFrom<GenericFloatArray1<'a>> for Arr<'a, f64> {
     type Error = ();
 
     fn try_from(value: GenericFloatArray1<'a>) -> Result<Self, Self::Error> {
@@ -85,11 +88,11 @@ where
 impl<'a, T> GenericDmDt<T>
 where
     T: Element + ndarray::NdFloat + lcdmdt::ErfFloat,
-    &'a PyArray1<T>: TryFrom<GenericFloatArray1<'a>>,
+    Arr<'a, T>: TryFrom<GenericFloatArray1<'a>>,
 {
-    fn sigma_to_err2(sigma: &PyArray1<T>) -> ndarray::Array1<T> {
-        let mut a = sigma.to_owned_array();
-        a.mapv_inplace(|x| x.powi(2));
+    fn sigma_to_err2(sigma: Arr<'a, T>) -> ContArray<T> {
+        let mut a: ContArray<_> = sigma.as_array().into();
+        a.0.mapv_inplace(|x| x.powi(2));
         a
     }
 
@@ -113,9 +116,12 @@ where
         }
     }
 
-    fn py_count_dt(&self, py: Python, t: &PyArray1<T>, sorted: Option<bool>) -> Res<PyObject> {
-        self.count_dt(&ArrWrapper::new(t, true), sorted)
-            .map(|a| a.into_pyarray(py).into_py(py))
+    fn py_count_dt(&self, py: Python, t: Arr<'a, T>, sorted: Option<bool>) -> Res<PyObject> {
+        self.count_dt(
+            ContCowArray::from_view(t.as_array(), true).as_slice(),
+            sorted,
+        )
+        .map(|a| a.into_pyarray(py).into_py(py))
     }
 
     fn count_dt(&self, t: &[T], sorted: Option<bool>) -> Res<ndarray::Array1<T>> {
@@ -132,16 +138,23 @@ where
         let wrapped_t_ = t_
             .into_iter()
             .enumerate()
-            .map(|(i, t)| match t.try_into() {
-                Ok(t) => Ok(ArrWrapper::new(t, true)),
-                Err(_) => Err(Exception::TypeError(format!(
-                    "t_[{}] has mismatched dtype with the t_[0] which is {}",
-                    i,
-                    std::any::type_name::<T>()
-                ))),
+            .map(|(i, t)| {
+                let t: Result<Arr<_>, _> = t.try_into();
+                match t {
+                    Ok(t) => Ok(t),
+                    Err(_) => Err(Exception::TypeError(format!(
+                        "t_[{}] has mismatched dtype with the t_[0] which is {}",
+                        i,
+                        std::any::type_name::<T>()
+                    ))),
+                }
             })
             .collect::<Res<Vec<_>>>()?;
-        let typed_t_ = wrapped_t_.iter().map(|t| &t[..]).collect();
+        let array_t_ = wrapped_t_
+            .iter()
+            .map(|t| ContCowArray::from_view(t.as_array(), true))
+            .collect::<Vec<_>>();
+        let typed_t_ = array_t_.iter().map(|t| t.as_slice()).collect();
         Ok(self
             .count_dt_many(typed_t_, sorted)?
             .into_pyarray(py)
@@ -171,12 +184,16 @@ where
     fn py_points(
         &self,
         py: Python,
-        t: &PyArray1<T>,
-        m: &PyArray1<T>,
+        t: Arr<'a, T>,
+        m: Arr<'a, T>,
         sorted: Option<bool>,
     ) -> Res<PyObject> {
         Ok(self
-            .points(&ArrWrapper::new(t, true), &ArrWrapper::new(m, true), sorted)?
+            .points(
+                ContCowArray::from_view(t.as_array(), true).as_slice(),
+                ContCowArray::from_view(m.as_array(), true).as_slice(),
+                sorted,
+            )?
             .into_pyarray(py)
             .into_py(py))
     }
@@ -198,16 +215,32 @@ where
         let wrapped_lcs = lcs
             .into_iter()
             .enumerate()
-            .map(|(i, (t, m))| match (t.try_into(), m.try_into()) {
-                (Ok(t), Ok(m)) => Ok((ArrWrapper::new(t, true), ArrWrapper::new(m, true))),
-                _ => Err(Exception::TypeError(format!(
-                    "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
-                    i,
-                    std::any::type_name::<T>(),
-                ))),
+            .map(|(i, (t, m))| {
+                let t: Result<Arr<'a, T>, _> = t.try_into();
+                let m: Result<Arr<'a, T>, _> = m.try_into();
+                match (t, m) {
+                    (Ok(t), Ok(m)) => Ok((t, m)),
+                    _ => Err(Exception::TypeError(format!(
+                        "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                        i,
+                        std::any::type_name::<T>(),
+                    ))),
+                }
             })
             .collect::<Res<Vec<_>>>()?;
-        let typed_lcs = wrapped_lcs.iter().map(|(t, m)| (&t[..], &m[..])).collect();
+        let array_lcs = wrapped_lcs
+            .iter()
+            .map(|(t, m)| {
+                (
+                    ContCowArray::from_view(t.as_array(), true),
+                    ContCowArray::from_view(m.as_array(), true),
+                )
+            })
+            .collect::<Vec<_>>();
+        let typed_lcs = array_lcs
+            .iter()
+            .map(|(t, m)| (t.as_slice(), m.as_slice()))
+            .collect();
         Ok(self
             .points_many(typed_lcs, sorted)?
             .into_pyarray(py)
@@ -249,13 +282,13 @@ where
             .into_iter()
             .enumerate()
             .map(|(i, (t, m))| {
-                let t: Result<&'a PyArray1<T>, _> = t.try_into();
-                let m: Result<&'a PyArray1<T>, _> = m.try_into();
+                let t: Result<Arr<'a, T>, _> = t.try_into();
+                let m: Result<Arr<'a, T>, _> = m.try_into();
                 match (t, m) {
                     (Ok(t), Ok(m)) => {
-                        let t = t.to_owned_array();
-                        check_sorted(t.as_slice().unwrap(), sorted)?;
-                        let m = m.to_owned_array();
+                        let t: ContArray<_> = t.as_array().into();
+                        check_sorted(t.as_slice(), sorted)?;
+                        let m: ContArray<_> = m.as_array().into();
                         Ok((t, m))
                     }
                     _ => Err(Exception::TypeError(format!(
@@ -277,60 +310,20 @@ where
         )
     }
 
-    fn points_from_columnar(
-        &self,
-        edges: &PyArray1<i64>,
-        t: &PyArray1<T>,
-        m: &PyArray1<T>,
-        sorted: Option<bool>,
-    ) -> Res<ndarray::Array3<T>> {
-        let edges = &ArrWrapper::new(edges, true)[..];
-        let t = &ArrWrapper::new(t, true)[..];
-        let m = &ArrWrapper::new(m, true)[..];
-
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.n_jobs)
-            .build()
-            .unwrap();
-
-        let maps = pool.install(|| {
-            edges
-                .par_windows(2)
-                .map(|idx| {
-                    let (first, last) = (idx[0] as usize, idx[1] as usize);
-                    let t_lc = &t[first..last];
-                    check_sorted(t_lc, sorted)?;
-                    let m_lc = &m[first..last];
-
-                    let mut a = self
-                        .dmdt
-                        .points(t_lc, m_lc)
-                        .mapv(|x| x.approx_into().unwrap());
-                    self.normalize(&mut a, t_lc);
-
-                    let (nrows, ncols) = (a.nrows(), a.ncols());
-                    Ok(a.into_shape((1, nrows, ncols)).unwrap())
-                })
-                .collect::<Res<Vec<_>>>()
-        })?;
-        let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
-        Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
-    }
-
     fn py_gausses(
         &self,
         py: Python,
-        t: &PyArray1<T>,
-        m: &PyArray1<T>,
-        sigma: &PyArray1<T>,
+        t: Arr<'a, T>,
+        m: Arr<'a, T>,
+        sigma: Arr<'a, T>,
         sorted: Option<bool>,
     ) -> Res<PyObject> {
         let err2 = Self::sigma_to_err2(sigma);
         Ok(self
             .gausses(
-                &ArrWrapper::new(t, true),
-                &ArrWrapper::new(m, true),
-                err2.as_slice().unwrap(),
+                ContCowArray::from_view(t.as_array(), true).as_slice(),
+                ContCowArray::from_view(m.as_array(), true).as_slice(),
+                err2.as_slice(),
                 sorted,
             )?
             .into_pyarray(py)
@@ -367,24 +360,34 @@ where
         let wrapped_lcs = lcs
             .into_iter()
             .enumerate()
-            .map(
-                |(i, (t, m, sigma))| match (t.try_into(), m.try_into(), sigma.try_into()) {
-                    (Ok(t), Ok(m), Ok(sigma)) => Ok((
-                        ArrWrapper::new(t, true),
-                        ArrWrapper::new(m, true),
-                        Self::sigma_to_err2(sigma),
-                    )),
+            .map(|(i, (t, m, sigma))| {
+                let t: Result<Arr<_>, _> = t.try_into();
+                let m: Result<Arr<_>, _> = m.try_into();
+                let sigma: Result<Arr<_>, _> = sigma.try_into();
+
+                match (t, m, sigma) {
+                    (Ok(t), Ok(m), Ok(sigma)) => Ok((t, m, Self::sigma_to_err2(sigma))),
                     _ => Err(Exception::TypeError(format!(
                         "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
                         i,
                         std::any::type_name::<T>()
                     ))),
-                },
-            )
+                }
+            })
             .collect::<Res<Vec<_>>>()?;
-        let typed_lcs = wrapped_lcs
+        let array_lcs = wrapped_lcs
             .iter()
-            .map(|(t, m, err2)| (&t[..], &m[..], err2.as_slice().unwrap()))
+            .map(|(t, m, err2)| {
+                (
+                    ContCowArray::from_view(t.as_array(), true),
+                    ContCowArray::from_view(m.as_array(), true),
+                    err2,
+                )
+            })
+            .collect::<Vec<_>>();
+        let typed_lcs = array_lcs
+            .iter()
+            .map(|(t, m, err2)| (t.as_slice(), m.as_slice(), err2.as_slice()))
             .collect();
         Ok(self
             .gausses_many(typed_lcs, sorted)?
@@ -435,14 +438,14 @@ where
             .into_iter()
             .enumerate()
             .map(|(i, (t, m, sigma))| {
-                let t: Result<&'a PyArray1<T>, _> = t.try_into();
-                let m: Result<&'a PyArray1<T>, _> = m.try_into();
-                let sigma: Result<&'a PyArray1<T>, _> = sigma.try_into();
+                let t: Result<Arr<'a, T>, _> = t.try_into();
+                let m: Result<Arr<'a, T>, _> = m.try_into();
+                let sigma: Result<Arr<'a, T>, _> = sigma.try_into();
                 match (t, m, sigma) {
                     (Ok(t), Ok(m), Ok(sigma)) => {
-                        let t = t.to_owned_array();
-                        check_sorted(t.as_slice().unwrap(), sorted)?;
-                        let m = m.to_owned_array();
+                        let t: ContArray<_> = t.as_array().into();
+                        check_sorted(t.as_slice(), sorted)?;
+                        let m: ContArray<_> = m.as_array().into();
                         let err2 = Self::sigma_to_err2(sigma);
                         Ok((t, m, err2))
                     }
@@ -463,53 +466,6 @@ where
             drop_nobs,
             random_seed,
         )
-    }
-
-    fn gausses_from_columnar(
-        &self,
-        edges: &PyArray1<i64>,
-        t: &PyArray1<T>,
-        m: &PyArray1<T>,
-        sigma: &PyArray1<T>,
-        sorted: Option<bool>,
-    ) -> Res<ndarray::Array3<T>> {
-        let edges = &ArrWrapper::new(edges, true)[..];
-        let t = &ArrWrapper::new(t, true)[..];
-        let m = &ArrWrapper::new(m, true)[..];
-        let sigma = &ArrWrapper::new(sigma, true)[..];
-
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.n_jobs)
-            .build()
-            .unwrap();
-
-        let maps = pool.install(|| {
-            edges
-                .par_windows(2)
-                .map(|idx| {
-                    let (first, last) = (idx[0] as usize, idx[1] as usize);
-                    let t_lc = &t[first..last];
-                    check_sorted(t_lc, sorted)?;
-                    let m_lc = &m[first..last];
-                    let err2_lc: Vec<_> = sigma[first..last].iter().map(|x| x.powi(2)).collect();
-
-                    let mut a = match self.error_func {
-                        ErrorFunction::Exact => {
-                            self.dmdt.gausses::<lcdmdt::ExactErf>(t_lc, m_lc, &err2_lc)
-                        }
-                        ErrorFunction::Eps1Over1e3 => self
-                            .dmdt
-                            .gausses::<lcdmdt::Eps1Over1e3Erf>(t_lc, m_lc, &err2_lc),
-                    };
-                    self.normalize(&mut a, t_lc);
-
-                    let (nrows, ncols) = (a.nrows(), a.ncols());
-                    Ok(a.into_shape((1, nrows, ncols)).unwrap())
-                })
-                .collect::<Res<Vec<_>>>()
-        })?;
-        let map_views: Vec<_> = maps.iter().map(|a| a.view()).collect();
-        Ok(ndarray::concatenate(ndarray::Axis(0), &map_views).unwrap())
     }
 }
 
@@ -743,18 +699,18 @@ macro_rules! py_dmdt_batches {
     };
 }
 
-type TmLc<T> = (ndarray::Array1<T>, ndarray::Array1<T>);
-type Tmerr2Lc<T> = (ndarray::Array1<T>, ndarray::Array1<T>, ndarray::Array1<T>);
+type TmLc<T> = (ContArray<T>, ContArray<T>);
+type Tmerr2Lc<T> = (ContArray<T>, ContArray<T>, ContArray<T>);
 
 py_dmdt_batches!(
-    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
+    |dmdt_batches: Arc<GenericDmDtBatches<_, (ContArray<_>, ContArray<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
         let mut lcs: Vec<_> = indexes
             .iter()
             .map(|&i| {
                 let (t, m) = &dmdt_batches.lcs[i];
                 (
-                    t.as_slice().unwrap(),
-                    m.as_slice().unwrap(),
+                    t.as_slice(),
+                    m.as_slice(),
                 )
             })
             .collect();
@@ -770,7 +726,7 @@ py_dmdt_batches!(
         };
         if let Some(owned_lcs) = &dropped_owned_lcs {
             for (ref_lc, lc) in lcs.iter_mut().zip(owned_lcs) {
-                *ref_lc = (&lc.0, &lc.1);
+                *ref_lc = (lc.0.as_slice(), lc.1.as_slice());
             }
         }
         dmdt_batches.dmdt.points_many(lcs, Some(true))
@@ -786,15 +742,15 @@ py_dmdt_batches!(
 );
 
 py_dmdt_batches!(
-    |dmdt_batches: Arc<GenericDmDtBatches<_, (ndarray::Array1<_>, ndarray::Array1<_>, ndarray::Array1<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
+    |dmdt_batches: Arc<GenericDmDtBatches<_, (ContArray<_>, ContArray<_>, ContArray<_>)>>, indexes: &[usize], rng: Option<Xoshiro256PlusPlus>| {
         let mut lcs: Vec<_> = indexes
             .iter()
             .map(|&i| {
                 let (t, m, err2) = &dmdt_batches.lcs[i];
                 (
-                    t.as_slice().unwrap(),
-                    m.as_slice().unwrap(),
-                    err2.as_slice().unwrap(),
+                    t.as_slice(),
+                    m.as_slice(),
+                    err2.as_slice(),
                 )
             })
             .collect();
@@ -810,7 +766,7 @@ py_dmdt_batches!(
         };
         if let Some(owned_lcs) = &dropped_owned_lcs {
             for (ref_lc, lc) in lcs.iter_mut().zip(owned_lcs) {
-                *ref_lc = (&lc.0, &lc.1, &lc.2);
+                *ref_lc = (lc.0.as_slice(), lc.1.as_slice(), lc.2.as_slice());
             }
         }
         dmdt_batches.dmdt.gausses_many(lcs, Some(true))
@@ -827,22 +783,17 @@ py_dmdt_batches!(
 
 /// dm-dt map producer
 ///
-/// THIS IS AN EXPERIMENTAL FEATURE
-/// INTERFACE COULD CHANGE WHEN PATCH VERSION IS CHANGED
-///
-/// Each pair of observations is mapped to dm-dt plane bringing unity
-/// value. dmdt-map is a rectangle on this plane consisted of
-/// `dt_size` x `dm_size` cells, and limited by `[min_dt; max_dt)` and
-/// `[min_dm; max_dm)` intervals. `.points*()` methods assigns unity
-/// value of each observation to a single cell, while `.gausses*()` methods
-/// smears this unity value over all cells with given dt value using
-/// normal distribution `N(m2 - m1, sigma1^2 + sigma2^2)`, where
-/// `(t1, m1, sigma1)` and `(t2, m2, sigma2)` are a pair of observations
-/// including uncertainties. Optionally after the map is built, normalisation
-/// is performed ("norm" parameter): "dt" means divide each dt = const
-/// column by the total number of all observations corresponded to given dt;
-/// "max" means divide all values by the maximum value; both options can be
-/// combined, then "max" is performed after "dt".
+/// Each pair of observations is mapped to dm-dt plane bringing unity value. dmdt-map is a rectangle
+/// on this plane consisted of `dt_size` x `dm_size` cells, and limited by `[min_dt; max_dt)` and
+/// `[min_dm; max_dm)` intervals. `.points*()` methods assigns unity value of each observation to a
+/// single cell, while `.gausses*()` methods smears this unity value over all cells with given dt
+/// value using normal distribution `N(m2 - m1, sigma1^2 + sigma2^2)`, where `(t1, m1, sigma1)` and
+/// `(t2, m2, sigma2)` are a pair of observations including uncertainties. Optionally, after the map
+/// is built, normalisation is performed ("norm" parameter): "dt" means divide each dt = const
+/// column by the total number of all observations corresponded to given dt (in this case
+/// `gausses()` output can be interpreted as conditional probability p(dm|dt)); "max" means divide
+/// all values by the maximum value; both options can be combined, then "max" is performed after
+/// "dt".
 ///
 /// Parameters
 /// ----------
@@ -860,13 +811,13 @@ py_dmdt_batches!(
 ///     - 'asis' means using the given array as a grid
 /// dm_type : str, optional
 ///     Type of `dm` grid, see `dt_type` for details
-/// norm : list of str, opional
+/// norm : list of str, optional
 ///     Types of normalisation, cab be any combination of "dt" and "max",
 ///     default is an empty list `[]` which means no normalisation
 /// n_jobs : int, optional
-///     Number of parallel threads to run in bulk transformation methods such
-///     as `points_many()`, `gausses_batches()` or `points_from_columnar()`,
-///     default is `-1` which means to use as many threads as CPU cores
+///     Number of parallel threads to run bulk methods such as `points_many()`
+///     or `gausses_batches()` default is `-1` which means to use as many
+///     threads as CPU cores
 /// approx_erf : bool, optional
 ///     Use approximation normal CDF in `gausses*` methods, reduces accuracy,
 ///     but has better performance, default is `False`
@@ -905,10 +856,6 @@ py_dmdt_batches!(
 ///     Gives a reusable iterable which yields dmdt-maps
 /// gausses_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
 ///     Gives a reusable iterable which yields smeared dmdt-maps
-/// points_from_columnar(edges, t, m, sorted=None)
-///     Produces dmdt-maps from light curves given in columnar form
-/// gausses_from_columnar(edges, t, m, sigma, sorted=None)
-///     Produces smeared dmdt-maps from columnar light curves
 ///
 #[pyclass]
 pub struct DmDt {
@@ -1047,18 +994,16 @@ impl DmDt {
         n_jobs = -1,
         approx_erf = "false"
     )]
-    fn __new__(
-        dt: &PyArray1<f64>,
-        dm: &PyArray1<f64>,
+    fn __new__<'a>(
+        dt: Arr<'a, f64>,
+        dm: Arr<'a, f64>,
         dm_type: &str,
         dt_type: &str,
         norm: Vec<&str>,
         n_jobs: i64,
         approx_erf: bool,
     ) -> Res<Self> {
-        let dt = dt.readonly();
         let dt = dt.as_array();
-        let dm = dm.readonly();
         let dm = dm.as_array();
 
         let grid_type_dt = match dt_type {
@@ -1399,54 +1344,6 @@ impl DmDt {
         }
     }
 
-    /// Produces dmdt-maps from light curves given in columnar form
-    ///
-    /// The method is performed in parallel using `n_jobs` threads
-    ///
-    /// Parameters
-    /// ----------
-    /// edges : 1d-ndarray of np.int64
-    ///     Indices of light curve edges: each light curve is described by
-    ///     `t[edges[i]:edges[i+1]], m[edges[i]:edges[i+1]]`, i.e. edges must
-    ///     have `n + 1` elements, where `n` is a number of light curves
-    /// t : 1d-ndarray of float
-    ///     Time moments, must be sorted
-    /// m : 1d-ndarray of float
-    ///     Magnitudes
-    /// sorted : bool or None, optional
-    ///     `True` guarantees that the light curve is sorted
-    ///
-    /// Returns
-    /// -------
-    /// 3d-array of float
-    ///     First axis is light curve index, two other axes are dmdt map
-    ///
-    #[args(edges, t, m, sorted = "None")]
-    fn points_from_columnar(
-        &self,
-        py: Python,
-        edges: &PyArray1<i64>,
-        t: GenericFloatArray1,
-        m: GenericFloatArray1,
-        sorted: Option<bool>,
-    ) -> Res<PyObject> {
-        match (t, m) {
-            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => Ok(self
-                .dmdt_f32
-                .points_from_columnar(edges, t, m, sorted)?
-                .into_pyarray(py)
-                .into_py(py)),
-            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => Ok(self
-                .dmdt_f64
-                .points_from_columnar(edges, t, m, sorted)?
-                .into_pyarray(py)
-                .into_py(py)),
-            _ => Err(Exception::TypeError(
-                "t and m must have the same dtype".to_owned(),
-            )),
-        }
-    }
-
     /// Produces smeared dmdt-map from light curve
     ///
     /// Parameters
@@ -1607,66 +1504,6 @@ impl DmDt {
                 }
                 .into_py(py)),
             }
-        }
-    }
-
-    /// Produces smeared dmdt-maps from light curves given in columnar form
-    ///
-    /// The method is performed in parallel using `n_jobs` threads
-    ///
-    /// Parameters
-    /// ----------
-    /// edges : 1d-ndarray of np.int64
-    ///     Indices of light curve edges: each light curve is described by
-    ///     `t[edges[i]:edges[i+1]], m[edges[i]:edges[i+1]], sigma[edges[i]:edges[i+1]]`,
-    ///     i.e. edges must have `n + 1` elements, where `n` is a number of
-    ///     light curves
-    /// t : 1d-ndarray of float
-    ///     Time moments, must be sorted
-    /// m : 1d-ndarray of float
-    ///     Magnitudes
-    /// sigma : 1d-ndarray of float
-    ///     Observation uncertainties
-    /// sorted : bool or None, optional
-    ///     `True` guarantees that the light curve is sorted
-    ///
-    /// Returns
-    /// -------
-    /// 3d-array of float
-    ///     First axis is light curve index, two other axes are dmdt map
-    ///
-    #[args(edges, t, m, sigma, sorted = "None")]
-    fn gausses_from_columnar(
-        &self,
-        py: Python,
-        edges: &PyArray1<i64>,
-        t: GenericFloatArray1,
-        m: GenericFloatArray1,
-        sigma: GenericFloatArray1,
-        sorted: Option<bool>,
-    ) -> Res<PyObject> {
-        match (t, m, sigma) {
-            (
-                GenericFloatArray1::Float32(t),
-                GenericFloatArray1::Float32(m),
-                GenericFloatArray1::Float32(sigma),
-            ) => Ok(self
-                .dmdt_f32
-                .gausses_from_columnar(edges, t, m, sigma, sorted)?
-                .into_pyarray(py)
-                .into_py(py)),
-            (
-                GenericFloatArray1::Float64(t),
-                GenericFloatArray1::Float64(m),
-                GenericFloatArray1::Float64(sigma),
-            ) => Ok(self
-                .dmdt_f64
-                .gausses_from_columnar(edges, t, m, sigma, sorted)?
-                .into_pyarray(py)
-                .into_py(py)),
-            _ => Err(Exception::TypeError(String::from(
-                "t, m and sigma must have the same dtype",
-            ))),
         }
     }
 }

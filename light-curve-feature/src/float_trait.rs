@@ -1,17 +1,35 @@
 use crate::periodogram::FftwFloat;
+
 use conv::prelude::*;
-use num_traits::{float::Float as NumFloat, float::FloatConst};
+use lazy_static::lazy_static;
+use ndarray::Array0;
+use num_traits::{float::Float as NumFloat, float::FloatConst, FromPrimitive};
+use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::cmp::PartialOrd;
 use std::fmt::{Debug, Display, LowerExp};
 use std::iter::Sum;
 use std::ops::{AddAssign, DivAssign, MulAssign};
 
+lazy_static! {
+    static ref ARRAY0_UNITY_F32: Array0<f32> = Array0::from_elem((), 1.0);
+}
+
+lazy_static! {
+    static ref ARRAY0_UNITY_F64: Array0<f64> = Array0::from_elem((), 1.0);
+}
+
+/// Floating number trait, it is implemented for [f32] and [f64] only
 pub trait Float:
     'static
+    + Sized
     + NumFloat
     + FloatConst
+    + FromPrimitive
     + PartialOrd
     + Sum
+    + ValueFrom<u32>
     + ValueFrom<usize>
     + ValueFrom<f32>
     + ValueInto<f64>
@@ -30,6 +48,9 @@ pub trait Float:
     + Debug
     + LowerExp
     + FftwFloat
+    + DeserializeOwned
+    + Serialize
+    + JsonSchema
 {
     fn half() -> Self;
     fn two() -> Self;
@@ -38,6 +59,7 @@ pub trait Float:
     fn five() -> Self;
     fn ten() -> Self;
     fn hundred() -> Self;
+    fn array0_unity() -> &'static Array0<Self>;
 }
 
 impl Float for f32 {
@@ -75,6 +97,10 @@ impl Float for f32 {
     fn hundred() -> Self {
         100.0
     }
+
+    fn array0_unity() -> &'static Array0<Self> {
+        &ARRAY0_UNITY_F32
+    }
 }
 
 impl Float for f64 {
@@ -111,5 +137,9 @@ impl Float for f64 {
     #[inline]
     fn hundred() -> Self {
         100.0
+    }
+
+    fn array0_unity() -> &'static Array0<Self> {
+        &ARRAY0_UNITY_F64
     }
 }

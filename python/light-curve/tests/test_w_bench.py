@@ -49,6 +49,8 @@ class _Test:
     sigma_min = 0.01
     sigma_max = 0.2
 
+    add_to_all_features = True
+
     def generate_data(self):
         t = np.sort(np.random.uniform(self.t_min, self.t_max, self.n_obs))
         m = np.random.uniform(self.m_min, self.m_max, self.n_obs)
@@ -137,11 +139,13 @@ class TestAndersonDarlingNormal(_Test):
         return stats.anderson(m).statistic * (1.0 + 4.0 / m.size - 25.0 / m.size ** 2)
 
 
-if hasattr(lc_ext, "BazinFit"):
+if lc._built_with_gsl:
 
-    class TestBazinFit(_Test):
-        name = "BazinFit"
+    class TestBazinFit(_FeatureTest, _NaiveTest):
+        feature = lc.BazinFit("mcmc-lmsder")
         rtol = 1e-4  # Precision used in the feature implementation
+
+        add_to_all_features = False  # in All* random data is used
 
         @staticmethod
         def _model(t, a, b, t0, rise, fall):
@@ -150,10 +154,10 @@ if hasattr(lc_ext, "BazinFit"):
 
         def _params(self):
             a = 1000
-            b = 0
+            b = 100
             t0 = 0.5 * (self.t_min + self.t_max)
-            rise = 0.3 * (self.t_max - self.t_min)
-            fall = 0.4 * (self.t_max - self.t_min)
+            rise = 0.1 * (self.t_max - self.t_min)
+            fall = 0.2 * (self.t_max - self.t_min)
             return a, b, t0, rise, fall
 
         # Random data yields to random results because target function has a lot of local minima
@@ -258,7 +262,8 @@ class TestLinearTrend(_Test):
 
     def naive(self, t, m, sigma):
         (slope, _), ((slope_sigma2, _), _) = np.polyfit(t, m, deg=1, cov=True)
-        return np.array([slope, np.sqrt(slope_sigma2)])
+        sigma_noise = np.sqrt(np.polyfit(t, m, deg=1, full=True)[1][0] / (t.size - 2))
+        return np.array([slope, np.sqrt(slope_sigma2), sigma_noise])
 
 
 def generate_test_magnitude_percentile_ratio(quantile_numerator, quantile_denumerator, feets_feature):
@@ -421,6 +426,8 @@ class TestAllNaive(_Test):
         for cls in _Test.__subclasses__():
             if cls.naive is None or cls.name is None:
                 continue
+            if not cls.add_to_all_features:
+                continue
             features.append(getattr(lc_ext, cls.name)(*cls.args))
             self.naive_features.append(cls().naive)
         self.rust = lc_ext.Extractor(*features)
@@ -437,6 +444,8 @@ class TestAllFeets(_Test):
         feets_features = []
         for cls in _Test.__subclasses__():
             if cls.feets_feature is None or cls.name is None:
+                continue
+            if not cls.add_to_all_features:
                 continue
             features.append(getattr(lc_ext, cls.name)(*cls.args))
             feets_features.append(cls.feets_feature)

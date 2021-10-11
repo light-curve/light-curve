@@ -1,26 +1,36 @@
 use crate::evaluator::*;
 use itertools::Itertools;
 
-/// Minimum time interval between consequent observations
-///
-/// $$
-/// \min{t_{i+1} - t_i}
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
-pub struct MinimumTimeInterval {}
+macro_const! {
+    const DOC: &str = r#"
+Maximum time interval between consequent observations
 
-impl MinimumTimeInterval {
+$$
+\max{(t_{i+1} - t_i)}
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **2**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
+pub struct MaximumTimeInterval {}
+
+impl MaximumTimeInterval {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
 lazy_info!(
-    MINIMUM_TIME_INTERVAL_INFO,
+    MAXIMUM_TIME_INTERVAL_INFO,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -29,32 +39,32 @@ lazy_info!(
     sorting_required: true,
 );
 
-impl<T> FeatureEvaluator<T> for MinimumTimeInterval
+impl<T> FeatureEvaluator<T> for MaximumTimeInterval
 where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let dt =
-            ts.t.sample
+            ts.t.as_slice()
                 .iter()
                 .tuple_windows()
                 .map(|(&a, &b)| b - a)
-                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
         Ok(vec![dt])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
-        &MINIMUM_TIME_INTERVAL_INFO
+        &MAXIMUM_TIME_INTERVAL_INFO
     }
 
     fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_minimum_time_interval"]
+        vec!["ANTIFEATURE_maximum_time_interval"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {
-        vec!["minimum time interval between consequent observations"]
+        vec!["maximum time interval between consequent observations"]
     }
 }
 
@@ -65,12 +75,12 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(minimum_time_interval_info, MinimumTimeInterval::default());
+    check_feature!(MaximumTimeInterval);
 
     feature_test!(
-        minimum_time_interval,
-        [Box::new(MinimumTimeInterval::new())],
-        [0.1],
+        maximum_time_interval,
+        [MaximumTimeInterval::new()],
+        [9.0],
         [0.0_f32, 0.5, 0.6, 1.6, 10.6],
     );
 }

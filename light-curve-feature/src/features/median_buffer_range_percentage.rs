@@ -2,18 +2,27 @@ use crate::evaluator::*;
 
 use conv::ConvUtil;
 
-/// Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m)) / 2$ interval
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Debug)]
-pub struct MedianBufferRangePercentage<T>
-where
-    T: Float,
-{
+macro_const! {
+    const DOC: &str = r#"
+Fraction of observations inside $\mathrm{Median}(m) \pm q \times (\max(m) - \min(m)) / 2$ interval
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "MedianBufferRangePercentageParameters<T>",
+    from = "MedianBufferRangePercentageParameters<T>",
+    bound = "T: Float"
+)]
+pub struct MedianBufferRangePercentage<T> {
     quantile: T,
     name: String,
     description: String,
@@ -59,6 +68,12 @@ where
     }
 }
 
+impl<T> MedianBufferRangePercentage<T> {
+    pub fn doc() -> &'static str {
+        DOC
+    }
+}
+
 impl<T> Default for MedianBufferRangePercentage<T>
 where
     T: Float,
@@ -77,16 +92,11 @@ where
         let m_median = ts.m.get_median();
         let amplitude = T::half() * (ts.m.get_max() - ts.m.get_min());
         let threshold = self.quantile * amplitude;
-        Ok(vec![
-            ts.m.sample
-                .iter()
-                .cloned()
-                .filter(|&y| T::abs(y - m_median) < threshold)
-                .count()
-                .value_as::<T>()
-                .unwrap()
-                / ts.lenf(),
-        ])
+        let count_under = ts.m.sample.fold(0, |count, &m| {
+            let under = T::abs(m - m_median) < threshold;
+            count + (under as u32)
+        });
+        Ok(vec![count_under.value_as::<T>().unwrap() / ts.lenf()])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
@@ -102,6 +112,36 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "MedianBufferRangePercentage")]
+struct MedianBufferRangePercentageParameters<T> {
+    quantile: T,
+}
+
+impl<T> From<MedianBufferRangePercentage<T>> for MedianBufferRangePercentageParameters<T> {
+    fn from(f: MedianBufferRangePercentage<T>) -> Self {
+        Self {
+            quantile: f.quantile,
+        }
+    }
+}
+
+impl<T> From<MedianBufferRangePercentageParameters<T>> for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    fn from(p: MedianBufferRangePercentageParameters<T>) -> Self {
+        Self::new(p.quantile)
+    }
+}
+
+impl<T> JsonSchema for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    json_schema!(MedianBufferRangePercentageParameters<T>, false);
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
@@ -109,17 +149,16 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        median_buffer_range_percentage_info,
-        MedianBufferRangePercentage::default()
-    );
+    use serde_test::{assert_tokens, Token};
+
+    check_feature!(MedianBufferRangePercentage<f64>);
 
     feature_test!(
         median_buffer_range_percentage,
         [
-            Box::new(MedianBufferRangePercentage::default()),
-            Box::new(MedianBufferRangePercentage::new(0.1)), // should be the same
-            Box::new(MedianBufferRangePercentage::new(0.2)),
+            MedianBufferRangePercentage::default(),
+            MedianBufferRangePercentage::new(0.1), // should be the same
+            MedianBufferRangePercentage::new(0.2),
         ],
         [0.5555555555555556, 0.5555555555555556, 0.7777777777777778],
         [1.0_f32, 41.0, 49.0, 49.0, 50.0, 51.0, 52.0, 58.0, 100.0],
@@ -127,8 +166,26 @@ mod tests {
 
     feature_test!(
         median_buffer_range_percentage_plateau,
-        [Box::new(MedianBufferRangePercentage::default())],
+        [MedianBufferRangePercentage::default()],
         [0.0],
         [0.0; 10],
     );
+
+    #[test]
+    fn serialization() {
+        const QUANTILE: f64 = 0.432;
+        let median_buffer_range_percentage = MedianBufferRangePercentage::new(QUANTILE);
+        assert_tokens(
+            &median_buffer_range_percentage,
+            &[
+                Token::Struct {
+                    len: 1,
+                    name: "MedianBufferRangePercentage",
+                },
+                Token::String("quantile"),
+                Token::F64(QUANTILE),
+                Token::StructEnd,
+            ],
+        )
+    }
 }

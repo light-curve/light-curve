@@ -1,20 +1,30 @@
 use crate::evaluator::*;
 
-/// Standard deviation of time moments
-///
-/// $$
-/// \sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &'static str = r#"
+Standard deviation of time moments
+
+$$
+\sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **2**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TimeStandardDeviation {}
 
 impl TimeStandardDeviation {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -57,14 +67,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        time_standard_deviation_info,
-        TimeStandardDeviation::default()
-    );
+    check_feature!(TimeStandardDeviation);
 
     feature_test!(
         time_standard_deviation,
-        [Box::new(TimeStandardDeviation::new())],
+        [TimeStandardDeviation::new()],
         [1.5811388300841898],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );

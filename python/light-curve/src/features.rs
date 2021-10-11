@@ -1,17 +1,58 @@
-use crate::arr_wrapper::ArrWrapper;
+use crate::cont_array::ContCowArray;
 use crate::sorted::is_sorted;
-use light_curve_feature as lcf;
-use numpy::{IntoPyArray, PyArray1};
+
+use const_format::formatcp;
+use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator, Float};
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 type F = f64;
-type Arr<T> = PyArray1<T>;
+type Arr<'a, T> = PyReadonlyArray1<'a, T>;
+type Feature = lcf::Feature<F>;
+
+const ATTRIBUTES_DOC: &str = r#"Attributes
+----------
+names : list of str
+    Feature names
+descriptions : list of str
+    Feature descriptions"#;
+
+const METHODS_DOC: &str = r#"Methods
+-------
+__call__(t, m, sigma=None, sorted=None, fill_value=None)
+    Extract features and return them as a numpy array
+
+    Parameters
+    ----------
+    t : numpy.ndarray of np.float64 dtype
+        Time moments
+    m : numpy.ndarray of np.float64 dtype
+        Signal in magnitude or fluxes. Refer to the feature description to
+        decide which would work better in your case
+    sigma : numpy.ndarray of np.float64 dtype or None, optional
+        Observation error, if None it is assumed to be unity
+    sorted : bool or None, optional
+        Specifies if input array are sorted by time moments.
+        True is for certainly sorted, False is for unsorted.
+        If None is specified than sorting is checked and an exception is
+        raised for unsorted `t`
+    fill_value : float or None, optional
+        Value to fill invalid feature values, for example if count of
+        observations is not enough to find a proper value.
+        None causes exception for invalid features
+
+    Returns
+    -------
+    ndarray of np.float64
+        Extracted feature array"#;
+
+const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHODS_DOC);
 
 #[pyclass(subclass, name = "_FeatureEvaluator")]
 pub struct PyFeatureEvaluator {
-    feature_evaluator: Box<dyn lcf::FeatureEvaluator<F>>,
+    feature_evaluator: Feature,
 }
 
 #[pymethods]
@@ -21,16 +62,16 @@ impl PyFeatureEvaluator {
     fn __call__<'py>(
         &self,
         py: Python<'py>,
-        t: &Arr<F>,
-        m: &Arr<F>,
-        sigma: Option<&Arr<F>>,
+        t: Arr<F>,
+        m: Arr<F>,
+        sigma: Option<Arr<F>>,
         sorted: Option<bool>,
         fill_value: Option<F>,
     ) -> PyResult<&'py PyArray1<F>> {
         if t.len() != m.len() {
             return Err(PyValueError::new_err("t and m must have the same size"));
         }
-        if let Some(sigma) = sigma {
+        if let Some(ref sigma) = sigma {
             if t.len() != sigma.len() {
                 return Err(PyValueError::new_err("t and sigma must have the same size"));
             }
@@ -57,7 +98,11 @@ impl PyFeatureEvaluator {
             // neither t or sorting is required
             (false, false, _) => false,
         };
-        let t = ArrWrapper::new(t, is_t_required);
+        let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
+            t.as_array().into()
+        } else {
+            F::array0_unity().broadcast(t.len()).unwrap().into()
+        };
         match sorted {
             Some(true) => {}
             Some(false) => {
@@ -66,25 +111,32 @@ impl PyFeatureEvaluator {
                 ))
             }
             None => {
-                if self.feature_evaluator.is_sorting_required() & !is_sorted(&t) {
+                if self.feature_evaluator.is_sorting_required() & !is_sorted(t.as_slice()) {
                     return Err(PyValueError::new_err("t must be in ascending order"));
                 }
             }
         }
 
-        let m = ArrWrapper::new(m, self.feature_evaluator.is_m_required());
+        let m: lcf::DataSample<_> = if self.feature_evaluator.is_m_required() || m.is_contiguous() {
+            m.as_array().into()
+        } else {
+            F::array0_unity().broadcast(m.len()).unwrap().into()
+        };
 
         let w = sigma.and_then(|sigma| {
             if self.feature_evaluator.is_w_required() {
-                let mut w = sigma.to_owned_array();
-                w.mapv_inplace(|x| x.powi(-2));
-                Some(ArrWrapper::Owned(w))
+                let mut a = sigma.to_owned_array();
+                a.mapv_inplace(|x| x.powi(-2));
+                Some(a)
             } else {
                 None
             }
         });
 
-        let mut ts = lcf::TimeSeries::new(&t, &m, w.as_deref());
+        let mut ts = match w {
+            Some(w) => lcf::TimeSeries::new(t, m, w),
+            None => lcf::TimeSeries::new_without_weight(t, m),
+        };
 
         let result = match fill_value {
             Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
@@ -109,18 +161,8 @@ impl PyFeatureEvaluator {
     }
 }
 
-/// Features extractor
-///
-/// Extract multiple features simultaneously, which should be more
-/// performant than calling them separately
-///
-/// Parameters
-/// ----------
-/// *features : iterable
-///     Feature objects
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(*args)"]
+#[pyo3(text_signature = "(*features)")]
 pub struct Extractor {}
 
 #[pymethods]
@@ -138,16 +180,32 @@ impl Extractor {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::FeatureExtractor::new(evals)),
+                feature_evaluator: lcf::FeatureExtractor::new(evals).into(),
             },
         ))
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+*features : iterable
+    Feature objects
+{}
+"#,
+            lcf::FeatureExtractor::<F, Feature>::doc().trim_start(),
+            COMMON_FEATURE_DOC,
+        )
     }
 }
 
 macro_rules! evaluator {
     ($name: ident, $eval: ty $(,)?) => {
         #[pyclass(extends = PyFeatureEvaluator)]
-        #[text_signature = "()"]
+        #[pyo3(text_signature = "()")]
         pub struct $name {}
 
         #[pymethods]
@@ -157,8 +215,181 @@ macro_rules! evaluator {
                 (
                     Self {},
                     PyFeatureEvaluator {
-                        feature_evaluator: Box::new(<$eval>::new()),
+                        feature_evaluator: <$eval>::new().into(),
                     },
+                )
+            }
+
+            #[classattr]
+            fn __doc__() -> String {
+                format!("{}{}", <$eval>::doc().trim_start(), COMMON_FEATURE_DOC)
+            }
+        }
+    };
+}
+
+const N_ALGO_CURVE_FIT: usize = {
+    #[cfg(feature = "gsl")]
+    {
+        3
+    }
+    #[cfg(not(feature = "gsl"))]
+    {
+        1
+    }
+};
+
+const SUPPORTED_ALGORITHMS_CURVE_FIT: [&str; N_ALGO_CURVE_FIT] = [
+    "mcmc",
+    #[cfg(feature = "gsl")]
+    "lmsder",
+    #[cfg(feature = "gsl")]
+    "mcmc-lmsder",
+];
+
+macro_rules! fit_evaluator {
+    ($name: ident, $eval: ty $(,)?) => {
+        #[pyclass(extends = PyFeatureEvaluator)]
+        #[pyo3(text_signature = "(algorithm, mcmc_niter=None, lmsder_niter=None)")]
+        pub struct $name {}
+
+        impl $name {
+            fn supported_algorithms_str() -> String {
+                return SUPPORTED_ALGORITHMS_CURVE_FIT.join(", ");
+            }
+        }
+
+        #[pymethods]
+        impl $name {
+            #[new]
+            #[args(algorithm, mcmc_niter = "None", lmsder_niter = "None")]
+            fn __new__(
+                algorithm: &str,
+                mcmc_niter: Option<u32>,
+                lmsder_niter: Option<u16>,
+            ) -> PyResult<(Self, PyFeatureEvaluator)> {
+                let mcmc_niter = mcmc_niter.unwrap_or_else(lcf::McmcCurveFit::default_niterations);
+
+                #[cfg(feature = "gsl")]
+                let lmsder_fit: lcf::CurveFitAlgorithm = lcf::LmsderCurveFit::new(
+                    lmsder_niter.unwrap_or_else(lcf::LmsderCurveFit::default_niterations),
+                )
+                .into();
+                #[cfg(not(feature = "gsl"))]
+                if lmsder_niter.is_some() {
+                    return Err(PyValueError::new_err(
+                        "Compiled without GSL support, lmsder_niter is not supported",
+                    ));
+                }
+
+                let curve_fit_algorithm: lcf::CurveFitAlgorithm = match algorithm {
+                    "mcmc" => lcf::McmcCurveFit::new(mcmc_niter, None).into(),
+                    #[cfg(feature = "gsl")]
+                    "lmsder" => lmsder_fit,
+                    #[cfg(feature = "gsl")]
+                    "mcmc-lmsder" => lcf::McmcCurveFit::new(mcmc_niter, Some(lmsder_fit)).into(),
+                    _ => {
+                        return Err(PyValueError::new_err(format!(
+                            r#"wrong algorithm value "{}", supported values are: {}"#,
+                            algorithm,
+                            Self::supported_algorithms_str()
+                        )))
+                    }
+                };
+
+                let eval = <$eval>::new(curve_fit_algorithm);
+
+                Ok((
+                    Self {},
+                    PyFeatureEvaluator {
+                        feature_evaluator: eval.into(),
+                    },
+                ))
+            }
+
+            #[staticmethod]
+            #[args(t, params)]
+            fn model<'py>(
+                py: Python<'py>,
+                t: Arr<'py, F>,
+                params: Arr<'py, F>,
+            ) -> &'py PyArray1<F> {
+                let params = ContCowArray::from_view(params.as_array(), true);
+                t.as_array()
+                    .mapv(|x| <$eval>::f(x, params.as_slice()))
+                    .into_pyarray(py)
+            }
+
+            #[classattr]
+            fn supported_algorithms() -> [&'static str; N_ALGO_CURVE_FIT] {
+                return SUPPORTED_ALGORITHMS_CURVE_FIT;
+            }
+
+            #[classattr]
+            fn __doc__() -> String {
+                #[cfg(feature = "gsl")]
+                let lmsder_niter = format!(
+                    r#"lmsder_niter : int, optional
+    Number of LMSDER iterations, default is {}
+"#,
+                    lcf::LmsderCurveFit::default_niterations()
+                );
+                #[cfg(not(feature = "gsl"))]
+                let lmsder_niter = "";
+
+                format!(
+                    r#"{intro}
+Parameters
+----------
+algorithm : str
+    Non-linear least-square algorithm, supported values are:
+    {supported_algo}.
+mcmc_niter : int, optional
+    Number of MCMC iterations, default is {mcmc_niter}
+{lmsder_niter}
+{attr}
+supported_algorithms : list of str
+    Available argument values for the constructor
+
+{methods}
+
+model(t, params)
+    Underlying parametric model function
+
+    Parameters
+    ----------
+    t : np.ndarray of np.float64
+        Time moments, can be unsorted
+    params : np.ndaarray of np.float64
+        Parameters of the model, this array can be longer than actual parameter
+        list, the beginning part of the array will be used in this case
+
+    Returns
+    -------
+    np.ndarray of np.float64
+        Array of model values corresponded to the given time moments
+
+Examples
+--------
+>>> import numpy as np
+>>> from light_curve import {feature}
+>>>
+>>> fit = {feature}('mcmc')
+>>> t = np.linspace(0, 10, 101)
+>>> flux = 1 + (t - 3) ** 2
+>>> fluxerr = np.sqrt(flux)
+>>> result = fit(t, flux, fluxerr, sorted=True)
+>>> # Result is built from a model parameters and reduced chi^2
+>>> # So we can use as a `params` array
+>>> model = {feature}.model(t, result)
+"#,
+                    intro = <$eval>::doc().trim_start(),
+                    supported_algo = Self::supported_algorithms_str(),
+                    mcmc_niter = lcf::McmcCurveFit::default_niterations(),
+                    lmsder_niter = lmsder_niter,
+                    attr = ATTRIBUTES_DOC,
+                    methods = METHODS_DOC,
+                    feature = stringify!($name),
                 )
             }
         }
@@ -169,46 +400,43 @@ evaluator!(Amplitude, lcf::Amplitude);
 
 evaluator!(AndersonDarlingNormal, lcf::AndersonDarlingNormal);
 
-/// Fraction of observations beyond N*std from mean
-///
-/// Parameters
-/// ----------
-/// nstd : positive float
-///     N
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(nstd, /)"]
+#[pyo3(text_signature = "(nstd, /)")]
 pub struct BeyondNStd {}
 
 #[pymethods]
 impl BeyondNStd {
     #[new]
+    #[args(nstd)]
     fn __new__(nstd: F) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::BeyondNStd::new(nstd)),
+                feature_evaluator: lcf::BeyondNStd::new(nstd).into(),
             },
+        )
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+nstd : positive float
+    N
+{}"#,
+            lcf::BeyondNStd::<F>::doc().trim_start(),
+            COMMON_FEATURE_DOC,
         )
     }
 }
 
-#[cfg(feature = "nonlinear-fit")]
-evaluator!(BazinFit, lcf::BazinFit);
+fit_evaluator!(BazinFit, lcf::BazinFit);
 
-/// Binned time-series
-///
-/// Parameters
-/// ----------
-/// features : iterable
-///     Features to extract from binned time-series
-/// window : positive float
-///     Width of binning interval in units of time
-/// offset : float
-///     Zero time moment
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(features, window, offset)"]
+#[pyo3(text_signature = "(features, window, offset)")]
 pub struct Bins {}
 
 #[pymethods]
@@ -235,9 +463,27 @@ impl Bins {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(eval),
+                feature_evaluator: eval.into(),
             },
         ))
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+features : iterable
+    Features to extract from binned time-series
+window : positive float
+    Width of binning interval in units of time
+offset : float
+    Zero time moment
+"#,
+            lcf::Bins::<F, Feature>::doc().trim_start()
+        )
     }
 }
 
@@ -249,15 +495,8 @@ evaluator!(EtaE, lcf::EtaE);
 
 evaluator!(ExcessVariance, lcf::ExcessVariance);
 
-/// Inner percentile range
-///
-/// Parameters
-/// ----------
-/// quantile : positive float
-///     Range is (100% * quantile, 100% * (1 - quantile))
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile)"]
+#[pyo3(text_signature = "(quantile)")]
 pub struct InterPercentileRange {}
 
 #[pymethods]
@@ -268,8 +507,23 @@ impl InterPercentileRange {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::InterPercentileRange::new(quantile)),
+                feature_evaluator: lcf::InterPercentileRange::new(quantile).into(),
             },
+        )
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile : positive float
+    Range is (100% * quantile, 100% * (1 - quantile))
+{}"#,
+            lcf::InterPercentileRange::doc().trim_start(),
+            COMMON_FEATURE_DOC
         )
     }
 }
@@ -280,17 +534,8 @@ evaluator!(LinearFit, lcf::LinearFit);
 
 evaluator!(LinearTrend, lcf::LinearTrend);
 
-/// Ratio of two inter-percentile ranges
-///
-/// Parameters
-/// ----------
-/// quantile_numerator: positive float
-///     Numerator is inter-percentile range (100% * q, 100% (1 - q))
-/// quantile_denominator: positive float
-///     Denominator is inter-percentile range (100% * q, 100% (1 - q))
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile_numerator, quantile_denominator)"]
+#[pyo3(text_signature = "(quantile_numerator, quantile_denominator)")]
 pub struct MagnitudePercentageRatio {}
 
 #[pymethods]
@@ -314,12 +559,30 @@ impl MagnitudePercentageRatio {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::MagnitudePercentageRatio::new(
+                feature_evaluator: lcf::MagnitudePercentageRatio::new(
                     quantile_numerator,
                     quantile_denominator,
-                )),
+                )
+                .into(),
             },
         ))
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile_numerator: positive float
+    Numerator is inter-percentile range (100% * q, 100% (1 - q))
+quantile_denominator: positive float
+    Denominator is inter-percentile range (100% * q, 100% (1 - q))
+{}"#,
+            lcf::MagnitudePercentageRatio::doc().trim_start(),
+            COMMON_FEATURE_DOC
+        )
     }
 }
 
@@ -333,15 +596,8 @@ evaluator!(Median, lcf::Median);
 
 evaluator!(MedianAbsoluteDeviation, lcf::MedianAbsoluteDeviation,);
 
-/// Median Buffer Range Percentage
-///
-/// Parameters
-/// ----------
-/// quantile : positive float
-///     Relative range size
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile)"]
+#[pyo3(text_signature = "(quantile)")]
 pub struct MedianBufferRangePercentage {}
 
 #[pymethods]
@@ -352,23 +608,31 @@ impl MedianBufferRangePercentage {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::MedianBufferRangePercentage::new(quantile)),
+                feature_evaluator: lcf::MedianBufferRangePercentage::new(quantile).into(),
             },
+        )
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile : positive float
+    Relative range size
+{}"#,
+            lcf::MedianBufferRangePercentage::<F>::doc(),
+            COMMON_FEATURE_DOC
         )
     }
 }
 
 evaluator!(PercentAmplitude, lcf::PercentAmplitude);
 
-/// Percent Difference Magnitude Percentile
-///
-/// Parameters
-/// ----------
-/// quantile : positive float
-///     Relative range size
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(quantile)"]
+#[pyo3(text_signature = "(quantile)")]
 pub struct PercentDifferenceMagnitudePercentile {}
 
 #[pymethods]
@@ -379,45 +643,33 @@ impl PercentDifferenceMagnitudePercentile {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(lcf::PercentDifferenceMagnitudePercentile::new(
-                    quantile,
-                )),
+                feature_evaluator: lcf::PercentDifferenceMagnitudePercentile::new(quantile).into(),
             },
+        )
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{}
+
+Parameters
+----------
+quantile : positive float
+    Relative range size
+{}"#,
+            lcf::PercentDifferenceMagnitudePercentile::doc(),
+            COMMON_FEATURE_DOC
         )
     }
 }
 
-/// Periodogram-based features
-///
-/// Parameters
-/// ----------
-/// peaks : int or None, optional
-///     Number of peaks to find
-///
-/// resolution : float or None, optional
-///     Resolution of frequency grid
-///
-/// max_freq_factor : float or None, optional
-///     Mulitplier for Nyquist frequency
-///
-/// nyquist : str or float or None, optional
-///     Type of Nyquist frequency. Could be one of:
-///      - 'average': "Average" Nyquist frequency
-///      - 'median': Nyquist frequency is defined by median time interval
-///         between observations
-///      - float: Nyquist frequency is defined by given quantile of time
-///         intervals between observations
-///
-/// fast : bool or None, optional
-///     Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
-///
-/// features : iterable or None, optional
-///     Features to extract from periodogram considering it as a time-series
-///
 #[pyclass(extends = PyFeatureEvaluator)]
-#[text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"]
+#[pyo3(
+    text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
+)]
 pub struct Periodogram {
-    eval: lcf::Periodogram<F>,
+    eval: lcf::Periodogram<F, Feature>,
 }
 
 impl Periodogram {
@@ -429,7 +681,7 @@ impl Periodogram {
         nyquist: Option<PyObject>,
         fast: Option<bool>,
         features: Option<PyObject>,
-    ) -> PyResult<lcf::Periodogram<F>> {
+    ) -> PyResult<lcf::Periodogram<F, Feature>> {
         let mut eval = match peaks {
             Some(peaks) => lcf::Periodogram::new(peaks),
             None => lcf::Periodogram::default(),
@@ -441,17 +693,17 @@ impl Periodogram {
             eval.set_max_freq_factor(max_freq_factor);
         }
         if let Some(nyquist) = nyquist {
-            let nyquist_freq: Box<dyn lcf::NyquistFreq<F>> =
+            let nyquist_freq: lcf::NyquistFreq =
                 if let Ok(s) = nyquist.extract::<&str>(py) {
                     match s {
-                        "average" => Box::new(lcf::AverageNyquistFreq {}),
-                        "median" => Box::new(lcf::MedianNyquistFreq {}),
+                        "average" => lcf::AverageNyquistFreq {}.into(),
+                        "median" => lcf::MedianNyquistFreq {}.into(),
                         _ => return Err(PyValueError::new_err(
                             "nyquist must be one of: None, 'average', 'median' or quantile value",
                         )),
                     }
                 } else if let Ok(quantile) = nyquist.extract::<f32>(py) {
-                    Box::new(lcf::QuantileNyquistFreq { quantile })
+                    lcf::QuantileNyquistFreq { quantile }.into()
                 } else {
                     return Err(PyValueError::new_err(
                         "nyquist must be one of: None, 'average', 'median' or quantile value",
@@ -461,9 +713,9 @@ impl Periodogram {
         }
         if let Some(fast) = fast {
             if fast {
-                eval.set_periodogram_algorithm(Box::new(lcf::PeriodogramPowerFft::new()));
+                eval.set_periodogram_algorithm(lcf::PeriodogramPowerFft::new().into());
             } else {
-                eval.set_periodogram_algorithm(Box::new(lcf::PeriodogramPowerDirect {}));
+                eval.set_periodogram_algorithm(lcf::PeriodogramPowerDirect {}.into());
             }
         }
         if let Some(features) = features {
@@ -500,45 +752,99 @@ impl Periodogram {
         fast: Option<bool>,
         features: Option<PyObject>,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
+        let eval = Self::create_eval(
+            py,
+            peaks,
+            resolution,
+            max_freq_factor,
+            nyquist,
+            fast,
+            features,
+        )?;
         Ok((
-            Self {
-                eval: Self::create_eval(
-                    py,
-                    peaks,
-                    resolution,
-                    max_freq_factor,
-                    nyquist.as_ref().map(|x| x.clone_ref(py)),
-                    fast,
-                    features.as_ref().map(|x| x.clone_ref(py)),
-                )?,
-            },
+            Self { eval: eval.clone() },
             PyFeatureEvaluator {
-                feature_evaluator: Box::new(Self::create_eval(
-                    py,
-                    peaks,
-                    resolution,
-                    max_freq_factor,
-                    nyquist,
-                    fast,
-                    features,
-                )?),
+                feature_evaluator: eval.into(),
             },
         ))
     }
 
     /// Angular frequencies and periodogram values
-    #[text_signature = "(t, m)"]
+    #[pyo3(text_signature = "(t, m)")]
     fn freq_power<'py>(
         &self,
         py: Python<'py>,
-        t: &Arr<F>,
-        m: &Arr<F>,
+        t: Arr<F>,
+        m: Arr<F>,
     ) -> (&'py PyArray1<F>, &'py PyArray1<F>) {
-        let t = ArrWrapper::new(t, true);
-        let m = ArrWrapper::new(m, true);
-        let mut ts = lcf::TimeSeries::new(&t, &m, None);
+        let t: DataSample<_> = t.as_array().into();
+        let m: DataSample<_> = m.as_array().into();
+        let mut ts = lcf::TimeSeries::new_without_weight(t, m);
         let (freq, power) = self.eval.freq_power(&mut ts);
         (freq.into_pyarray(py), power.into_pyarray(py))
+    }
+
+    #[classattr]
+    fn __doc__() -> String {
+        format!(
+            r#"{intro}
+Parameters
+----------
+peaks : int or None, optional
+    Number of peaks to find
+
+resolution : float or None, optional
+    Resolution of frequency grid
+
+max_freq_factor : float or None, optional
+    Mulitplier for Nyquist frequency
+
+nyquist : str or float or None, optional
+    Type of Nyquist frequency. Could be one of:
+     - 'average': "Average" Nyquist frequency
+     - 'median': Nyquist frequency is defined by median time interval
+        between observations
+     - float: Nyquist frequency is defined by given quantile of time
+        intervals between observations
+
+fast : bool or None, optional
+    Use "Fast" (approximate and FFT-based) or direct periodogram algorithm
+
+features : iterable or None, optional
+    Features to extract from periodogram considering it as a time-series
+
+{common}
+freq_power(t, m)
+    Get periodogram
+
+    Parameters
+    ----------
+    t : np.ndarray of np.float64
+        Time array
+    m : np.ndarray of np.float64
+        Magnitude (flux) array
+
+    Returns
+    -------
+    freq : np.ndarray of np.float64
+        Frequency grid
+    power : np.ndarray of np.float64
+        Periodogram power
+
+Examples
+--------
+>>> import numpy as np
+>>> from light_curve import Periodogram
+>>> periodogram = Periodogram(peaks=2, resolution=20.0, max_freq_factor=2.0,
+...                           nyquist='average', fast=True)
+>>> t = np.linspace(0, 10, 101)
+>>> m = np.sin(2*np.pi * t / 0.7) + 0.5 * np.cos(2*np.pi * t / 3.3)
+>>> peaks = periodogram(t, m, sorted=True)[::2]
+>>> frequency, power = periodogram.freq_power(t, m)
+"#,
+            intro = lcf::Periodogram::<F, Feature>::doc(),
+            common = ATTRIBUTES_DOC,
+        )
     }
 }
 
@@ -549,6 +855,8 @@ evaluator!(Skew, lcf::Skew);
 evaluator!(StandardDeviation, lcf::StandardDeviation);
 
 evaluator!(StetsonK, lcf::StetsonK);
+
+fit_evaluator!(VillarFit, lcf::VillarFit);
 
 evaluator!(WeightedMean, lcf::WeightedMean);
 

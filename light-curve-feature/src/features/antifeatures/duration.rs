@@ -1,20 +1,30 @@
 use crate::evaluator::*;
 
-/// Time-series duration
-///
-/// $$
-/// t_{N-1} - t_0.
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Time-series duration
+
+$$
+t_{N-1} - t_0.
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **1**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct Duration {}
 
 impl Duration {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -34,9 +44,7 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        Ok(vec![
-            *ts.t.sample.last().unwrap() - *ts.t.sample.first().unwrap(),
-        ])
+        Ok(vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
@@ -59,11 +67,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(duration_info, Duration::default());
+    check_feature!(Duration);
 
     feature_test!(
         duration,
-        [Box::new(Duration::new())],
+        [Duration::new()],
         [4.0],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );

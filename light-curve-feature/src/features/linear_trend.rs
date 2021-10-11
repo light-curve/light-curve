@@ -1,34 +1,43 @@
 use crate::evaluator::*;
-use crate::fit::fit_straight_line;
+use crate::straight_line_fit::fit_straight_line;
 
-/// The slope and noise of the light curve without observation errors in the linear fit
-///
-/// Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
-/// observation errors to be zero:
-/// $$
-/// m_i = c + \mathrm{slope}\\,t_i + \Sigma \varepsilon_i,
-/// $$
-/// where $c$ and $\Sigma$ are constants,
-/// $\\{\varepsilon_i\\}$ are standard distributed random variables.
-/// $\mathrm{slope}$ and $\sigma_\mathrm{slope}$ are returned, if $N = 2$ than no least squares fit is done, a
-/// slope between a pair of observations $(m_1 - m_0) / (t_1 - t_0)$ and $0$ are returned.
-///
-/// - Depends on: **time**, **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **2**
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+The slope, its error and noise level of the light curve in the linear fit
+
+Least squares fit of the linear stochastic model with constant Gaussian noise $\Sigma$ assuming
+observation errors to be zero:
+$$
+m_i = c + \mathrm{slope} t_i + \Sigma \varepsilon_i,
+$$
+where $c$ is a constant,
+$\{\varepsilon_i\}$ are standard distributed random variables. $\mathrm{slope}$,
+$\sigma_\mathrm{slope}$ and $\Sigma$ are returned.
+
+- Depends on: **time**, **magnitude**
+- Minimum number of observations: **3**
+- Number of features: **3**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinearTrend {}
 
 impl LinearTrend {
     pub fn new() -> Self {
         Self {}
     }
+
+    pub fn doc() -> &'static str {
+        DOC
+    }
 }
 
 lazy_info!(
     LINEAR_TREND_INFO,
-    size: 2,
-    min_ts_length: 2,
+    size: 3,
+    min_ts_length: 3,
     t_required: true,
     m_required: true,
     w_required: false,
@@ -40,15 +49,13 @@ where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        let size = self.check_ts_length(ts)?;
-        if size == 2 {
-            return Ok(vec![
-                (ts.m.sample[1] - ts.m.sample[0]) / (ts.t.sample[1] - ts.t.sample[0]),
-                T::zero(),
-            ]);
-        }
+        self.check_ts_length(ts)?;
         let result = fit_straight_line(ts, false);
-        Ok(vec![result.slope, T::sqrt(result.slope_sigma2)])
+        Ok(vec![
+            result.slope,
+            T::sqrt(result.slope_sigma2),
+            T::sqrt(result.reduced_chi2),
+        ])
     }
 
     fn get_info(&self) -> &EvaluatorInfo {
@@ -56,13 +63,14 @@ where
     }
 
     fn get_names(&self) -> Vec<&str> {
-        vec!["linear_trend", "linear_trend_sigma"]
+        vec!["linear_trend", "linear_trend_sigma", "linear_trend_noise"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {
         vec![
             "linear trend without respect to observation errors",
             "error of slope of linear fit without respect to observation errors",
+            "standard deviation of noise for linear fit without respect to observation errors",
         ]
     }
 }
@@ -74,12 +82,12 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(linear_trend_info, LinearTrend::default());
+    check_feature!(LinearTrend);
 
     feature_test!(
         linear_trend,
-        [Box::new(LinearTrend::new())],
-        [1.38198758, 0.24532195657979344],
+        [LinearTrend::new()],
+        [1.38198758, 0.24532195657979344, 2.54157969],
         [1.0_f32, 3.0, 5.0, 7.0, 11.0, 13.0],
         [1.0_f32, 2.0, 3.0, 8.0, 10.0, 19.0],
     );
@@ -87,7 +95,7 @@ mod tests {
     /// See [Issue #3](https://github.com/hombit/light-curve/issues/3)
     #[test]
     fn linear_trend_finite_sigma() {
-        let fe = FeatureExtractor::new(vec![Box::new(LinearTrend::default())]);
+        let eval = LinearTrend::default();
         let x = [
             58216.51171875,
             58217.48828125,
@@ -306,15 +314,15 @@ mod tests {
             18.677000045776367,
             18.69700050354004,
         ];
-        let mut ts = TimeSeries::new(&x[..], &y[..], None);
-        let sigma: f32 = fe.eval(&mut ts).unwrap()[1];
+        let mut ts = TimeSeries::new_without_weight(&x, &y);
+        let sigma: f32 = eval.eval(&mut ts).unwrap()[1];
         assert!(sigma.is_finite());
     }
 
     /// See [Issue #3](https://github.com/hombit/light-curve/issues/3)
     #[test]
     fn linear_trend_finite_trend_and_sigma_1() {
-        let fe = FeatureExtractor::new(vec![Box::new(LinearTrend::default())]);
+        let eval = LinearTrend::default();
         let x = [
             58231.140625,
             58303.4765625,
@@ -519,15 +527,15 @@ mod tests {
             19.143999099731445,
             19.21500015258789,
         ];
-        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts).unwrap();
+        let mut ts: TimeSeries<f32> = TimeSeries::new_without_weight(&x, &y);
+        let actual = eval.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
     /// See [Issue #3](https://github.com/hombit/light-curve/issues/3)
     #[test]
     fn linear_trend_finite_trend_and_sigma_2() {
-        let fe = FeatureExtractor::new(vec![Box::new(LinearTrend::default())]);
+        let eval = LinearTrend::default();
         let x = [
             58231.140625,
             58303.4765625,
@@ -732,14 +740,14 @@ mod tests {
             18.020999908447266,
             18.075000762939453,
         ];
-        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts).unwrap();
+        let mut ts: TimeSeries<f32> = TimeSeries::new_without_weight(&x, &y);
+        let actual = eval.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
     #[test]
     fn linear_trend_finite_trend_and_sigma_3() {
-        let fe = FeatureExtractor::new(vec![Box::new(LinearTrend::default())]);
+        let eval = LinearTrend::default();
         let x = [
             198.39394, 198.40166, 198.43057, 198.45149, 198.45248, 198.4768, 198.48457, 198.48549,
             216.39883, 216.39975, 217.3903, 217.41743, 217.4417, 217.46191, 218.34486, 218.3973,
@@ -823,14 +831,14 @@ mod tests {
             16.614, 16.605, 16.623, 16.603, 16.604, 16.618, 16.592, 16.578, 16.59, 16.598, 16.572,
             16.609, 16.592, 16.574, 16.562, 16.558, 16.581, 16.581, 16.602, 16.581, 16.595,
         ];
-        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts).unwrap();
+        let mut ts: TimeSeries<f32> = TimeSeries::new_without_weight(&x, &y);
+        let actual = eval.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 
     #[test]
     fn linear_trend_finite_trend_and_sigma_4() {
-        let fe = FeatureExtractor::new(vec![Box::new(LinearTrend::default())]);
+        let eval = LinearTrend::default();
         let x = [
             198.39395, 198.40167, 198.4306, 198.4515, 198.45251, 198.47682, 198.4846, 198.4855,
             216.39883, 216.39977, 217.3903, 217.41743, 217.4417, 217.46191, 218.34488, 218.3973,
@@ -914,8 +922,8 @@ mod tests {
             16.582, 16.636, 16.581, 16.597, 16.595, 16.573, 16.595, 16.612, 16.578, 16.554, 16.586,
             16.586, 16.585, 16.583, 16.662, 16.613, 16.607, 16.592, 16.603, 16.608,
         ];
-        let mut ts: TimeSeries<f32> = TimeSeries::new(&x[..], &y[..], None);
-        let actual = fe.eval(&mut ts).unwrap();
+        let mut ts: TimeSeries<f32> = TimeSeries::new_without_weight(&x, &y);
+        let actual = eval.eval(&mut ts).unwrap();
         assert!(actual.iter().all(|x| x.is_finite()));
     }
 }

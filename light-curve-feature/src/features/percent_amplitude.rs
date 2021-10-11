@@ -1,18 +1,24 @@
 use crate::evaluator::*;
 
-/// Maximum deviation of magnitude from its median
-///
-/// $$
-/// \mathrm{percent~amplitude} \equiv \max_i\left|m_i - \mathrm{Median}(m)\right|
-///     = \max\\{\max(m) - \mathrm{Median}(m), \mathrm{Median}(m) - \min(m)\\}.
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &'static str = r#"
+Maximum deviation of magnitude from its median
+
+$$
+\mathrm{percent~amplitude} \equiv \max_i\left|m_i - \mathrm{Median}(m)\right|
+    = \max(\max(m) - \mathrm{Median}(m), \mathrm{Median}(m) - \min(m)).
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PercentAmplitude {}
 
 lazy_info!(
@@ -28,6 +34,10 @@ lazy_info!(
 impl PercentAmplitude {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -63,11 +73,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(percent_amplitude_info, PercentAmplitude::default());
+    check_feature!(PercentAmplitude);
 
     feature_test!(
         percent_amplitude,
-        [Box::new(PercentAmplitude::new())],
+        [PercentAmplitude::new()],
         [96.0],
         [1.0_f32, 1.0, 1.0, 2.0, 4.0, 5.0, 5.0, 98.0, 100.0],
     );

@@ -1,20 +1,26 @@
 use crate::evaluator::*;
 
-/// Measure of the variability amplitude
-///
-/// $$
-/// \frac{\sigma_m^2 - \langle \delta^2 \rangle}{\langle m \rangle^2},
-/// $$
-/// where $\langle \delta^2 \rangle$ is the mean of squared error, $\sigma_m$ is the magnitude
-/// standard deviation. Note that this definition differs from
-/// [Sánchez et al. 2017](https://doi.org/10.3847/1538-4357/aa9188)
-///
-/// - Depends on: **magnitude**, **error**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// Sánchez et al. 2017 [DOI:10.3847/1538-4357/aa9188](https://doi.org/10.3847/1538-4357/aa9188)
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Measure of the variability amplitude
+
+$$
+\frac{\sigma_m^2 - \langle \delta^2 \rangle}{\langle m \rangle^2},
+$$
+where $\langle \delta^2 \rangle$ is the mean of squared error, $\sigma_m$ is the magnitude
+standard deviation. Note that this definition differs from
+[Sánchez et al. 2017](https://doi.org/10.3847/1538-4357/aa9188)
+
+- Depends on: **magnitude**, **error**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+Sánchez et al. 2017 [DOI:10.3847/1538-4357/aa9188](https://doi.org/10.3847/1538-4357/aa9188)
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ExcessVariance {}
 
 lazy_info!(
@@ -31,6 +37,10 @@ impl ExcessVariance {
     pub fn new() -> Self {
         Self {}
     }
+
+    pub fn doc() -> &'static str {
+        DOC
+    }
 }
 
 impl<T> FeatureEvaluator<T> for ExcessVariance
@@ -39,7 +49,7 @@ where
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let mean_error2 = ts.w_iter().map(|w| w.recip()).sum::<T>() / ts.lenf();
+        let mean_error2 = ts.w.sample.fold(T::zero(), |sum, w| sum + w.recip()) / ts.lenf();
         Ok(vec![
             (ts.m.get_std2() - mean_error2) / ts.m.get_mean().powi(2),
         ])
@@ -65,14 +75,14 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(excess_variance, ExcessVariance::default());
+    check_feature!(ExcessVariance);
 
     feature_test!(
         mean,
-        [Box::new(ExcessVariance::new())],
+        [ExcessVariance::new()],
         [0.41846885813148793],
         [0.0; 9],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 7.0],
-        Some(&[1.0, 0.5, 1.0, 2.0, 0.5, 2.0, 1.0, 1.0, 0.5]),
+        [1.0, 0.5, 1.0, 2.0, 0.5, 2.0, 1.0, 1.0, 0.5],
     );
 }

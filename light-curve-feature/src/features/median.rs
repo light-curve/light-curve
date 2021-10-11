@@ -1,15 +1,21 @@
 use crate::evaluator::*;
 
-/// Median magnitude
-///
-/// $$
-/// \mathrm{Median}
-/// $$
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Median magnitude
+
+$$
+\mathrm{Median}(m_i)
+$$
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Median {}
 
 lazy_info!(
@@ -25,6 +31,10 @@ lazy_info!(
 impl Median {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -57,12 +67,19 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(median_info, Median::default());
+    check_feature!(Median);
 
     feature_test!(
-        median,
-        [Box::new(Median::new())],
+        median_odd,
+        [Median::new()],
         [3.0],
         [-99.0, 0.0, 3.0, 3.1, 3.2],
+    );
+
+    feature_test!(
+        median_even,
+        [Median::new()],
+        [1.5],
+        [-99.0, 0.0, 4.0, 3.0, 2.0, 1.0],
     );
 }

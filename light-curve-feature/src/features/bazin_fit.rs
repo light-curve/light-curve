@@ -1,37 +1,64 @@
 use crate::evaluator::*;
-use crate::fit::{curve_fit, data::NormalizedData, CurveFitResult};
+use crate::nl_fit::{
+    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, F64LikeFloat,
+    McmcCurveFit,
+};
 
 use conv::ConvUtil;
-use hyperdual::Float as HyperdualFloat;
-use std::ops::{Add, Mul, Sub};
 
-/// Bazin fit
-///
-/// Requires *gsl* feature to be enabled
-///
-/// Five fit parameters and goodness of fit (reduced $\Chi^2$) of Bazin function developed for
-/// core-collapsed supernovae:
-/// $$
-/// f(t) = A \frac{ \\mathrm{e}^{ -(t-t_0)/\\tau_\\mathrm{fall} } }{ 1 + \\mathrm{e}^{ -(t - t_0) / \\tau_\\mathrm{rise} } } + B.
-/// $$
-///
-/// Note, that Bazin function is developed to use with fluxes, not magnitudes. Also note a typo in
-/// the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent
-///
-/// Is not guaranteed that parameters correspond to global minima of the loss function, the feature
-/// extractor needs a lot of improvement.
-///
-/// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **6**
-/// - Number of features: **6**
-///
-/// Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
-#[derive(Clone, Default, Debug)]
-pub struct BazinFit {}
+macro_const! {
+    const DOC: &str = r#"
+Bazin function fit
+
+Five fit parameters and goodness of fit (reduced $\chi^2$) of the Bazin function developed for
+core-collapsed supernovae:
+
+$$
+f(t) = A \frac{ \mathrm{e}^{ -(t-t_0)/\tau_\mathrm{fall} } }{ 1 + \mathrm{e}^{ -(t - t_0) / \tau_\mathrm{rise} } } + B.
+$$
+
+Note, that the Bazin function is developed to be used with fluxes, not magnitudes. Also note a typo
+in the Eq. (1) of the original paper, the minus sign is missed in the "rise" exponent.
+
+- Depends on: **time**, **magnitude**, **magnitude error**
+- Minimum number of observations: **6**
+- Number of features: **6**
+
+Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004-6361/200911847)
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+pub struct BazinFit {
+    algorithm: CurveFitAlgorithm,
+}
 
 impl BazinFit {
-    pub fn new() -> Self {
-        Self {}
+    /// New [BazinFit] instance
+    ///
+    /// `algorithm` specifies which optimization method is used, it is an instance of the
+    /// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
+    /// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification,
+    /// requires `gsl` Cargo feature).
+    pub fn new(algorithm: CurveFitAlgorithm) -> Self {
+        Self { algorithm }
+    }
+
+    /// [BazinFit] with the default [McmcCurveFit]
+    #[inline]
+    pub fn default_algorithm() -> CurveFitAlgorithm {
+        McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
+    }
+}
+
+impl Default for BazinFit {
+    fn default() -> Self {
+        Self::new(Self::default_algorithm())
     }
 }
 
@@ -46,37 +73,71 @@ lazy_info!(
 );
 
 impl BazinFit {
-    fn model<T>(t: f64, param: &[T]) -> T
+    pub fn f<T>(t: T, values: &[T]) -> T
     where
-        T: HyperdualFloat + Add<f64, Output = T> + Mul<f64, Output = T> + Sub<f64, Output = T>,
+        T: Float,
     {
+        Self::model(t, &values[..5])
+    }
+
+    fn model<T, U>(t: T, param: &[U]) -> U
+    where
+        T: Into<U>,
+        U: F64LikeFloat,
+    {
+        let t: U = t.into();
         let x = Params { storage: param };
-        let minus_dt = *x.t0() - t;
-        *x.b() + *x.a() * T::exp(minus_dt / *x.fall()) / (T::exp(minus_dt / *x.rise()) + 1.0_f64)
+        let minus_dt = x.t0() - t;
+        x.b()
+            + x.a() * U::exp(minus_dt / x.tau_fall()) / (U::exp(minus_dt / x.tau_rise()) + U::one())
     }
 
     fn derivatives(t: f64, param: &[f64], jac: &mut [f64]) {
         let x = Params { storage: param };
-        let minus_dt = *x.t0() - t;
-        let exp_rise = f64::exp(minus_dt / *x.rise());
-        let frac = f64::exp(minus_dt / *x.fall()) / (1.0 + exp_rise);
+        let minus_dt = x.t0() - t;
+        let exp_rise = f64::exp(minus_dt / x.tau_rise());
+        let frac = f64::exp(minus_dt / x.tau_fall()) / (1.0 + exp_rise);
         let exp_1p_exp_rise = 1.0 / (1.0 + 1.0 / exp_rise);
-        jac[0] = frac;
+        // a
+        jac[0] = x.sgn_a() * frac;
+        // b
         jac[1] = 1.0;
-        jac[2] = *x.a() * frac * (1.0 / *x.fall() - exp_1p_exp_rise / *x.rise());
-        jac[3] = *x.a() * minus_dt * frac / x.rise().powi(2) * exp_1p_exp_rise;
-        jac[4] = -*x.a() * minus_dt * frac / x.fall().powi(2);
+        // t0
+        jac[2] = x.a() * frac * (1.0 / x.tau_fall() - exp_1p_exp_rise / x.tau_rise());
+        // tau_rise
+        jac[3] =
+            x.sgn_tau_rise() * x.a() * minus_dt * frac / x.tau_rise().powi(2) * exp_1p_exp_rise;
+        // tau_fall
+        jac[4] = -x.sgn_tau_fall() * x.a() * minus_dt * frac / x.tau_fall().powi(2);
     }
 
-    fn init_array_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> [f64; 5] {
-        let a = 0.5 * (ts.m.get_max().value_into().unwrap() - ts.m.get_min().value_into().unwrap());
-        let b = ts.m.get_min().value_into().unwrap();
-        let t0 = ts.get_t_max_m().value_into().unwrap();
-        let rise = 0.5
-            * (ts.t.sample[ts.lenu() - 1].value_into().unwrap()
-                - ts.t.sample[0].value_into().unwrap());
-        let fall = rise;
-        [a, b, t0, rise, fall]
+    fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 5], [(f64, f64); 5]) {
+        let t_min: f64 = ts.t.get_min().value_into().unwrap();
+        let t_max: f64 = ts.t.get_max().value_into().unwrap();
+        let t_amplitude = t_max - t_min;
+        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+        let m_min: f64 = ts.m.get_min().value_into().unwrap();
+        let m_max: f64 = ts.m.get_max().value_into().unwrap();
+        let m_amplitude = m_max - m_min;
+
+        let a_init = 0.5 * m_amplitude;
+        let a_bound = (0.0, 100.0 * m_amplitude);
+
+        let b_init = m_min;
+        let b_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+
+        let t0_init = t_peak;
+        let t0_bound = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+
+        let rise_init = 0.5 * t_amplitude;
+        let rise_bound = (0.0, 10.0 * t_amplitude);
+
+        let fall_init = 0.5 * t_amplitude;
+        let fall_bound = (0.0, 10.0 * t_amplitude);
+        (
+            [a_init, b_init, t0_init, rise_init, fall_init],
+            [a_bound, b_bound, t0_bound, rise_bound, fall_bound],
+        )
     }
 }
 
@@ -89,34 +150,59 @@ where
 
         let norm_data = NormalizedData::<f64>::from_ts(ts);
 
-        let x0 = {
-            let mut x0 = Self::init_array_from_ts(ts);
-            x0[0] = norm_data.m_to_norm_scale(x0[0]); // amplitude
-            x0[1] = norm_data.m_to_norm(x0[1]); // offset
-            x0[2] = norm_data.t_to_norm(x0[2]); // peak time
-            x0[3] = norm_data.t_to_norm_scale(x0[3]); // rise time
-            x0[4] = norm_data.t_to_norm_scale(x0[4]); // fall time
-            x0
+        let (x0, bound) = {
+            let (mut x0, mut bound) = Self::init_and_bounds_from_ts(ts);
+
+            // amplitude
+            x0[0] = norm_data.m_to_norm_scale(x0[0]);
+            bound[0].0 = norm_data.m_to_norm_scale(bound[0].0);
+            bound[0].1 = norm_data.m_to_norm_scale(bound[0].1);
+
+            // offset
+            x0[1] = norm_data.m_to_norm(x0[1]);
+            bound[1].0 = norm_data.m_to_norm(bound[1].0);
+            bound[1].1 = norm_data.m_to_norm(bound[1].1);
+
+            // peak time
+            x0[2] = norm_data.t_to_norm(x0[2]);
+            bound[2].0 = norm_data.t_to_norm(bound[2].0);
+            bound[2].1 = norm_data.t_to_norm(bound[2].1);
+
+            // rise time
+            x0[3] = norm_data.t_to_norm_scale(x0[3]);
+            bound[3].0 = norm_data.t_to_norm_scale(bound[3].0);
+            bound[3].1 = norm_data.t_to_norm_scale(bound[3].1);
+
+            // fall time
+            x0[4] = norm_data.t_to_norm_scale(x0[4]);
+            bound[4].0 = norm_data.t_to_norm_scale(bound[4].0);
+            bound[4].1 = norm_data.t_to_norm_scale(bound[4].1);
+
+            (x0, bound)
         };
 
         let result = {
             let CurveFitResult {
-                mut x,
-                reduced_chi2,
-                ..
-            } = curve_fit(
+                x, reduced_chi2, ..
+            } = self.algorithm.curve_fit(
                 norm_data.data.clone(),
                 &x0,
-                Self::model::<f64>,
+                &bound,
+                Self::model::<f64, f64>,
                 Self::derivatives,
             );
-            x[0] = norm_data.m_to_orig_scale(x[0]); // amplitude
-            x[1] = norm_data.m_to_orig(x[1]); // offset
-            x[2] = norm_data.t_to_orig(x[2]); // peak time
-            x[3] = norm_data.t_to_orig_scale(x[3]); // rise time
-            x[4] = norm_data.t_to_orig_scale(x[4]); // fall time
-            x.push(reduced_chi2);
-            x.iter().map(|&x| x.approx_as::<T>().unwrap()).collect()
+            let x = Params { storage: &x };
+            let mut result = vec![0.0; 6];
+            result[0] = norm_data.m_to_orig_scale(x.a()); // amplitude
+            result[1] = norm_data.m_to_orig(x.b()); // offset
+            result[2] = norm_data.t_to_orig(x.t0()); // peak time
+            result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // rise time
+            result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // fall time
+            result[5] = reduced_chi2;
+            result
+                .iter()
+                .map(|&x| x.approx_as::<T>().unwrap())
+                .collect()
         };
 
         Ok(result)
@@ -129,7 +215,7 @@ where
     fn get_names(&self) -> Vec<&str> {
         vec![
             "bazin_fit_amplitude",
-            "bazin_fit_offset",
+            "bazin_fit_baseline",
             "bazin_fit_peak_time",
             "bazin_fit_rise_time",
             "bazin_fit_fall_time",
@@ -140,7 +226,7 @@ where
     fn get_descriptions(&self) -> Vec<&str> {
         vec![
             "half amplitude of the Bazin function (A)",
-            "offset of the Bazin function (B)",
+            "baseline of the Bazin function (B)",
             "peak time of the Bazin fit (t0)",
             "rise time of the Bazin function (tau_rise)",
             "fall time of the Bazin function (tau_fall)",
@@ -153,30 +239,48 @@ struct Params<'a, T> {
     storage: &'a [T],
 }
 
-impl<'a, T> Params<'a, T> {
+impl<'a, T> Params<'a, T>
+where
+    T: F64LikeFloat,
+{
     #[inline]
-    fn a(&self) -> &T {
-        &self.storage[0]
+    fn a(&self) -> T {
+        self.storage[0].abs()
     }
 
     #[inline]
-    fn b(&self) -> &T {
-        &self.storage[1]
+    fn sgn_a(&self) -> T {
+        self.storage[0].signum()
     }
 
     #[inline]
-    fn t0(&self) -> &T {
-        &self.storage[2]
+    fn b(&self) -> T {
+        self.storage[1]
     }
 
     #[inline]
-    fn rise(&self) -> &T {
-        &self.storage[3]
+    fn t0(&self) -> T {
+        self.storage[2]
     }
 
     #[inline]
-    fn fall(&self) -> &T {
-        &self.storage[4]
+    fn tau_rise(&self) -> T {
+        self.storage[3].abs()
+    }
+
+    #[inline]
+    fn sgn_tau_rise(&self) -> T {
+        self.storage[3].signum()
+    }
+
+    #[inline]
+    fn tau_fall(&self) -> T {
+        self.storage[4].abs()
+    }
+
+    #[inline]
+    fn sgn_tau_fall(&self) -> T {
+        self.storage[4].signum()
     }
 }
 
@@ -186,21 +290,23 @@ impl<'a, T> Params<'a, T> {
 mod tests {
     use super::*;
     use crate::tests::*;
+    use crate::LmsderCurveFit;
+    use crate::TimeSeries;
 
-    use hyperdual::{Hyperdual, U6};
+    use approx::assert_relative_eq;
+    use hyperdual::Hyperdual;
 
-    eval_info_test!(bazin_fit_info, BazinFit::default());
+    check_feature!(BazinFit);
 
     feature_test!(
         bazin_fit_plateau,
-        [Box::new(BazinFit::default())],
+        [BazinFit::default()],
         [0.0, 0.0, 10.0, 5.0, 5.0, 0.0], // initial model parameters and zero chi2
         linspace(0.0, 10.0, 11),
         [0.0; 11],
     );
 
-    #[test]
-    fn bazin_fit_noisy() {
+    fn bazin_fit_noisy(eval: BazinFit) {
         const N: usize = 50;
 
         let mut rng = StdRng::seed_from_u64(0);
@@ -219,10 +325,7 @@ mod tests {
             .collect();
         let w: Vec<_> = model.iter().copied().map(f64::recip).collect();
         println!("{:?}\n{:?}\n{:?}\n{:?}", t, model, m, w);
-        let mut ts = TimeSeries::new(&t, &m, Some(&w));
-
-        let fe = FeatureExtractor::new(vec![Box::new(BazinFit::default())]);
-        let values = fe.eval(&mut ts).unwrap();
+        let mut ts = TimeSeries::new(&t, &m, &w);
 
         // curve_fit(lambda t, a, b, t0, rise, fall: b + a * np.exp(-(t-t0)/fall) / (1 + np.exp(-(t-t0) / rise)), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 30, 10, 30])
         let desired = [
@@ -232,7 +335,21 @@ mod tests {
             9.75027284e+00,
             2.86714363e+01,
         ];
-        all_close(&values[..5], &desired, 0.1);
+
+        let values = eval.eval(&mut ts).unwrap();
+        assert_relative_eq!(&values[..5], &desired[..], max_relative = 0.01);
+    }
+
+    #[test]
+    fn bazin_fit_noisy_lmsder() {
+        bazin_fit_noisy(BazinFit::new(LmsderCurveFit::new(9).into()));
+    }
+
+    #[test]
+    fn bazin_fit_noizy_mcmc_plus_lmsder() {
+        let lmsder = LmsderCurveFit::new(8);
+        let mcmc = McmcCurveFit::new(128, Some(lmsder.into()));
+        bazin_fit_noisy(BazinFit::new(mcmc.into()));
     }
 
     #[test]
@@ -243,7 +360,7 @@ mod tests {
         for _ in 0..REPEAT {
             let t = 10.0 * rng.gen::<f64>();
 
-            let param: Vec<_> = (0..5).map(|_| rng.gen::<f64>()).collect();
+            let param: Vec<_> = (0..5).map(|_| rng.gen::<f64>() - 0.5).collect();
             let actual = {
                 let mut jac = [0.0; 5];
                 BazinFit::derivatives(t, &param, &mut jac);
@@ -251,7 +368,7 @@ mod tests {
             };
 
             let desired: Vec<_> = {
-                let param: Vec<Hyperdual<f64, U6>> = param
+                let param: Vec<Hyperdual<f64, 6>> = param
                     .iter()
                     .enumerate()
                     .map(|(i, &x)| {
@@ -264,7 +381,7 @@ mod tests {
                 (1..=5).map(|i| result[i]).collect()
             };
 
-            all_close(&actual, &desired, 1e-9);
+            assert_relative_eq!(&actual[..], &desired[..], epsilon = 1e-9);
         }
     }
 }

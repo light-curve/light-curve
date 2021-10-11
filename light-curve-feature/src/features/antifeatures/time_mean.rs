@@ -1,20 +1,30 @@
 use crate::evaluator::*;
 
-/// Mean time
-///
-/// $$
-/// \langle t \rangle \equiv \frac1{N} \sum_i {t_i}.
-/// $$
-///
-/// - Depends on: **time**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &'static str = r#"
+Mean time
+
+$$
+\langle t \rangle \equiv \frac1{N} \sum_i {t_i}.
+$$
+
+- Depends on: **time**
+- Minimum number of observations: **1**
+- Number of features: **1**
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TimeMean {}
 
 impl TimeMean {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -57,11 +67,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(time_mean_info, TimeMean::default());
+    check_feature!(TimeMean);
 
     feature_test!(
         time_mean,
-        [Box::new(TimeMean::new())],
+        [TimeMean::new()],
         [14.0],
         [1.0_f32, 1.0, 1.0, 1.0, 5.0, 6.0, 6.0, 6.0, 99.0],
     );

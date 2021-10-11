@@ -1,12 +1,15 @@
 use crate::float_trait::Float;
 use crate::periodogram::fft::*;
 use crate::periodogram::freq::FreqGrid;
-use crate::periodogram::power::*;
+use crate::periodogram::power_trait::*;
 use crate::time_series::TimeSeries;
+
 use conv::{ConvAsUtil, RoundToNearest};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::Debug;
 use std::sync::Arc;
 use thread_local::ThreadLocal;
 
@@ -22,7 +25,12 @@ use thread_local::ThreadLocal;
 /// especially for large grids.
 ///
 /// The implementation is inspired by Numerical Recipes, Press et al., 1997, Section 13.8
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(
+    into = "PeriodogramPowerFftParameters",
+    from = "PeriodogramPowerFftParameters",
+    bound = "T: Float"
+)]
 pub struct PeriodogramPowerFft<T>
 where
     T: Float,
@@ -43,11 +51,11 @@ where
     }
 }
 
-impl<T> fmt::Debug for PeriodogramPowerFft<T>
+impl<T> Debug for PeriodogramPowerFft<T>
 where
     T: Float,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", std::any::type_name::<Self>())
     }
 }
@@ -61,12 +69,12 @@ where
     }
 }
 
-impl<T> PeriodogramPower<T> for PeriodogramPowerFft<T>
+impl<T> PeriodogramPowerTrait<T> for PeriodogramPowerFft<T>
 where
     T: Float,
 {
     fn power(&self, freq: &FreqGrid<T>, ts: &mut TimeSeries<T>) -> Vec<T> {
-        let m_std2 = ts.m.get_std().powi(2);
+        let m_std2 = ts.m.get_std2();
 
         if m_std2.is_zero() {
             return vec![T::zero(); freq.size.next_power_of_two()];
@@ -148,6 +156,35 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Fft")]
+struct PeriodogramPowerFftParameters {}
+
+impl<T> From<PeriodogramPowerFft<T>> for PeriodogramPowerFftParameters
+where
+    T: Float,
+{
+    fn from(_: PeriodogramPowerFft<T>) -> Self {
+        Self {}
+    }
+}
+
+impl<T> From<PeriodogramPowerFftParameters> for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    fn from(_: PeriodogramPowerFftParameters) -> Self {
+        Self::new()
+    }
+}
+
+impl<T> JsonSchema for PeriodogramPowerFft<T>
+where
+    T: Float,
+{
+    json_schema!(PeriodogramPowerFftParameters, false);
+}
+
 struct PeriodogramArrays<T>
 where
     T: Float,
@@ -173,11 +210,11 @@ where
     }
 }
 
-impl<T> fmt::Debug for PeriodogramArrays<T>
+impl<T> Debug for PeriodogramArrays<T>
 where
     T: Float,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PeriodogramArrays(n = {})", self.x_sch.len())
     }
 }
@@ -257,18 +294,22 @@ fn spread_arrays_for_fft<T: Float>(
     let t0 = ts.t.sample[0];
     let m_mean = ts.m.get_mean();
 
-    for (t, m) in ts.tm_iter() {
-        let x = (t - t0) / grid.dt;
-        spread(x_sch, x, m - m_mean);
-        let double_x = T::two() * x;
-        spread(x_sc2, double_x, T::one());
-    }
+    // For contiguous arrays it is faster than ndarray::Zip::for_each
+    ts.t.as_slice()
+        .iter()
+        .zip(ts.m.as_slice().iter())
+        .for_each(|(&t, &m)| {
+            let x = (t - t0) / grid.dt;
+            spread(x_sch, x, m - m_mean);
+            let double_x = T::two() * x;
+            spread(x_sc2, double_x, T::one());
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::periodogram::freq::{AverageNyquistFreq, NyquistFreq};
+    use crate::periodogram::freq::AverageNyquistFreq;
     use light_curve_common::{all_close, linspace};
     use rand::prelude::*;
 
@@ -304,10 +345,10 @@ mod tests {
 
         let t = linspace(0.0, (N - 1) as f64, N);
         let m: Vec<f64> = (0..N).map(|_| rng.gen()).collect();
-        let mut ts = TimeSeries::new(&t[..], &m[..], None);
+        let mut ts = TimeSeries::new_without_weight(&t[..], &m[..]);
 
-        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
-        let freq_grid = FreqGrid::from_t(&t, 1.0, 1.0, &nyquist);
+        let nyquist = AverageNyquistFreq.into();
+        let freq_grid = FreqGrid::from_t(&t, 1.0, 1.0, nyquist);
         let time_grid = TimeGrid::from_freq_grid(&freq_grid);
 
         let (mh, m2) = {
@@ -334,10 +375,10 @@ mod tests {
 
         let t = linspace(0.0, (N - 1) as f64, N);
         let m: Vec<f64> = (0..N).map(|_| rng.gen()).collect();
-        let mut ts = TimeSeries::new(&t[..], &m[..], None);
+        let mut ts = TimeSeries::new_without_weight(&t[..], &m[..]);
 
-        let nyquist: Box<dyn NyquistFreq<f64>> = Box::new(AverageNyquistFreq);
-        let freq_grid = FreqGrid::from_t(&t, RESOLUTION as f32, 1.0, &nyquist);
+        let nyquist = AverageNyquistFreq.into();
+        let freq_grid = FreqGrid::from_t(&t, RESOLUTION as f32, 1.0, nyquist);
         let time_grid = TimeGrid::from_freq_grid(&freq_grid);
         let (mh, m2) = {
             let mut mh = vec![0.0; time_grid.size];

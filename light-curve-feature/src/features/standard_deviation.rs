@@ -1,20 +1,26 @@
 use crate::evaluator::*;
 
-/// Standard deviation of magnitude $\sigma_m$
-///
-/// $$
-/// \sigma_m \equiv \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)},
-/// $$
-///
-/// $N$ is the number of observations
-/// and $\langle m \rangle$ is the mean magnitude.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &'static str = r#"
+Standard deviation of magnitude $\sigma_m$
+
+$$
+\sigma_m \equiv \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)},
+$$
+
+$N$ is the number of observations
+and $\langle m \rangle$ is the mean magnitude.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+[Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct StandardDeviation {}
 
 lazy_info!(
@@ -30,6 +36,10 @@ lazy_info!(
 impl StandardDeviation {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -62,11 +72,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(standard_deviation_info, StandardDeviation::default());
+    check_feature!(StandardDeviation);
 
     feature_test!(
         standard_deviation,
-        [Box::new(StandardDeviation::new())],
+        [StandardDeviation::new()],
         [1.5811388300841898],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );

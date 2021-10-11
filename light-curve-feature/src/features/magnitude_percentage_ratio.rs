@@ -1,19 +1,30 @@
 use crate::evaluator::*;
 
-/// Magnitude percentage ratio
-///
-/// $$
-/// \mathrm{magnitude~}q\mathrm{~to~}n\mathrm{~ratio} \equiv \frac{Q(1-n) - Q(n)}{Q(1-d) - Q(d)},
-/// $$
-/// where $n$ and $d$ denotes user defined percentage, $Q$ is the quantile function of magnitude
-/// distribution.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **1**
-/// - Number of features: **1**
-///
-/// D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
-#[derive(Clone, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Magnitude percentage ratio
+
+$$
+\mathrm{magnitude~}q\mathrm{~to~}n\mathrm{~ratio} \equiv \frac{Q(1-n) - Q(n)}{Q(1-d) - Q(d)},
+$$
+where $n$ and $d$ denotes user defined percentage, $Q$ is the quantile function of magnitude
+distribution.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **1**
+- Number of features: **1**
+
+D’Isanto et al. 2016 [DOI:10.1093/mnras/stw157](https://doi.org/10.1093/mnras/stw157)
+"#;
+}
+
+#[doc = DOC!()]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    from = "MagnitudePercentageRatioParameters",
+    into = "MagnitudePercentageRatioParameters"
+)]
 pub struct MagnitudePercentageRatio {
     quantile_numerator: f32,
     quantile_denominator: f32,
@@ -72,6 +83,10 @@ impl MagnitudePercentageRatio {
     pub fn default_quantile_denominator() -> f32 {
         0.05
     }
+
+    pub fn doc() -> &'static str {
+        DOC
+    }
 }
 impl Default for MagnitudePercentageRatio {
     fn default() -> Self {
@@ -113,6 +128,28 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "MagnitudePercentageRatio")]
+struct MagnitudePercentageRatioParameters {
+    quantile_numerator: f32,
+    quantile_denominator: f32,
+}
+
+impl From<MagnitudePercentageRatio> for MagnitudePercentageRatioParameters {
+    fn from(f: MagnitudePercentageRatio) -> Self {
+        Self {
+            quantile_numerator: f.quantile_numerator,
+            quantile_denominator: f.quantile_denominator,
+        }
+    }
+}
+
+impl From<MagnitudePercentageRatioParameters> for MagnitudePercentageRatio {
+    fn from(p: MagnitudePercentageRatioParameters) -> Self {
+        Self::new(p.quantile_numerator, p.quantile_denominator)
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unreadable_literal)]
 #[allow(clippy::excessive_precision)]
@@ -120,18 +157,17 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(
-        magnitude_percentage_ratio_info,
-        MagnitudePercentageRatio::default()
-    );
+    use serde_test::{assert_tokens, Token};
+
+    check_feature!(MagnitudePercentageRatio);
 
     feature_test!(
         magnitude_percentage_ratio,
         [
-            Box::new(MagnitudePercentageRatio::default()),
-            Box::new(MagnitudePercentageRatio::new(0.4, 0.05)), // should be the same
-            Box::new(MagnitudePercentageRatio::new(0.2, 0.05)),
-            Box::new(MagnitudePercentageRatio::new(0.4, 0.1)),
+            MagnitudePercentageRatio::default(),
+            MagnitudePercentageRatio::new(0.4, 0.05), // should be the same
+            MagnitudePercentageRatio::new(0.2, 0.05),
+            MagnitudePercentageRatio::new(0.4, 0.1),
         ],
         [0.12886598, 0.12886598, 0.7628866, 0.13586957],
         [
@@ -142,9 +178,31 @@ mod tests {
 
     #[test]
     fn magnitude_percentage_ratio_plateau() {
-        let fe = feat_extr!(MagnitudePercentageRatio::default());
+        let eval = MagnitudePercentageRatio::default();
         let x = [0.0; 10];
-        let mut ts = TimeSeries::new(&x, &x, None);
-        assert_eq!(fe.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
+        let mut ts = TimeSeries::new_without_weight(&x, &x);
+        assert_eq!(eval.eval(&mut ts), Err(EvaluatorError::FlatTimeSeries));
+    }
+
+    #[test]
+    fn serialization() {
+        const QUANTILE_NUMERATOR: f32 = 0.256;
+        const QUANTILE_DENOMINATOR: f32 = 0.128;
+
+        let beyond_n_std = MagnitudePercentageRatio::new(QUANTILE_NUMERATOR, QUANTILE_DENOMINATOR);
+        assert_tokens(
+            &beyond_n_std,
+            &[
+                Token::Struct {
+                    len: 2,
+                    name: "MagnitudePercentageRatio",
+                },
+                Token::String("quantile_numerator"),
+                Token::F32(QUANTILE_NUMERATOR),
+                Token::String("quantile_denominator"),
+                Token::F32(QUANTILE_DENOMINATOR),
+                Token::StructEnd,
+            ],
+        )
     }
 }

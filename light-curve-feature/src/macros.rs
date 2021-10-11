@@ -1,5 +1,4 @@
 /// Helper for static EvaluatorInfo creation
-#[macro_export]
 macro_rules! lazy_info {
     (
         $name: ident,
@@ -23,63 +22,62 @@ macro_rules! lazy_info {
     };
 }
 
-/// Constructs a `FeatureExtractor` object from a list of objects that implement `FeatureEvaluator`
-/// ```
-/// use light_curve_feature::*;
-///
-/// let fe = feat_extr!(BeyondNStd::new(1.0), Cusum::default());
-/// ```
-#[macro_export]
-macro_rules! feat_extr{
-    ( $( $x: expr ),* $(,)? ) => {
-        FeatureExtractor::new(
-            vec![$(
-                Box::new($x),
-            )*]
-        )
-    }
-}
-
 /// Helper for FeatureEvaluator implementations using time-series transformation.
 /// You must implement:
-/// - method `transform_ts(ts: &mut TimeSeries<T>) -> TMWVectors<T>`
-/// - attribute `info: EvaluatorInfo`
-/// - attribute `feature_names: Vec<String>`
-/// - attribute `feature_descriptions: Vec<String>`
-#[macro_export]
+/// - method `transform_ts(ts: &mut TimeSeries<T>) -> Result<impl OwnedArrays<T>, EvaluatorError>`
+/// - attribute `properties: Box<EvaluatorProperties>`
 macro_rules! transformer_eval {
     () => {
         fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-            let tmw = self.transform_ts(ts)?;
-            let mut new_ts = TimeSeries::new(&tmw.t, &tmw.m, tmw.w.as_ref().map(|w| &w[..]));
+            let arrays = self.transform_ts(ts)?;
+            let mut new_ts = arrays.ts();
             self.feature_extractor.eval(&mut new_ts)
         }
 
         fn eval_or_fill(&self, ts: &mut TimeSeries<T>, fill_value: T) -> Vec<T> {
-            let tmw = match self.transform_ts(ts) {
+            let arrays = match self.transform_ts(ts) {
                 Ok(x) => x,
                 Err(_) => return vec![fill_value; self.size_hint()],
             };
-            let mut new_ts = TimeSeries::new(&tmw.t, &tmw.m, tmw.w.as_ref().map(|w| &w[..]));
+            let mut new_ts = arrays.ts();
             self.feature_extractor.eval_or_fill(&mut new_ts, fill_value)
         }
 
         fn get_info(&self) -> &EvaluatorInfo {
-            &self.info
+            &self.properties.info
         }
 
         fn get_names(&self) -> Vec<&str> {
-            self.feature_names
+            self.properties
+                .names
                 .iter()
                 .map(|name| name.as_str())
                 .collect()
         }
 
         fn get_descriptions(&self) -> Vec<&str> {
-            self.feature_descriptions
+            self.properties
+                .descriptions
                 .iter()
                 .map(|desc| desc.as_str())
                 .collect()
+        }
+    };
+}
+
+/// Helper implementing JsonSchema crate
+macro_rules! json_schema {
+    ($parameters: ty, $is_referenceable: expr) => {
+        fn is_referenceable() -> bool {
+            $is_referenceable
+        }
+
+        fn schema_name() -> String {
+            <$parameters>::schema_name()
+        }
+
+        fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+            <$parameters>::json_schema(gen)
         }
     };
 }

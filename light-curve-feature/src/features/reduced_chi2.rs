@@ -1,19 +1,27 @@
 use crate::evaluator::*;
 
-/// Reduced $\chi^2$ of magnitude measurements
-///
-/// $$
-/// \mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \bar{m}}{\delta\_i}\right)^2,
-/// $$
-/// where $N$ is the number of observations,
-/// and $\bar{m}$ is the weighted mean magnitude.
-///
-/// - Depends on: **magnitude**, **magnitude error**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// [Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &'static str = r#"
+Reduced $\chi^2$ of magnitude measurements
+
+$$
+\mathrm{reduced~}\chi^2 \equiv \frac1{N-1} \sum_i\left(\frac{m_i - \bar{m}}{\delta\_i}\right)^2,
+$$
+where $N$ is the number of observations,
+and $\bar{m}$ is the weighted mean magnitude.
+
+- Depends on: **magnitude**, **magnitude error**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+This is a good measure of variability which takes into account observations uncertainties.
+
+[Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ReducedChi2 {}
 
 lazy_info!(
@@ -29,6 +37,10 @@ lazy_info!(
 impl ReducedChi2 {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -61,14 +73,14 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(reduced_chi2_info, ReducedChi2::default());
+    check_feature!(ReducedChi2);
 
     feature_test!(
         reduced_chi2,
-        [Box::new(ReducedChi2::default())],
+        [ReducedChi2::default()],
         [2.192592592592593],
         [0.0_f64; 10], // isn't used
         [1.0, 2.0, 1.0, 0.0, -1.0, 0.0, 1.0, 2.0, -2.0, 0.0],
-        Some(&[1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0]),
+        [1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0],
     );
 }

@@ -25,13 +25,19 @@ def _feature_classes(module, exclude_parametric=True):
         yield obj
 
 
-feature_classes = tuple(_feature_classes(lc))
+non_param_feature_classes = tuple(_feature_classes(lc, True))
+all_feature_classes = tuple(_feature_classes(lc, False))
 
 
-@pytest.mark.parametrize("cls", feature_classes)
+@pytest.mark.parametrize("cls", non_param_feature_classes)
 def test_negative_strides(cls):
     t = np.linspace(1, 0, 20)[::-2]
     m = np.exp(t)[:]
     err = np.random.uniform(0.1, 0.2, t.shape)
     obj = cls()
     obj(t, m, err)
+
+
+@pytest.mark.parametrize("cls", all_feature_classes)
+def test_nonempty_docstring(cls):
+    assert len(cls.__doc__) > 10

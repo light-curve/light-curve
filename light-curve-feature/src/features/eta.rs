@@ -1,25 +1,35 @@
 use crate::evaluator::*;
 use itertools::Itertools;
 
-/// Von Neummann $\eta$
-///
-/// $$
-/// \eta \equiv \frac1{(N - 1)\\,\sigma_m^2} \sum_{i=0}^{N-2}(m_{i+1} - m_i)^2,
-/// $$
-/// where $N$ is the number of observations,
-/// $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
-///
-/// - Depends on: **magnitude**
-/// - Minimum number of observations: **2**
-/// - Number of features: **1**
-///
-/// Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
-#[derive(Clone, Default, Debug)]
+macro_const! {
+    const DOC: &str = r#"
+Von Neummann $\eta$
+
+$$
+\eta \equiv \frac1{(N - 1)\\,\sigma_m^2} \sum_{i=0}^{N-2}(m_{i+1} - m_i)^2,
+$$
+where $N$ is the number of observations,
+$\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude standard deviation.
+
+- Depends on: **magnitude**
+- Minimum number of observations: **2**
+- Number of features: **1**
+
+Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
+"#;
+}
+
+#[doc = DOC!()]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Eta {}
 
 impl Eta {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn doc() -> &'static str {
+        DOC
     }
 }
 
@@ -41,7 +51,7 @@ where
         self.check_ts_length(ts)?;
         let m_std2 = get_nonzero_m_std2(ts)?;
         let value =
-            ts.m.sample
+            ts.m.as_slice()
                 .iter()
                 .tuple_windows()
                 .map(|(&a, &b)| (b - a).powi(2))
@@ -71,11 +81,11 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    eval_info_test!(eta_info, Eta::default());
+    check_feature!(Eta);
 
     feature_test!(
         eta,
-        [Box::new(Eta::new())],
+        [Eta::new()],
         [1.11338],
         [1.0_f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 109.0],
     );

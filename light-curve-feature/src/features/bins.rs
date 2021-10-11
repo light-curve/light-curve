@@ -4,57 +4,75 @@ use crate::extractor::FeatureExtractor;
 use itertools::Itertools;
 use unzip3::Unzip3;
 
-/// Bins — sampled time series
-///
-/// Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
-/// $j-th$ bin interval is
-/// $[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset})$.
-/// Binned time series is defined by
-/// $$
-/// t_j^* = (j + \frac12) \cdot \mathrm{window} + \mathrm{offset},
-/// $$
-/// $$
-/// m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta_i^{-2}}},
-/// $$
-/// $$
-/// \delta_j^* = \frac{N_j}{\sum{\delta_i^{-2}}},
-/// $$
-/// where $N_j$ is a number of sampling observations and all sums are over observations inside
-/// considering bin
-///
-/// - Depends on: **time**, **magnitude**, **magnitude error**
-/// - Minimum number of observations: **1** (or as required by sub-features)
-/// - Number of features: **$...$**
-#[derive(Clone, Debug)]
-pub struct Bins<T: Float> {
-    window: T,
-    offset: T,
-    info: EvaluatorInfo,
-    feature_names: Vec<String>,
-    feature_descriptions: Vec<String>,
-    feature_extractor: FeatureExtractor<T>,
+macro_const! {
+    const DOC: &str = r#"
+Sampled time series meta-feature
+
+Binning time series to bins with width $\mathrm{window}$ with respect to some $\mathrm{offset}$.
+$j-th$ bin interval is
+$[j \cdot \mathrm{window} + \mathrm{offset}; (j + 1) \cdot \mathrm{window} + \mathrm{offset})$.
+Binned time series is defined by
+$$
+t_j^* = (j + \frac12) \cdot \mathrm{window} + \mathrm{offset},
+$$
+$$
+m_j^* = \frac{\sum{m_i / \delta_i^2}}{\sum{\delta_i^{-2}}},
+$$
+$$
+\delta_j^* = \frac{N_j}{\sum{\delta_i^{-2}}},
+$$
+where $N_j$ is a number of sampling observations and all sums are over observations inside
+considering bin. Bins takes any other feature evaluators to extract features from sample time series
+
+- Depends on: **time**, **magnitude**, **magnitude error**
+- Minimum number of observations: as required by sub-features, but at least **1**
+- Number of features: as provided by sub-features
+"#;
 }
 
-impl<T> Bins<T>
+#[doc = DOC!()]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    into = "BinsParameters<T, F>",
+    from = "BinsParameters<T, F>",
+    bound = "T: Float, F: FeatureEvaluator<T>"
+)]
+pub struct Bins<T, F>
 where
     T: Float,
+    F: FeatureEvaluator<T>,
+{
+    window: T,
+    offset: T,
+    feature_extractor: FeatureExtractor<T, F>,
+    properties: Box<EvaluatorProperties>,
+}
+
+impl<T, F> Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
 {
     pub fn new(window: T, offset: T) -> Self {
         assert!(window.is_sign_positive(), "window must be positive");
+        let info = EvaluatorInfo {
+            size: 0,
+            min_ts_length: 1,
+            t_required: true,
+            m_required: true,
+            w_required: true,
+            sorting_required: true,
+        };
         Self {
+            properties: EvaluatorProperties {
+                info,
+                names: vec![],
+                descriptions: vec![],
+            }
+            .into(),
             window,
             offset,
-            info: EvaluatorInfo {
-                size: 0,
-                min_ts_length: 1,
-                t_required: true,
-                m_required: true,
-                w_required: true,
-                sorting_required: true,
-            },
-            feature_names: vec![],
-            feature_descriptions: vec![],
-            feature_extractor: feat_extr!(),
+            feature_extractor: FeatureExtractor::new(vec![]),
         }
     }
 
@@ -70,17 +88,18 @@ where
     }
 
     /// Extend a feature to extract from binned time series
-    pub fn add_feature(&mut self, feature: Box<dyn FeatureEvaluator<T>>) -> &mut Self {
+    pub fn add_feature(&mut self, feature: F) -> &mut Self {
         let window = self.window;
         let offset = self.offset;
-        self.info.size += feature.size_hint();
-        self.feature_names.extend(
+        self.properties.info.size += feature.size_hint();
+        self.properties.names.extend(
             feature
                 .get_names()
                 .iter()
                 .map(|name| format!("bins_window{:.1}_offset{:.1}_{}", window, offset, name)),
         );
-        self.feature_descriptions
+        self.properties
+            .descriptions
             .extend(feature.get_descriptions().iter().map(|desc| {
                 format!(
                     "{desc} for binned time-series with window {window} and offset {offset}",
@@ -93,24 +112,33 @@ where
         self
     }
 
-    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmwVectors<T>, EvaluatorError> {
+    fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmwArrays<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        let (t, m, w) = ts
-            .tmw_iter()
-            .group_by(|(t, _, _)| ((*t - self.offset) / self.window).floor())
-            .into_iter()
-            .map(|(x, group)| {
-                let bin_t = (x + T::half()) * self.window;
-                let (n, bin_m, norm) = group
-                    .fold((T::zero(), T::zero(), T::zero()), |acc, (_, m, w)| {
-                        (acc.0 + T::one(), acc.1 + m * w, acc.2 + w)
-                    });
-                let bin_m = bin_m / norm;
-                let bin_w = norm / n;
-                (bin_t, bin_m, bin_w)
-            })
-            .unzip3();
-        Ok(TmwVectors { t, m, w: Some(w) })
+        let (t, m, w): (Vec<_>, Vec<_>, Vec<_>) =
+            ts.t.as_slice()
+                .iter()
+                .copied()
+                .zip(ts.m.as_slice().iter().copied())
+                .zip(ts.w.as_slice().iter().copied())
+                .map(|((t, m), w)| (t, m, w))
+                .group_by(|(t, _, _)| ((*t - self.offset) / self.window).floor())
+                .into_iter()
+                .map(|(x, group)| {
+                    let bin_t = (x + T::half()) * self.window;
+                    let (n, bin_m, norm) = group
+                        .fold((T::zero(), T::zero(), T::zero()), |acc, (_, m, w)| {
+                            (acc.0 + T::one(), acc.1 + m * w, acc.2 + w)
+                        });
+                    let bin_m = bin_m / norm;
+                    let bin_w = norm / n;
+                    (bin_t, bin_m, bin_w)
+                })
+                .unzip3();
+        Ok(TmwArrays {
+            t: t.into(),
+            m: m.into(),
+            w: w.into(),
+        })
     }
 
     #[inline]
@@ -124,20 +152,84 @@ where
     }
 }
 
-impl<T> Default for Bins<T>
+impl<T, F> Bins<T, F>
 where
     T: Float,
+    F: FeatureEvaluator<T>,
+{
+    pub fn doc() -> &'static str {
+        DOC
+    }
+}
+
+impl<T, F> Default for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
 {
     fn default() -> Self {
         Self::new(Self::default_window(), Self::default_offset())
     }
 }
 
-impl<T> FeatureEvaluator<T> for Bins<T>
+impl<T, F> FeatureEvaluator<T> for Bins<T, F>
 where
     T: Float,
+    F: FeatureEvaluator<T>,
 {
     transformer_eval!();
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename = "Bins", bound = "T: Float, F: FeatureEvaluator<T>")]
+struct BinsParameters<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    window: T,
+    offset: T,
+    feature_extractor: FeatureExtractor<T, F>,
+}
+
+impl<T, F> From<Bins<T, F>> for BinsParameters<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn from(f: Bins<T, F>) -> Self {
+        Self {
+            window: f.window,
+            offset: f.offset,
+            feature_extractor: f.feature_extractor,
+        }
+    }
+}
+
+impl<T, F> From<BinsParameters<T, F>> for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn from(p: BinsParameters<T, F>) -> Self {
+        let mut bins = Self::new(p.window, p.offset);
+        p.feature_extractor
+            .get_features()
+            .iter()
+            .cloned()
+            .for_each(|feature| {
+                bins.add_feature(feature);
+            });
+        bins
+    }
+}
+
+impl<T, F> JsonSchema for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    json_schema!(BinsParameters<T, F>, false);
 }
 
 #[cfg(test)]
@@ -148,43 +240,59 @@ mod tests {
     use crate::features::Amplitude;
     use crate::tests::*;
 
-    eval_info_test!(bins_info, {
+    serialization_name_test!(Bins<f64, Feature<f64>>);
+
+    serde_json_test!(
+        bins_ser_json_de,
+        Bins<f64, Feature<f64>>,
+        {
+            let mut bins = Bins::default();
+            bins.add_feature(Amplitude::default().into());
+            bins
+        },
+    );
+
+    eval_info_test!(bins_with_amplitude_info, {
         let mut bins = Bins::default();
-        bins.add_feature(Box::new(Amplitude::default()));
+        bins.add_feature(Amplitude::default().into());
         bins
     });
+
+    check_doc_static_method!(bins_doc_static_method, Bins<f64, Feature<f64>>);
 
     #[test]
     fn bins() {
         let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
         let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
         let w = [10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0, 5.0, 10.0];
-        let mut ts = TimeSeries::new(&t, &m, Some(&w));
+        let mut ts = TimeSeries::new(&t, &m, &w);
 
         let desired_t = [0.5, 1.5, 2.5, 5.5];
         let desired_m = [0.0, 2.0, 6.333333333333333, 10.0];
         let desired_w = [10.0, 6.666666666666667, 7.5, 10.0];
 
-        let bins = Bins::new(1.0, 0.0);
+        let bins: Bins<_, Feature<_>> = Bins::new(1.0, 0.0);
         let actual_tmw = bins.transform_ts(&mut ts).unwrap();
 
         assert_eq!(actual_tmw.t.len(), actual_tmw.m.len());
-        assert_eq!(actual_tmw.t.len(), actual_tmw.w.as_ref().unwrap().len());
-        all_close(&actual_tmw.t, &desired_t, 1e-6);
-        all_close(&actual_tmw.m, &desired_m, 1e-6);
-        all_close(&actual_tmw.w.unwrap(), &desired_w, 1e-6);
+        assert_eq!(actual_tmw.t.len(), actual_tmw.w.len());
+        all_close(actual_tmw.t.as_slice().unwrap(), &desired_t, 1e-6);
+        all_close(actual_tmw.m.as_slice().unwrap(), &desired_m, 1e-6);
+        all_close(actual_tmw.w.as_slice().unwrap(), &desired_w, 1e-6);
     }
 
     #[test]
     fn bins_windows_and_offsets() {
         let t = [0.0_f32, 1.0, 1.1, 1.2, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 5.0];
         let m = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let mut ts = TimeSeries::new(&t, &m, None);
+        let mut ts = TimeSeries::new_without_weight(&t, &m);
 
         let mut len = |window, offset| {
-            let tmw = Bins::new(window, offset).transform_ts(&mut ts).unwrap();
+            let tmw = Bins::<_, Feature<_>>::new(window, offset)
+                .transform_ts(&mut ts)
+                .unwrap();
             assert_eq!(tmw.t.len(), tmw.m.len());
-            assert_eq!(tmw.m.len(), tmw.w.as_ref().unwrap().len());
+            assert_eq!(tmw.m.len(), tmw.w.len());
             tmw.t.len()
         };
 

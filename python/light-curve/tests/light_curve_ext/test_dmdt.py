@@ -38,6 +38,19 @@ def sine_lc(n, sigma=True, dtype=np.float64):
     return lc
 
 
+def sliced(a, step=2):
+    """Mix with random data and slice to original data"""
+    assert step > 0
+    n = a.size
+    rng = np.random.default_rng()
+    random_data = np.asarray(rng.normal(0, 1, (step - 1, n)), dtype=a.dtype)
+    mixed = np.vstack([a[::-1], random_data]).T.reshape(-1).copy()
+    s = mixed[-step::-step]
+    assert not s.flags.owndata
+    assert_array_equal(s, a)
+    return s
+
+
 def test_dmdt_count_dt_three_obs():
     dmdt = DmDt.from_borders(min_lgdt=0, max_lgdt=np.log10(3), max_abs_dm=1, lgdt_size=2, dm_size=32, norm=[])
 
@@ -95,6 +108,14 @@ def test_log_linear_grids():
         assert_allclose(dmdt.gausses(*lc), gausses)
 
 
+@pytest.mark.parametrize("lc", [sine_lc(101), sine_lc(101, dtype=np.float32)])
+def test_dmdt_count_dt_contiguous_non(lc):
+    dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
+    desired = dmdt.count_dt(lc[0])
+    actual = dmdt.count_dt(sliced(lc[0]))
+    assert_array_equal(actual, desired)
+
+
 @pytest.mark.parametrize("lc", [sine_lc(101), random_lc(101), sine_lc(101, dtype=np.float32)])
 def test_dmdt_count_dt_many_one(lc):
     dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
@@ -141,6 +162,17 @@ def test_dmdt_points_three_obs():
     assert_array_equal(actual, desired)
 
 
+@pytest.mark.parametrize("lc", [sine_lc(101, False), sine_lc(101, False, dtype=np.float32)])
+def test_dmdt_points_contiguous_non(lc):
+    dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
+    desired = dmdt.points(*lc)
+    t, m = lc
+    t = sliced(t)
+    m = sliced(m)
+    actual = dmdt.points(t, m)
+    assert_array_equal(actual, desired)
+
+
 @pytest.mark.parametrize("lc", [sine_lc(101, False), random_lc(101, False), sine_lc(101, False, dtype=np.float32)])
 @pytest.mark.parametrize("norm", [[], ["dt"], ["max"], ["dt", "max"]])
 def test_dmdt_points_many_one(lc, norm):
@@ -169,6 +201,18 @@ def test_dmdt_points_many(lcs, norm):
     desired = [dmdt.points(*lc) for lc in lcs]
     actual = dmdt.points_many(lcs)
 
+    assert_array_equal(actual, desired)
+
+
+@pytest.mark.parametrize("lc", [sine_lc(101), sine_lc(101, dtype=np.float32)])
+def test_dmdt_gausses_contiguous_non(lc):
+    dmdt = DmDt.from_borders(min_lgdt=-1, max_lgdt=1, max_abs_dm=2, lgdt_size=32, dm_size=32, norm=[])
+    desired = dmdt.gausses(*lc)
+    t, m, sigma = lc
+    t = sliced(t)
+    m = sliced(m)
+    sigma = sliced(sigma)
+    actual = dmdt.gausses(t, m, sigma)
     assert_array_equal(actual, desired)
 
 

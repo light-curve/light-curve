@@ -43,6 +43,11 @@ jobs:
       with:
         command: test
         args: --workspace --exclude light-curve-python
+    - name: Run examples
+      uses: actions-rs/cargo@v1
+      with:
+        command: run
+        args: --example plot_snia_curve_fits -- -n=1
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
@@ -95,20 +100,22 @@ jobs:
       run: pip install maturin tox black
     - name: Build package with static FFTW
       run: maturin build
-    - name: Build package with dynamic FFTW
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,nonlinear-fit"
-    - name: Build package with dynamic MKL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,nonlinear-fit"
+    - name: Build package with dynamic FFTW and GSL
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,gsl"
+    - name: Build package with dynamic MKL and GSL
+      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,gsl"
     - name: Check Rust formatting
       uses: actions-rs/cargo@v1
       with:
         command: fmt
-        args: -- --check
+        args: --package=light-curve-python -- --check
     - name: Run Rust code analysis
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --all-targets -- -D warnings
+        args: --package=light-curve-python --all-targets -- -D warnings
+    - name: Check Python formatting
+      run: black --check .
     - name: Run Python tests
       run: tox -p -q
     - name: Check Python formatting
