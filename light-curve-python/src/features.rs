@@ -1,15 +1,15 @@
 use crate::cont_array::ContCowArray;
+use crate::np_array::Arr;
 use crate::sorted::is_sorted;
 
 use const_format::formatcp;
 use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator, Float};
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use numpy::{IntoPyArray, PyArray1};
 use pyo3::exceptions::{PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 type F = f64;
-type Arr<'a, T> = PyReadonlyArray1<'a, T>;
 type Feature = lcf::Feature<F>;
 
 const ATTRIBUTES_DOC: &str = r#"Attributes

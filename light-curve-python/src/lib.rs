@@ -11,6 +11,8 @@ mod errors;
 mod features;
 use features::*;
 
+mod np_array;
+
 mod sorted;
 
 /// High-performance time-series feature extractor
