@@ -1,13 +1,15 @@
 use crate::cont_array::ContCowArray;
-use crate::np_array::Arr;
+use crate::errors::{Exception, Res};
+use crate::np_array::{Arr, GenericFloatArray1};
 use crate::sorted::is_sorted;
 
 use const_format::formatcp;
-use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator, Float};
+use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator};
 use numpy::{IntoPyArray, PyArray1};
-use pyo3::exceptions::{PyNotImplementedError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
+use std::convert::TryInto;
 
 type F = f64;
 type Feature = lcf::Feature<F>;
@@ -55,76 +57,68 @@ pub struct PyFeatureEvaluator {
     feature_evaluator: Feature,
 }
 
-#[pymethods]
 impl PyFeatureEvaluator {
-    #[call]
-    #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
-    fn __call__<'py>(
-        &self,
-        py: Python<'py>,
-        t: Arr<F>,
-        m: Arr<F>,
-        sigma: Option<Arr<F>>,
+    fn call<T>(
+        feature_evaluator: &lcf::Feature<T>,
+        t: Arr<T>,
+        m: Arr<T>,
+        sigma: Option<Arr<T>>,
         sorted: Option<bool>,
-        fill_value: Option<F>,
-    ) -> PyResult<&'py PyArray1<F>> {
+        is_t_required: bool,
+        fill_value: Option<T>,
+    ) -> Res<ndarray::Array1<T>>
+    where
+        T: lcf::Float + numpy::Element,
+    {
         if t.len() != m.len() {
-            return Err(PyValueError::new_err("t and m must have the same size"));
+            return Err(Exception::ValueError(
+                "t and m must have the same size".to_string(),
+            ));
         }
         if let Some(ref sigma) = sigma {
             if t.len() != sigma.len() {
-                return Err(PyValueError::new_err("t and sigma must have the same size"));
+                return Err(Exception::ValueError(
+                    "t and sigma must have the same size".to_string(),
+                ));
             }
         }
-        if t.len() < self.feature_evaluator.min_ts_length() {
-            return Err(PyValueError::new_err(format!(
+        if t.len() < feature_evaluator.min_ts_length() {
+            return Err(Exception::ValueError(format!(
                 "input arrays must have size not smaller than {}, but having {}",
-                self.feature_evaluator.min_ts_length(),
+                feature_evaluator.min_ts_length(),
                 t.len()
             )));
         }
 
-        let is_t_required = match (
-            self.feature_evaluator.is_t_required(),
-            self.feature_evaluator.is_sorting_required(),
-            sorted,
-        ) {
-            // feature requires t
-            (true, _, _) => true,
-            // t is required because sorting is required and data can be unsorted
-            (false, true, Some(false)) | (false, true, None) => true,
-            // sorting is required but user guarantees that data is already sorted
-            (false, true, Some(true)) => false,
-            // neither t or sorting is required
-            (false, false, _) => false,
-        };
         let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
             t.as_array().into()
         } else {
-            F::array0_unity().broadcast(t.len()).unwrap().into()
+            T::array0_unity().broadcast(t.len()).unwrap().into()
         };
         match sorted {
             Some(true) => {}
             Some(false) => {
-                return Err(PyNotImplementedError::new_err(
-                    "sorting is not implemented, please provide time-sorted arrays",
+                return Err(Exception::NotImplementedError(
+                    "sorting is not implemented, please provide time-sorted arrays".to_string(),
                 ))
             }
             None => {
-                if self.feature_evaluator.is_sorting_required() & !is_sorted(t.as_slice()) {
-                    return Err(PyValueError::new_err("t must be in ascending order"));
+                if feature_evaluator.is_sorting_required() & !is_sorted(t.as_slice()) {
+                    return Err(Exception::ValueError(
+                        "t must be in ascending order".to_string(),
+                    ));
                 }
             }
         }
 
-        let m: lcf::DataSample<_> = if self.feature_evaluator.is_m_required() || m.is_contiguous() {
+        let m: lcf::DataSample<_> = if feature_evaluator.is_m_required() || m.is_contiguous() {
             m.as_array().into()
         } else {
-            F::array0_unity().broadcast(m.len()).unwrap().into()
+            T::array0_unity().broadcast(m.len()).unwrap().into()
         };
 
         let w = sigma.and_then(|sigma| {
-            if self.feature_evaluator.is_w_required() {
+            if feature_evaluator.is_w_required() {
                 let mut a = sigma.to_owned_array();
                 a.mapv_inplace(|x| x.powi(-2));
                 Some(a)
@@ -139,13 +133,70 @@ impl PyFeatureEvaluator {
         };
 
         let result = match fill_value {
-            Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
-            None => self
-                .feature_evaluator
+            Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
+            None => feature_evaluator
                 .eval(&mut ts)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+                .map_err(|e| Exception::ValueError(e.to_string()))?,
         };
-        Ok(result.into_pyarray(py))
+        Ok(result.into())
+    }
+}
+
+#[pymethods]
+impl PyFeatureEvaluator {
+    #[call]
+    #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
+    fn __call__(
+        &self,
+        py: Python,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
+        sigma: Option<GenericFloatArray1>,
+        sorted: Option<bool>,
+        fill_value: Option<f64>,
+    ) -> Res<PyObject> {
+        let is_t_required = match (
+            self.feature_evaluator.is_t_required(),
+            self.feature_evaluator.is_sorting_required(),
+            sorted,
+        ) {
+            // feature requires t
+            (true, _, _) => true,
+            // t is required because sorting is required and data can be unsorted
+            (false, true, Some(false)) | (false, true, None) => true,
+            // sorting is required but user guarantees that data is already sorted
+            (false, true, Some(true)) => false,
+            // neither t or sorting is required
+            (false, false, _) => false,
+        };
+
+        match (t, m) {
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
+                let sigma = sigma
+                    .map(|sigma| {
+                        sigma.try_into().map_err(|_| {
+                            Exception::ValueError(
+                                "sigma is float32, but t & m are float64".to_string(),
+                            )
+                        })
+                    })
+                    .map_or(Ok(None), |result| result.map(Some))?;
+                Ok(Self::call(
+                    &self.feature_evaluator,
+                    t,
+                    m,
+                    sigma,
+                    sorted,
+                    is_t_required,
+                    fill_value,
+                )?
+                .into_pyarray(py)
+                .into_py(py))
+            }
+            _ => Err(Exception::NotImplementedError(
+                "the supported only dtype is float64".into(),
+            )),
+        }
     }
 
     /// Feature names
