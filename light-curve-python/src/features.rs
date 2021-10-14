@@ -6,11 +6,13 @@ use crate::sorted::is_sorted;
 use const_format::formatcp;
 use itertools;
 use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator};
+use ndarray::IntoNdProducer;
 use numpy::IntoPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
-use std::convert::TryInto;
+use rayon::prelude::*;
+use std::convert::{TryFrom, TryInto};
 
 const ATTRIBUTES_DOC: &str = r#"Attributes
 ----------
@@ -26,12 +28,12 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
 
     Parameters
     ----------
-    t : numpy.ndarray of np.float64 dtype
+    t : numpy.ndarray of np.float32 or np.float64 dtype
         Time moments
-    m : numpy.ndarray of np.float64 dtype
+    m : numpy.ndarray of np.float32 or np.float64 dtype
         Signal in magnitude or fluxes. Refer to the feature description to
         decide which would work better in your case
-    sigma : numpy.ndarray of np.float64 dtype or None, optional
+    sigma : numpy.ndarray of np.float32 or np.float64 dtype or None, optional
         Observation error, if None it is assumed to be unity
     sorted : bool or None, optional
         Specifies if input array are sorted by time moments.
@@ -45,7 +47,7 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
         
     Returns
     -------
-    ndarray of np.float64
+    ndarray of np.float32 or np.float64
         Extracted feature array"#;
 
 const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHODS_DOC);
@@ -57,15 +59,14 @@ pub struct PyFeatureEvaluator {
 }
 
 impl PyFeatureEvaluator {
-    fn call<T>(
+    fn ts_from_numpy<'a, T>(
         feature_evaluator: &lcf::Feature<T>,
-        t: Arr<T>,
-        m: Arr<T>,
-        sigma: Option<Arr<T>>,
+        t: &'a Arr<'a, T>,
+        m: &'a Arr<'a, T>,
+        sigma: &'a Option<Arr<'a, T>>,
         sorted: Option<bool>,
         is_t_required: bool,
-        fill_value: Option<T>,
-    ) -> Res<ndarray::Array1<T>>
+    ) -> Res<lcf::TimeSeries<'a, T>>
     where
         T: lcf::Float + numpy::Element,
     {
@@ -116,7 +117,7 @@ impl PyFeatureEvaluator {
             T::array0_unity().broadcast(m.len()).unwrap().into()
         };
 
-        let w = sigma.and_then(|sigma| {
+        let w = sigma.as_ref().and_then(|sigma| {
             if feature_evaluator.is_w_required() {
                 let mut a = sigma.to_owned_array();
                 a.mapv_inplace(|x| x.powi(-2));
@@ -126,10 +127,27 @@ impl PyFeatureEvaluator {
             }
         });
 
-        let mut ts = match w {
+        let ts = match w {
             Some(w) => lcf::TimeSeries::new(t, m, w),
             None => lcf::TimeSeries::new_without_weight(t, m),
         };
+
+        Ok(ts)
+    }
+
+    fn call_impl<T>(
+        feature_evaluator: &lcf::Feature<T>,
+        t: Arr<T>,
+        m: Arr<T>,
+        sigma: Option<Arr<T>>,
+        sorted: Option<bool>,
+        is_t_required: bool,
+        fill_value: Option<T>,
+    ) -> Res<ndarray::Array1<T>>
+    where
+        T: lcf::Float + numpy::Element,
+    {
+        let mut ts = Self::ts_from_numpy(feature_evaluator, &t, &m, &sigma, sorted, is_t_required)?;
 
         let result = match fill_value {
             Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
@@ -138,6 +156,115 @@ impl PyFeatureEvaluator {
                 .map_err(|e| Exception::ValueError(e.to_string()))?,
         };
         Ok(result.into())
+    }
+
+    fn py_many<'a, T>(
+        &self,
+        feature_evaluator: &lcf::Feature<T>,
+        py: Python,
+        lcs: Vec<(
+            GenericFloatArray1<'a>,
+            GenericFloatArray1<'a>,
+            Option<GenericFloatArray1<'a>>,
+        )>,
+        sorted: Option<bool>,
+        fill_value: Option<T>,
+        n_jobs: i64,
+    ) -> Res<PyObject>
+    where
+        T: lcf::Float + numpy::Element,
+        Arr<'a, T>: TryFrom<GenericFloatArray1<'a>>,
+    {
+        let wrapped_lcs = lcs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (t, m, sigma))| {
+                let t = TryInto::<Arr<_>>::try_into(t);
+                let m = TryInto::<Arr<_>>::try_into(m);
+                let sigma = sigma.map(TryInto::<Arr<_>>::try_into).transpose();
+
+                match (t, m, sigma) {
+                    (Ok(t), Ok(m), Ok(sigma)) => Ok((t, m, sigma)),
+                    _ => Err(Exception::TypeError(format!(
+                        "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                        i,
+                        std::any::type_name::<T>()
+                    ))),
+                }
+            })
+            .collect::<Res<Vec<_>>>()?;
+        Ok(Self::many_impl(
+            feature_evaluator,
+            wrapped_lcs,
+            sorted,
+            self.is_t_required(sorted),
+            fill_value,
+            n_jobs,
+        )?
+        .into_pyarray(py)
+        .into_py(py))
+    }
+
+    fn many_impl<T>(
+        feature_evaluator: &lcf::Feature<T>,
+        lcs: Vec<(Arr<T>, Arr<T>, Option<Arr<T>>)>,
+        sorted: Option<bool>,
+        is_t_required: bool,
+        fill_value: Option<T>,
+        n_jobs: i64,
+    ) -> Res<ndarray::Array2<T>>
+    where
+        T: lcf::Float + numpy::Element,
+    {
+        let n_jobs = if n_jobs < 0 { 0 } else { n_jobs as usize };
+
+        let mut result = ndarray::Array2::zeros((lcs.len(), feature_evaluator.size_hint()));
+
+        let mut tss = lcs
+            .iter()
+            .map(|(t, m, sigma)| {
+                Self::ts_from_numpy(feature_evaluator, t, m, sigma, sorted, is_t_required)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(n_jobs)
+            .build()
+            .unwrap()
+            .install(|| {
+                ndarray::Zip::from(result.outer_iter_mut())
+                    .and((&mut tss).into_producer())
+                    .into_par_iter()
+                    .try_for_each::<_, Res<_>>(|(mut map, mut ts)| {
+                        let features: ndarray::Array1<_> = match fill_value {
+                            Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
+                            None => feature_evaluator
+                                .eval(&mut ts)
+                                .map_err(|e| Exception::ValueError(e.to_string()))?,
+                        }
+                        .into();
+                        map.assign(&features);
+                        Ok(())
+                    })
+            })?;
+        Ok(result)
+    }
+
+    fn is_t_required(&self, sorted: Option<bool>) -> bool {
+        match (
+            self.feature_evaluator_f64.is_t_required(),
+            self.feature_evaluator_f64.is_sorting_required(),
+            sorted,
+        ) {
+            // feature requires t
+            (true, _, _) => true,
+            // t is required because sorting is required and data can be unsorted
+            (false, true, Some(false)) | (false, true, None) => true,
+            // sorting is required but user guarantees that data is already sorted
+            (false, true, Some(true)) => false,
+            // neither t or sorting is required
+            (false, false, _) => false,
+        }
     }
 }
 
@@ -154,21 +281,6 @@ impl PyFeatureEvaluator {
         sorted: Option<bool>,
         fill_value: Option<f64>,
     ) -> Res<PyObject> {
-        let is_t_required = match (
-            self.feature_evaluator_f64.is_t_required(),
-            self.feature_evaluator_f64.is_sorting_required(),
-            sorted,
-        ) {
-            // feature requires t
-            (true, _, _) => true,
-            // t is required because sorting is required and data can be unsorted
-            (false, true, Some(false)) | (false, true, None) => true,
-            // sorting is required but user guarantees that data is already sorted
-            (false, true, Some(true)) => false,
-            // neither t or sorting is required
-            (false, false, _) => false,
-        };
-
         match (t, m) {
             (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
                 let sigma = sigma
@@ -179,14 +291,14 @@ impl PyFeatureEvaluator {
                             )
                         })
                     })
-                    .map_or(Ok(None), |result| result.map(Some))?;
-                Ok(Self::call(
+                    .transpose()?;
+                Ok(Self::call_impl(
                     &self.feature_evaluator_f32,
                     t,
                     m,
                     sigma,
                     sorted,
-                    is_t_required,
+                    self.is_t_required(sorted),
                     fill_value.map(|v| v as f32),
                 )?
                 .into_pyarray(py)
@@ -202,21 +314,56 @@ impl PyFeatureEvaluator {
                         })
                     })
                     .map_or(Ok(None), |result| result.map(Some))?;
-                Ok(Self::call(
+                Ok(Self::call_impl(
                     &self.feature_evaluator_f64,
                     t,
                     m,
                     sigma,
                     sorted,
-                    is_t_required,
+                    self.is_t_required(sorted),
                     fill_value,
                 )?
                 .into_pyarray(py)
                 .into_py(py))
             }
-            _ => Err(Exception::NotImplementedError(
-                "t and m have different dtype".into(),
-            )),
+            _ => Err(Exception::ValueError("t and m have different dtype".into())),
+        }
+    }
+
+    #[args(lcs, sorted = "None", fill_value = "None", n_jobs = -1)]
+    fn many(
+        &self,
+        py: Python,
+        lcs: Vec<(
+            GenericFloatArray1,
+            GenericFloatArray1,
+            Option<GenericFloatArray1>,
+        )>,
+        sorted: Option<bool>,
+        fill_value: Option<f64>,
+        n_jobs: i64,
+    ) -> Res<PyObject> {
+        if lcs.is_empty() {
+            Err(Exception::ValueError("lcs is empty".to_string()))
+        } else {
+            match lcs[0].0 {
+                GenericFloatArray1::Float32(_) => self.py_many(
+                    &self.feature_evaluator_f32,
+                    py,
+                    lcs,
+                    sorted,
+                    fill_value.map(|v| v as f32),
+                    n_jobs,
+                ),
+                GenericFloatArray1::Float64(_) => self.py_many(
+                    &self.feature_evaluator_f64,
+                    py,
+                    lcs,
+                    sorted,
+                    fill_value,
+                    n_jobs,
+                ),
+            }
         }
     }
 
@@ -442,15 +589,15 @@ model(t, params)
     
     Parameters
     ----------
-    t : np.ndarray of np.float64
+    t : np.ndarray of np.float32 or np.float64
         Time moments, can be unsorted
-    params : np.ndaarray of np.float64
+    params : np.ndaarray of np.float32 or np.float64
         Parameters of the model, this array can be longer than actual parameter
         list, the beginning part of the array will be used in this case
         
     Returns
     -------
-    np.ndarray of np.float64
+    np.ndarray of np.float32 or np.float64
         Array of model values corresponded to the given time moments
         
 Examples
@@ -963,16 +1110,16 @@ freq_power(t, m)
     
     Parameters
     ----------
-    t : np.ndarray of np.float64
+    t : np.ndarray of np.float32 or np.float64
         Time array
-    m : np.ndarray of np.float64
+    m : np.ndarray of np.float32 or np.float64
         Magnitude (flux) array
     
     Returns
     -------
-    freq : np.ndarray of np.float64
+    freq : np.ndarray of np.float32 or np.float64
         Frequency grid
-    power : np.ndarray of np.float64
+    power : np.ndarray of np.float32 or np.float64
         Periodogram power
 
 Examples
