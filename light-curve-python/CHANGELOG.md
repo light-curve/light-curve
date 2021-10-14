@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support `dtype=np.float32` for feature extractors
-- `_FeatureEvaluator.many(lcs)` method for parallel execution
+—
 
 ### Changed
 
@@ -31,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 —
+
+## [0.3.3]
+
+### Added
+
+- Support `dtype=np.float32` for feature extractors
+- `_FeatureEvaluator.many(lcs)` method for parallel execution
 
 ## [0.3.2]
 
