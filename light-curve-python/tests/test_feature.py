@@ -57,8 +57,9 @@ def test_float32_vs_float64(cls):
     t, m, sigma = gen_lc(n, rng=rng)
     obj = cls()
 
-    results = [obj(t.astype(dtype), m.astype(dtype), sigma.astype(dtype), sorted=True)
-               for dtype in [np.float32, np.float64]]
+    results = [
+        obj(t.astype(dtype), m.astype(dtype), sigma.astype(dtype), sorted=True) for dtype in [np.float32, np.float64]
+    ]
     assert_allclose(*results, rtol=1e-5, atol=1e-5)
 
 
