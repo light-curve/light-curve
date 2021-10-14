@@ -4,7 +4,6 @@ use crate::np_array::{Arr, GenericFloatArray1};
 use crate::sorted::is_sorted;
 
 use const_format::formatcp;
-use itertools;
 use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator};
 use ndarray::IntoNdProducer;
 use numpy::IntoPyArray;
@@ -85,6 +84,8 @@ const METHODS_DOC: &str = formatcp!(
 );
 
 const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHODS_DOC);
+
+type PyLightCurve<'a, T> = (Arr<'a, T>, Arr<'a, T>, Option<Arr<'a, T>>);
 
 #[pyclass(subclass, name = "_FeatureEvaluator")]
 pub struct PyFeatureEvaluator {
@@ -241,7 +242,7 @@ impl PyFeatureEvaluator {
 
     fn many_impl<T>(
         feature_evaluator: &lcf::Feature<T>,
-        lcs: Vec<(Arr<T>, Arr<T>, Option<Arr<T>>)>,
+        lcs: Vec<PyLightCurve<T>>,
         sorted: Option<bool>,
         is_t_required: bool,
         fill_value: Option<T>,
@@ -945,13 +946,15 @@ quantile : positive float
     }
 }
 
+type LcfPeriodogram<T> = lcf::Periodogram<T, lcf::Feature<T>>;
+
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(
     text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
 )]
 pub struct Periodogram {
-    eval_f32: lcf::Periodogram<f32, lcf::Feature<f32>>,
-    eval_f64: lcf::Periodogram<f64, lcf::Feature<f64>>,
+    eval_f32: LcfPeriodogram<f32>,
+    eval_f64: LcfPeriodogram<f64>,
 }
 
 impl Periodogram {
@@ -963,10 +966,7 @@ impl Periodogram {
         nyquist: Option<PyObject>,
         fast: Option<bool>,
         features: Option<PyObject>,
-    ) -> PyResult<(
-        lcf::Periodogram<f32, lcf::Feature<f32>>,
-        lcf::Periodogram<f64, lcf::Feature<f64>>,
-    )> {
+    ) -> PyResult<(LcfPeriodogram<f32>, LcfPeriodogram<f64>)> {
         let mut eval_f32 = match peaks {
             Some(peaks) => lcf::Periodogram::new(peaks),
             None => lcf::Periodogram::default(),
