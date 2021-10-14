@@ -25,8 +25,8 @@ def _feature_classes(module, exclude_parametric=True):
         yield obj
 
 
-non_param_feature_classes = tuple(_feature_classes(lc, True))
-all_feature_classes = tuple(_feature_classes(lc, False))
+non_param_feature_classes = frozenset(_feature_classes(lc, True))
+all_feature_classes = frozenset(_feature_classes(lc, False))
 
 
 @pytest.mark.parametrize("cls", non_param_feature_classes)
