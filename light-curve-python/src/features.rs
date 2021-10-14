@@ -21,7 +21,7 @@ names : list of str
 descriptions : list of str
     Feature descriptions"#;
 
-const METHODS_DOC: &str = r#"Methods
+const METHOD_CALL_DOC: &str = r#"Methods
 -------
 __call__(t, m, sigma=None, sorted=None, fill_value=None)
     Extract features and return them as a numpy array
@@ -30,10 +30,10 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
     ----------
     t : numpy.ndarray of np.float32 or np.float64 dtype
         Time moments
-    m : numpy.ndarray of np.float32 or np.float64 dtype
+    m : numpy.ndarray of the same dtype as t
         Signal in magnitude or fluxes. Refer to the feature description to
         decide which would work better in your case
-    sigma : numpy.ndarray of np.float32 or np.float64 dtype or None, optional
+    sigma : numpy.ndarray of the same dtype as t, optional
         Observation error, if None it is assumed to be unity
     sorted : bool or None, optional
         Specifies if input array are sorted by time moments.
@@ -49,6 +49,40 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
     -------
     ndarray of np.float32 or np.float64
         Extracted feature array"#;
+
+const METHOD_MANY_DOC: &str = r#"
+many(lcs, sorted=None, fill_value=None, n_jobs=-1)
+    Parallel light curve feature extraction
+    
+    It is a parallel executed equivalent of
+    >>> def many(lcs, sorted=None, fill_value=None):
+    ...     return np.stack([feature(*lc, sorted=sorted, fill_value=fill_value)
+    ...                      for lc in lcs])
+    
+    Parameters
+    ----------
+    lcs : list ot (t, m, sigma)
+        A collection of light curves packed into three-tuples, all light curves
+        must be represented by numpy.ndarray of the same dtype. See __call__
+        documentation for details
+    sorted : bool or None, optional
+        Specifies if input array are sorted by time moments, see __call__
+        documentation for details
+    fill_value : float or None, optional
+        Fill invalid values by this or raise an exception if None
+    n_jobs : int
+        Number of tasks to run in paralell. Default is -1 which means run as
+        many jobs as CPU count. See rayon rust crate documentation for
+        details"#;
+
+const METHODS_DOC: &str = formatcp!(
+    r#"Methods
+-------
+{}
+{}"#,
+    METHOD_CALL_DOC,
+    METHOD_MANY_DOC,
+);
 
 const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHODS_DOC);
 
