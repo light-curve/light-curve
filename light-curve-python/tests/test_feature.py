@@ -2,6 +2,7 @@ import inspect
 
 import numpy as np
 import pytest
+from numpy.testing import assert_allclose
 
 import light_curve as lc
 
@@ -36,6 +37,22 @@ def test_negative_strides(cls):
     err = np.random.uniform(0.1, 0.2, t.shape)
     obj = cls()
     obj(t, m, err)
+
+
+@pytest.mark.parametrize("cls", non_param_feature_classes)
+def test_float32_vs_float64(cls):
+    rng = np.random.default_rng(0)
+    n = 128
+
+    obj = cls()
+
+    t = np.sort(rng.normal(0, 1, n))
+    m = t.copy()
+    sigma = np.full_like(t, 0.1)
+
+    results = [obj(t.astype(dtype), m.astype(dtype), sigma.astype(dtype), sorted=True)
+               for dtype in [np.float32, np.float64]]
+    assert_allclose(*results, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.parametrize("cls", all_feature_classes)
