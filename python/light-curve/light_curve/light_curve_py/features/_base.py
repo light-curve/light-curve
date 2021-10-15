@@ -40,6 +40,16 @@ class BaseFeature(ABC):
         t, m, sigma = self._normalize_input(t, m, sigma, sorted)
         return self._eval_and_fill(t, m, sigma, fill_value)
 
+    def many(self, lcs, sorted=None, fill_value=None, n_jobs=-1):
+        """Extract features in bulk
+
+        This exists for computability only and doesn't support parallel
+        execution, that's why `n_jobs=1` must be used
+        """
+        if n_jobs != 1:
+            raise NotImplementedError("Parallel execution is not supported by this feature, use n_jobs=1")
+        return np.stack([self(*lc, sorted=sorted, fill_value=fill_value) for lc in lcs])
+
     @property
     @abstractmethod
     def size(self):
