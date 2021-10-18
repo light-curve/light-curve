@@ -77,6 +77,19 @@ def test_many_vs_call(cls):
     assert_array_equal(many, call)
 
 
+def test_fill_value_not_enough_observations():
+    n = 1
+    t = np.linspace(0.0, 1.0, n)
+    m = t.copy()
+    fill_value = -100.0
+    sigma = np.ones_like(t)
+    feature = lc.Kurtosis()
+    with pytest.raises(ValueError):
+        feature(t, m, sigma, fill_value=None)
+    assert_array_equal(feature(t, m, sigma, fill_value=fill_value), fill_value)
+
+
+
 @pytest.mark.parametrize("cls", all_feature_classes)
 def test_nonempty_docstring(cls):
     assert len(cls.__doc__) > 10
