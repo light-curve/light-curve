@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 —
 
+## [0.3.4]
+
+### Fixed
+
+- An exception shouldn't be raised for the case of small time-series length and non-`None` `fill_value`
+
 ## [0.3.3]
 
 ### Added
