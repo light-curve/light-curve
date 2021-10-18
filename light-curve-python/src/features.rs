@@ -117,13 +117,6 @@ impl PyFeatureEvaluator {
                 ));
             }
         }
-        if t.len() < feature_evaluator.min_ts_length() {
-            return Err(Exception::ValueError(format!(
-                "input arrays must have size not smaller than {}, but having {}",
-                feature_evaluator.min_ts_length(),
-                t.len()
-            )));
-        }
 
         let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
             t.as_array().into()
