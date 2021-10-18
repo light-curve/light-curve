@@ -89,7 +89,6 @@ def test_fill_value_not_enough_observations():
     assert_array_equal(feature(t, m, sigma, fill_value=fill_value), fill_value)
 
 
-
 @pytest.mark.parametrize("cls", all_feature_classes)
 def test_nonempty_docstring(cls):
     assert len(cls.__doc__) > 10
