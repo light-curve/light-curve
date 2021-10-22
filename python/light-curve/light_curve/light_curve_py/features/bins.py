@@ -31,9 +31,5 @@ class Bins(BaseMetaFeature):
 
         return new_time, new_magn, new_sigma
 
-    @property
-    def size(self):
-        return 1
-
 
 __all__ = ("Bins",)

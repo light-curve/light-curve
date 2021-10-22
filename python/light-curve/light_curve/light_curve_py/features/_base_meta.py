@@ -13,7 +13,7 @@ class BaseMetaFeature(BaseFeature):
     extractor: Union[_RustExtractor, _PyExtractor] = field(init=False)
 
     def __post_init__(self):
-        self.extractor = Extractor(self.features)
+        self.extractor = Extractor(*self.features)
 
     @abstractmethod
     def transform(self, t, m, sigma):

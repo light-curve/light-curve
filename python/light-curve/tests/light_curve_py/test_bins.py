@@ -1,6 +1,6 @@
 import numpy as np
 
-from light_curve.light_curve_py import Bins
+from light_curve.light_curve_py import Bins, Mean, Amplitude, Median
 
 
 def test_bins_1():
@@ -44,3 +44,8 @@ def test_bins_3():
     actual = np.array(list(feature.transform(t, m, sigma)))
     desired = np.array([new_t, new_m, new_sigma])
     np.testing.assert_allclose(actual, desired, rtol=1e-5)
+
+
+def test_bins_size():
+    feature = Bins((Mean(), Amplitude(), Median()), window=2.0, offset=1.0)
+    assert feature.size == 3
