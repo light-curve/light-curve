@@ -6,7 +6,7 @@ repository = "https://github.com/light-curve/light-curve"
 readme = "README.md"
 authors = ["Konstantin Malanchev <hombit@gmail.com>"]
 license = "GPL-3.0-or-later"
-edition = "2018"
+edition = "2021"
 
 [lib]
 bench = false
