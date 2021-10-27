@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rust edition 2021
 - Minimum supported Rust version is 1.56
+- Maturin version 0.11
 
 ### Deprecated
 
