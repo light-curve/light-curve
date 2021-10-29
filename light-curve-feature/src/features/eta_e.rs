@@ -13,6 +13,9 @@ $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude 
 Note that this definition is a bit different from both Kim et al. 2014 and
 [feets](https://feets.readthedocs.io/en/latest/)
 
+Note that this feature can have very high values and be highly cadence-dependent in the case of large range of time
+lags. In this case consider to use this feature with [Bins](crate::Bins).
+
 - Depends on: **time**, **magnitude**
 - Minimum number of observations: **2**
 - Number of features: **1**

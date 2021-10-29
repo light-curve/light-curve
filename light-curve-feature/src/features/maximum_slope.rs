@@ -9,6 +9,9 @@ $$
 \mathrm{maximum~slope} \equiv \max_{i=0..N-2}\left|\frac{m_{i+1} - m_i}{t_{i+1} - t_i}\right|
 $$
 
+Note that this feature can have high values and be cadence-dependent in the case of large range of time lags.
+In this case consider to use this feature with [Bins](crate::Bins).
+
 - Depends on: **time**, **magnitude**
 - Minimum number of observations: **2**
 - Number of features: **1**
