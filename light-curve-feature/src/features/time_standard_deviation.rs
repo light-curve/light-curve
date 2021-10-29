@@ -2,23 +2,25 @@ use crate::evaluator::*;
 
 macro_const! {
     const DOC: &'static str = r#"
-Number of observations
+Standard deviation of time moments
 
 $$
-N
+\sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
 $$
 
-- Depends on: nothing
-- Minimum number of observations: **0**
+Note: highly cadence-dependent feature.
+
+- Depends on: **time**
+- Minimum number of observations: **2**
 - Number of features: **1**
 "#;
 }
 
 #[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct ObservationCount {}
+pub struct TimeStandardDeviation {}
 
-impl ObservationCount {
+impl TimeStandardDeviation {
     pub fn new() -> Self {
         Self {}
     }
@@ -29,33 +31,33 @@ impl ObservationCount {
 }
 
 lazy_info!(
-    OBSERVATION_COUNT_INFO,
-    ObservationCount,
+    TIME_STANDARD_DEVIATION_INFO,
+    TimeStandardDeviation,
     size: 1,
-    min_ts_length: 0,
-    t_required: false,
+    min_ts_length: 2,
+    t_required: true,
     m_required: false,
     w_required: false,
     sorting_required: false,
 );
 
-impl FeatureNamesDescriptionsTrait for ObservationCount {
+impl FeatureNamesDescriptionsTrait for TimeStandardDeviation {
     fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_observation_count"]
+        vec!["time_standard_deviation"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {
-        vec!["observation count"]
+        vec!["standard deviation of time moments"]
     }
 }
 
-impl<T> FeatureEvaluator<T> for ObservationCount
+impl<T> FeatureEvaluator<T> for TimeStandardDeviation
 where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        Ok(vec![ts.lenf()])
+        Ok(vec![ts.t.get_std()])
     }
 }
 
@@ -66,12 +68,12 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    check_feature!(ObservationCount);
+    check_feature!(TimeStandardDeviation);
 
     feature_test!(
-        observation_count,
-        [ObservationCount::new()],
-        [5.0],
+        time_standard_deviation,
+        [TimeStandardDeviation::new()],
+        [1.5811388300841898],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );
 }

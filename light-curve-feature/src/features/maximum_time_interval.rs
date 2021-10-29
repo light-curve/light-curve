@@ -3,11 +3,13 @@ use itertools::Itertools;
 
 macro_const! {
     const DOC: &str = r#"
-Minimum time interval between consequent observations
+Maximum time interval between consequent observations
 
 $$
-\min{(t_{i+1} - t_i)}
+\max{(t_{i+1} - t_i)}
 $$
+
+Note: highly cadence-dependent feature.
 
 - Depends on: **time**
 - Minimum number of observations: **2**
@@ -17,9 +19,9 @@ $$
 
 #[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct MinimumTimeInterval {}
+pub struct MaximumTimeInterval {}
 
-impl MinimumTimeInterval {
+impl MaximumTimeInterval {
     pub fn new() -> Self {
         Self {}
     }
@@ -30,8 +32,8 @@ impl MinimumTimeInterval {
 }
 
 lazy_info!(
-    MINIMUM_TIME_INTERVAL_INFO,
-    MinimumTimeInterval,
+    MAXIMUM_TIME_INTERVAL_INFO,
+    MaximumTimeInterval,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -40,17 +42,17 @@ lazy_info!(
     sorting_required: true,
 );
 
-impl FeatureNamesDescriptionsTrait for MinimumTimeInterval {
+impl FeatureNamesDescriptionsTrait for MaximumTimeInterval {
     fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_minimum_time_interval"]
+        vec!["maximum_time_interval"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {
-        vec!["minimum time interval between consequent observations"]
+        vec!["maximum time interval between consequent observations"]
     }
 }
 
-impl<T> FeatureEvaluator<T> for MinimumTimeInterval
+impl<T> FeatureEvaluator<T> for MaximumTimeInterval
 where
     T: Float,
 {
@@ -61,7 +63,7 @@ where
                 .iter()
                 .tuple_windows()
                 .map(|(&a, &b)| b - a)
-                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
         Ok(vec![dt])
     }
@@ -74,12 +76,12 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    check_feature!(MinimumTimeInterval);
+    check_feature!(MaximumTimeInterval);
 
     feature_test!(
-        minimum_time_interval,
-        [MinimumTimeInterval::new()],
-        [0.1],
+        maximum_time_interval,
+        [MaximumTimeInterval::new()],
+        [9.0],
         [0.0_f32, 0.5, 0.6, 1.6, 10.6],
     );
 }

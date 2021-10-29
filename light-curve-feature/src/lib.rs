@@ -20,7 +20,6 @@ mod feature;
 pub use feature::Feature;
 
 pub mod features;
-pub use features::antifeatures;
 pub use features::*;
 
 mod float_trait;

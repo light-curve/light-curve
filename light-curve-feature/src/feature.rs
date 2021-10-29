@@ -1,6 +1,5 @@
 use crate::evaluator::*;
 use crate::extractor::FeatureExtractor;
-use crate::features::antifeatures::*;
 use crate::features::*;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
@@ -24,10 +23,11 @@ where
     // features
     Amplitude,
     AndersonDarlingNormal,
+    Bins(Bins<T, Self>),
     BazinFit,
     BeyondNStd(BeyondNStd<T>),
-    Bins(Bins<T, Self>),
     Cusum,
+    Duration,
     Eta,
     EtaE,
     ExcessVariance,
@@ -37,11 +37,14 @@ where
     LinearTrend,
     MagnitudePercentageRatio,
     MaximumSlope,
+    MaximumTimeInterval,
+    MinimumTimeInterval,
     Mean,
     MeanVariance,
     Median,
     MedianAbsoluteDeviation,
     MedianBufferRangePercentage(MedianBufferRangePercentage<T>),
+    ObservationCount,
     PercentAmplitude,
     PercentDifferenceMagnitudePercentile,
     Periodogram(Periodogram<T, Self>),
@@ -50,13 +53,8 @@ where
     Skew,
     StandardDeviation,
     StetsonK,
-    VillarFit,
-    WeightedMean,
-    // antifeatures
-    Duration,
-    MaximumTimeInterval,
-    MinimumTimeInterval,
-    ObservationCount,
     TimeMean,
     TimeStandardDeviation,
+    VillarFit,
+    WeightedMean,
 }

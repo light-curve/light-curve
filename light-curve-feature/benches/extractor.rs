@@ -43,7 +43,7 @@ where
     ];
 
     let observation_count_vec: Vec<_> = (0..20)
-        .map(|_| antifeatures::ObservationCount::default().into())
+        .map(|_| ObservationCount::default().into())
         .collect();
 
     let beyond_n_std_vec: Vec<_> = (1usize..21)
