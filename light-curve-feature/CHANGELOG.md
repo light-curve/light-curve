@@ -28,11 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-—
+- `features::antifeatures` submodule is removed and all its features moved to `features` submodule
 
 ### Fixed
 
 - Update `clap` to `3.0.0-rc.0`, it is used for the example executable only
+- `EtaE` and `MaximumSlope` docs updated to highlight cadence dependency of these features
 
 ### Security
 
