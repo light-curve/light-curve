@@ -19,7 +19,7 @@ def test_lintrend_1():
     (slope, c), popt = curve_fit(f, t, m, absolute_sigma=False)
     chisq = np.sum((m - (t * slope + c)) ** 2) / (n - 2)
 
-    desired = (slope, np.sqrt(popt[0][0]), chisq)
+    desired = (slope, np.sqrt(popt[0][0]), np.sqrt(chisq))
     assert_allclose(actual, desired, rtol=1e-6)
 
 
