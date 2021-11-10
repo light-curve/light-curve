@@ -23,17 +23,7 @@ def test_lintrend_1():
     assert_allclose(actual, desired, rtol=1e-6)
 
 
-def test_lintrend_2():
-    m = np.array([2.0, 4.0])
-    t = np.array([1.0, 2.0])
-
-    feature = LinearTrend()
-    actual = feature(t, m, None)
-    desired = (2.0, 0, 0)
-    assert_allclose(actual, desired)
-
-
-def test_lintrend_3():  # check if sigma is used in least squares
+def test_lintrend_2():  # check if sigma is used in least squares
     m = np.linspace(20, 25, 15)
     t = np.linspace(0, 10, 15)
     sigma = np.linspace(0, 1, 15)
