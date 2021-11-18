@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+—
+
 ### Changed
 
 —
@@ -27,7 +31,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 —
 
+## [0.5.0]
+
+### Added
+
+- README.md
+- Documentation comments
+
+### Changed
+
+- Remove unused `Normalisable` trait
+- Make `is_sorted()` private
+
 ## [0.4.0]
+
+### Added
+
+- This `CHANGELOG.md` file
 
 ### Changed
 

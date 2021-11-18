@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 use light_curve_feature::{
     BazinFit, Feature, FeatureEvaluator, LmsderCurveFit, McmcCurveFit, TimeSeries, VillarFit,
 };
@@ -51,7 +51,7 @@ fn main() {
         });
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 struct Opts {
     #[clap(short)]
     n: Option<usize>,

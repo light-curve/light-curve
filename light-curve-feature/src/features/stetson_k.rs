@@ -17,7 +17,7 @@ and $\chi^2 = \sum_i\left(\frac{m_i - \langle m \rangle}{\delta\_i}\right)^2$.
 - Minimum number of observations: **2**
 - Number of features: **1**
 
-P. B. Statson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
+P. B. Stetson, 1996. [DOI:10.1086/133808](https://doi.org/10.1086/133808)
 "#;
 }
 

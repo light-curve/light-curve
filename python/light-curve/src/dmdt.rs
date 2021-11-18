@@ -1,12 +1,13 @@
 use crate::cont_array::{ContArray, ContCowArray};
 use crate::errors::{Exception, Res};
+use crate::np_array::{Arr, GenericFloatArray1};
 use crate::sorted::check_sorted;
 
 use conv::{ApproxFrom, ApproxInto, ConvAsUtil};
 use enumflags2::{bitflags, BitFlags};
 use light_curve_dmdt as lcdmdt;
 use ndarray::IntoNdProducer;
-use numpy::{Element, IntoPyArray, PyArray1, PyReadonlyArray1, ToPyArray};
+use numpy::{Element, IntoPyArray, PyArray1, ToPyArray};
 use pyo3::class::iter::PyIterProtocol;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
@@ -19,38 +20,6 @@ use std::ops::{DerefMut, Range};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use unzip3::Unzip3;
-
-type Arr<'a, T> = PyReadonlyArray1<'a, T>;
-
-#[derive(FromPyObject)]
-enum GenericFloatArray1<'a> {
-    #[pyo3(transparent, annotation = "np.ndarray[float32]")]
-    Float32(Arr<'a, f32>),
-    #[pyo3(transparent, annotation = "np.ndarray[float64]")]
-    Float64(Arr<'a, f64>),
-}
-
-impl<'a> TryFrom<GenericFloatArray1<'a>> for Arr<'a, f32> {
-    type Error = ();
-
-    fn try_from(value: GenericFloatArray1<'a>) -> Result<Self, Self::Error> {
-        match value {
-            GenericFloatArray1::Float32(a) => Ok(a),
-            GenericFloatArray1::Float64(_) => Err(()),
-        }
-    }
-}
-
-impl<'a> TryFrom<GenericFloatArray1<'a>> for Arr<'a, f64> {
-    type Error = ();
-
-    fn try_from(value: GenericFloatArray1<'a>) -> Result<Self, Self::Error> {
-        match value {
-            GenericFloatArray1::Float32(_) => Err(()),
-            GenericFloatArray1::Float64(a) => Ok(a),
-        }
-    }
-}
 
 #[derive(FromPyObject, Copy, Clone, std::fmt::Debug)]
 enum DropNObsType {

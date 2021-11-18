@@ -429,6 +429,8 @@ class TestAllNaive(_Test):
                 continue
             if not cls.add_to_all_features:
                 continue
+            if not cls.add_to_all_features:
+                continue
             features.append(getattr(lc_ext, cls.name)(*cls.args))
             self.naive_features.append(cls().naive)
         self.rust = lc_ext.Extractor(*features)
@@ -445,6 +447,8 @@ class TestAllFeets(_Test):
         feets_features = []
         for cls in _Test.__subclasses__():
             if cls.feets_feature is None or cls.name is None:
+                continue
+            if not cls.add_to_all_features:
                 continue
             if not cls.add_to_all_features:
                 continue

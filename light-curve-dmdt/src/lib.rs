@@ -1,3 +1,8 @@
+#![cfg_attr(feature = "doc-images",
+cfg_attr(all(),
+doc = ::embed_doc_image::embed_image!("example_png", "example.png")))]
+#![doc = include_str!("../README.md")]
+
 #[cfg(test)]
 #[macro_use]
 extern crate static_assertions;
@@ -5,7 +10,7 @@ extern crate static_assertions;
 use conv::*;
 use dyn_clonable::*;
 use itertools::Itertools;
-use ndarray::{s, Array1, Array2, ScalarOperand};
+use ndarray::{s, Array1, Array2};
 use std::fmt::Debug;
 use std::io::Write;
 use thiserror::Error;
@@ -16,62 +21,13 @@ pub use erf::{Eps1Over1e3Erf, ErfFloat, ErrorFunction, ExactErf};
 mod float_trait;
 pub use float_trait::Float;
 
-pub trait Normalisable:
-    ApproxInto<u8, DefaultApprox>
-    + ValueFrom<u64>
-    + num_traits::Num
-    + num_traits::NumOps
-    + PartialOrd
-    + ScalarOperand
-    + Copy
-{
-    fn clamp(self, min: Self, max: Self) -> Self;
-    fn max_u8() -> Self;
-}
-
-impl Normalisable for u64 {
-    fn clamp(self, min: Self, max: Self) -> Self {
-        match self {
-            _ if self < min => min,
-            x if self <= max => x,
-            _ => max,
-        }
-    }
-
-    #[inline]
-    fn max_u8() -> Self {
-        255
-    }
-}
-
-impl Normalisable for f32 {
-    fn clamp(self, min: Self, max: Self) -> Self {
-        self.clamp(min, max)
-    }
-
-    #[inline]
-    fn max_u8() -> Self {
-        255.0
-    }
-}
-
-impl Normalisable for f64 {
-    fn clamp(self, min: Self, max: Self) -> Self {
-        self.clamp(min, max)
-    }
-
-    #[inline]
-    fn max_u8() -> Self {
-        255.0
-    }
-}
-
+/// Grid for dm or dt axis
 #[clonable]
 pub trait Grid<T>: Clone + Debug + Send + Sync
 where
     T: Copy,
 {
-    /// Cell borders coordinates, must be len() + 1 length Array
+    /// Cell borders coordinates, [cell_count()](Grid::cell_count) + 1 length [Array1]
     fn get_borders(&self) -> &Array1<T>;
 
     /// Number of cells
@@ -90,16 +46,23 @@ where
     }
 
     /// Get index of the cell containing given value
+    ///
+    /// Note that cells include their left borders but doesn't include right borders
     fn idx(&self, x: T) -> CellIndex;
 }
 
-pub fn is_sorted<T>(a: &[T]) -> bool
+/// Checks if slice is sorted and have no duplicates
+///
+/// It could be replace with the corresponding standard library method when it will be stabilized
+/// <https://github.com/rust-lang/rust/issues/53485>
+fn is_sorted<T>(a: &[T]) -> bool
 where
     T: PartialOrd,
 {
     a.iter().tuple_windows().all(|(a, b)| a < b)
 }
 
+/// An error to be returned from grid constructors
 #[derive(Error, Debug)]
 pub enum ArrayGridError {
     #[error("given grid is empty")]
@@ -108,11 +71,11 @@ pub enum ArrayGridError {
     ArrayIsNotAscending,
 }
 
+/// Grid which cell borders are defined by an ascending array
+///
+/// Lookup time is O(lb n)
 #[derive(Clone, Debug)]
-pub struct ArrayGrid<T>
-where
-    Array1<T>: Clone + Debug,
-{
+pub struct ArrayGrid<T> {
     borders: Array1<T>,
 }
 
@@ -121,6 +84,9 @@ where
     Array1<T>: Clone + Debug,
     T: Float,
 {
+    /// Wraps given array into [ArrayGrid] or return an error
+    ///
+    /// Note that array describes cell borders, not center or whatever else
     pub fn new(borders: Array1<T>) -> Result<Self, ArrayGridError> {
         if borders.is_empty() {
             return Err(ArrayGridError::ArrayIsEmpty);
@@ -156,11 +122,11 @@ where
     }
 }
 
+/// Linear grid defined by its start, end and number of cells
+///
+/// Lookup time is O(1)
 #[derive(Clone, Debug)]
-pub struct LinearGrid<T>
-where
-    T: Copy,
-{
+pub struct LinearGrid<T> {
     start: T,
     end: T,
     n: usize,
@@ -172,6 +138,11 @@ impl<T> LinearGrid<T>
 where
     T: Float,
 {
+    /// Create [LinearGrid] from borders and number of cells
+    ///
+    /// `start` is the left border of the leftmost cell, `end` is the right border of the rightmost
+    /// cell, `n` is the number of cells. This means that the number of borders is `n + 1`, `start`
+    /// border has zero index and `end` border has index `n`.
     pub fn new(start: T, end: T, n: usize) -> Self {
         assert!(end > start);
         let cell_size = (end - start) / n.value_as::<T>().unwrap();
@@ -185,6 +156,7 @@ where
         }
     }
 
+    /// Cell size
     #[inline]
     pub fn get_cell_size(&self) -> T {
         self.cell_size
@@ -234,6 +206,9 @@ where
     }
 }
 
+/// Logarithmic grid defined by its start, end and number of cells
+///
+/// Lookup time is O(1)
 #[derive(Clone, Debug)]
 pub struct LgGrid<T>
 where
@@ -252,6 +227,11 @@ impl<T> LgGrid<T>
 where
     T: Float,
 {
+    /// Create [LinearGrid] from borders and number of cells
+    ///
+    /// `start` is the left border of the leftmost cell, `end` is the right border of the rightmost
+    /// cell, `n` is the number of cells. This means that the number of borders is `n + 1`, `start`
+    /// border has zero index and `end` border has index `n`.
     pub fn from_start_end(start: T, end: T, n: usize) -> Self {
         assert!(end > start);
         assert!(start.is_positive());
@@ -272,20 +252,29 @@ where
         }
     }
 
+    /// Create [LinearGrid] from decimal logarithms of borders and number of cells
+    ///
+    /// `lg_start` is the decimal logarithm of the left border of the leftmost cell, `lg_end` is the
+    /// decimal logarithm of the right border of the rightmost cell, `n` is the number of cells.
+    /// This means that the number of borders is `n + 1`, `lg_start` border has zero index and
+    /// `lg_end` border has index `n`.
     pub fn from_lg_start_end(lg_start: T, lg_end: T, n: usize) -> Self {
         Self::from_start_end(T::powf(T::ten(), lg_start), T::powf(T::ten(), lg_end), n)
     }
 
+    /// Logarithmic size of cell
     #[inline]
     pub fn get_cell_lg_size(&self) -> T {
         self.cell_lg_size
     }
 
+    /// Logarithm of the leftmost border
     #[inline]
     pub fn get_lg_start(&self) -> T {
         self.lg_start
     }
 
+    /// Logarithm of the rightmost border
     #[inline]
     pub fn get_lg_end(&self) -> T {
         self.lg_end
@@ -335,12 +324,17 @@ where
     }
 }
 
+/// Value to return from [Grid::idx]
 pub enum CellIndex {
+    /// Bellow the leftmost border
     LowerMin,
+    /// Equal or greater the rightmost border
     GreaterMax,
+    /// Cell index
     Value(usize),
 }
 
+/// dm–dt map plotter
 #[derive(Clone, Debug)]
 pub struct DmDt<T>
 where
@@ -354,6 +348,7 @@ impl<T> DmDt<T>
 where
     T: Float,
 {
+    /// Create new [DmDt]
     pub fn from_grids<Gdt, Gdm>(dt_grid: Gdt, dm_grid: Gdm) -> Self
     where
         Gdt: Grid<T> + 'static,
@@ -365,7 +360,10 @@ where
         }
     }
 
-    /// lg dt (10**min_lgdt, 10**max_lgdt) - linear dm (-max_abs_dm, max_abs_dm)
+    /// Create new [DmDt] with logarithmic dt grid and linear dm grid
+    ///
+    /// dt grid will have borders `[10^min_lgdt, 10^max_lgdt)`, dm grid will have borders
+    /// `[-max_abs_dm, max_abs_dm)`
     pub fn from_lgdt_dm_limits(
         min_lgdt: T,
         max_lgdt: T,
@@ -384,6 +382,9 @@ where
         (self.dt_grid.cell_count(), self.dm_grid.cell_count())
     }
 
+    /// Represents each pair of (t, m) points as a unity value in dm-dt map
+    ///
+    /// `t` must be an ascending slice
     pub fn points(&self, t: &[T], m: &[T]) -> Array2<u64> {
         let mut a = Array2::zeros(self.shape());
         for (i1, (&x1, &y1)) in t.iter().zip(m.iter()).enumerate() {
@@ -451,6 +452,15 @@ where
             .for_each(|(cell, value)| *cell += value);
     }
 
+    /// Represents each pair of (t, m, err2) points as a Gaussian distribution in dm-dt map
+    ///
+    /// `t` must be an ascending slice.
+    ///
+    /// Each observation is assumed to happen at time moment `t_i` and have Gaussian distribution of
+    /// its magnitude `N(m_i, err2_i)`. Each pair of observations
+    /// `(t_1, m_1, err2_1), (t_2, m_2, err2_2)` is represented by 1-D Gaussian in the dm-dt space
+    /// having constant `dt` and `dm ~ N(m2-m1, err2_1 + err2_2)`. This distribution is integrated
+    /// over each cell using `Erf` struct implementing [ErrorFunction].
     pub fn gausses<Erf>(&self, t: &[T], m: &[T], err2: &[T]) -> Array2<T>
     where
         T: ErfFloat,
@@ -475,6 +485,7 @@ where
         a
     }
 
+    /// Count dt in the each dt grid cell
     pub fn dt_points(&self, t: &[T]) -> Array1<u64> {
         let mut a = Array1::zeros(self.dt_grid.cell_count());
         for (i1, &x1) in t.iter().enumerate() {
@@ -491,6 +502,12 @@ where
         a
     }
 
+    /// Conditional probability `p(m2-m1|t2-t1)`
+    ///
+    /// Technically it is optimized version of [DmDt::gausses()] normalized by [DmDt::dt_points] but
+    /// with better performance. Mathematically it represents the distribution of conditional
+    /// probability `p(m2-m1|t2-t1)`, see
+    /// [Soraisam et al. 2020](https://doi.org/10.3847/1538-4357/ab7b61) for details.
     pub fn cond_prob<Erf>(&self, t: &[T], m: &[T], err2: &[T]) -> Array2<T>
     where
         T: ErfFloat,
@@ -528,6 +545,7 @@ where
     }
 }
 
+/// Convert [u8] dm–dt map into PNG image
 pub fn to_png<W>(w: W, a: &Array2<u8>) -> Result<(), png::EncodingError>
 where
     W: Write,

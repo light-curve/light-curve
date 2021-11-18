@@ -1,16 +1,17 @@
 use crate::cont_array::ContCowArray;
+use crate::errors::{Exception, Res};
+use crate::np_array::{Arr, GenericFloatArray1};
 use crate::sorted::is_sorted;
 
 use const_format::formatcp;
-use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator, Float};
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::{PyNotImplementedError, PyValueError};
+use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator};
+use ndarray::IntoNdProducer;
+use numpy::IntoPyArray;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
-
-type F = f64;
-type Arr<'a, T> = PyReadonlyArray1<'a, T>;
-type Feature = lcf::Feature<F>;
+use rayon::prelude::*;
+use std::convert::{TryFrom, TryInto};
 
 const ATTRIBUTES_DOC: &str = r#"Attributes
 ----------
@@ -19,19 +20,19 @@ names : list of str
 descriptions : list of str
     Feature descriptions"#;
 
-const METHODS_DOC: &str = r#"Methods
+const METHOD_CALL_DOC: &str = r#"Methods
 -------
 __call__(t, m, sigma=None, sorted=None, fill_value=None)
     Extract features and return them as a numpy array
 
     Parameters
     ----------
-    t : numpy.ndarray of np.float64 dtype
+    t : numpy.ndarray of np.float32 or np.float64 dtype
         Time moments
-    m : numpy.ndarray of np.float64 dtype
+    m : numpy.ndarray of the same dtype as t
         Signal in magnitude or fluxes. Refer to the feature description to
         decide which would work better in your case
-    sigma : numpy.ndarray of np.float64 dtype or None, optional
+    sigma : numpy.ndarray of the same dtype as t, optional
         Observation error, if None it is assumed to be unity
     sorted : bool or None, optional
         Specifies if input array are sorted by time moments.
@@ -45,48 +46,242 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
 
     Returns
     -------
-    ndarray of np.float64
+    ndarray of np.float32 or np.float64
         Extracted feature array"#;
+
+const METHOD_MANY_DOC: &str = r#"
+many(lcs, sorted=None, fill_value=None, n_jobs=-1)
+    Parallel light curve feature extraction
+
+    It is a parallel executed equivalent of
+    >>> def many(lcs, sorted=None, fill_value=None):
+    ...     return np.stack([feature(*lc, sorted=sorted, fill_value=fill_value)
+    ...                      for lc in lcs])
+
+    Parameters
+    ----------
+    lcs : list ot (t, m, sigma)
+        A collection of light curves packed into three-tuples, all light curves
+        must be represented by numpy.ndarray of the same dtype. See __call__
+        documentation for details
+    sorted : bool or None, optional
+        Specifies if input array are sorted by time moments, see __call__
+        documentation for details
+    fill_value : float or None, optional
+        Fill invalid values by this or raise an exception if None
+    n_jobs : int
+        Number of tasks to run in paralell. Default is -1 which means run as
+        many jobs as CPU count. See rayon rust crate documentation for
+        details"#;
+
+const METHODS_DOC: &str = formatcp!(
+    r#"Methods
+-------
+{}
+{}"#,
+    METHOD_CALL_DOC,
+    METHOD_MANY_DOC,
+);
 
 const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHODS_DOC);
 
+type PyLightCurve<'a, T> = (Arr<'a, T>, Arr<'a, T>, Option<Arr<'a, T>>);
+
 #[pyclass(subclass, name = "_FeatureEvaluator")]
 pub struct PyFeatureEvaluator {
-    feature_evaluator: Feature,
+    feature_evaluator_f32: lcf::Feature<f32>,
+    feature_evaluator_f64: lcf::Feature<f64>,
 }
 
-#[pymethods]
 impl PyFeatureEvaluator {
-    #[call]
-    #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
-    fn __call__<'py>(
-        &self,
-        py: Python<'py>,
-        t: Arr<F>,
-        m: Arr<F>,
-        sigma: Option<Arr<F>>,
+    fn ts_from_numpy<'a, T>(
+        feature_evaluator: &lcf::Feature<T>,
+        t: &'a Arr<'a, T>,
+        m: &'a Arr<'a, T>,
+        sigma: &'a Option<Arr<'a, T>>,
         sorted: Option<bool>,
-        fill_value: Option<F>,
-    ) -> PyResult<&'py PyArray1<F>> {
+        is_t_required: bool,
+    ) -> Res<lcf::TimeSeries<'a, T>>
+    where
+        T: lcf::Float + numpy::Element,
+    {
         if t.len() != m.len() {
-            return Err(PyValueError::new_err("t and m must have the same size"));
+            return Err(Exception::ValueError(
+                "t and m must have the same size".to_string(),
+            ));
         }
         if let Some(ref sigma) = sigma {
             if t.len() != sigma.len() {
-                return Err(PyValueError::new_err("t and sigma must have the same size"));
+                return Err(Exception::ValueError(
+                    "t and sigma must have the same size".to_string(),
+                ));
             }
         }
-        if t.len() < self.feature_evaluator.min_ts_length() {
-            return Err(PyValueError::new_err(format!(
-                "input arrays must have size not smaller than {}, but having {}",
-                self.feature_evaluator.min_ts_length(),
-                t.len()
-            )));
+
+        let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
+            t.as_array().into()
+        } else {
+            T::array0_unity().broadcast(t.len()).unwrap().into()
+        };
+        match sorted {
+            Some(true) => {}
+            Some(false) => {
+                return Err(Exception::NotImplementedError(
+                    "sorting is not implemented, please provide time-sorted arrays".to_string(),
+                ))
+            }
+            None => {
+                if feature_evaluator.is_sorting_required() & !is_sorted(t.as_slice()) {
+                    return Err(Exception::ValueError(
+                        "t must be in ascending order".to_string(),
+                    ));
+                }
+            }
         }
 
-        let is_t_required = match (
-            self.feature_evaluator.is_t_required(),
-            self.feature_evaluator.is_sorting_required(),
+        let m: lcf::DataSample<_> = if feature_evaluator.is_m_required() || m.is_contiguous() {
+            m.as_array().into()
+        } else {
+            T::array0_unity().broadcast(m.len()).unwrap().into()
+        };
+
+        let w = sigma.as_ref().and_then(|sigma| {
+            if feature_evaluator.is_w_required() {
+                let mut a = sigma.to_owned_array();
+                a.mapv_inplace(|x| x.powi(-2));
+                Some(a)
+            } else {
+                None
+            }
+        });
+
+        let ts = match w {
+            Some(w) => lcf::TimeSeries::new(t, m, w),
+            None => lcf::TimeSeries::new_without_weight(t, m),
+        };
+
+        Ok(ts)
+    }
+
+    fn call_impl<T>(
+        feature_evaluator: &lcf::Feature<T>,
+        t: Arr<T>,
+        m: Arr<T>,
+        sigma: Option<Arr<T>>,
+        sorted: Option<bool>,
+        is_t_required: bool,
+        fill_value: Option<T>,
+    ) -> Res<ndarray::Array1<T>>
+    where
+        T: lcf::Float + numpy::Element,
+    {
+        let mut ts = Self::ts_from_numpy(feature_evaluator, &t, &m, &sigma, sorted, is_t_required)?;
+
+        let result = match fill_value {
+            Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
+            None => feature_evaluator
+                .eval(&mut ts)
+                .map_err(|e| Exception::ValueError(e.to_string()))?,
+        };
+        Ok(result.into())
+    }
+
+    fn py_many<'a, T>(
+        &self,
+        feature_evaluator: &lcf::Feature<T>,
+        py: Python,
+        lcs: Vec<(
+            GenericFloatArray1<'a>,
+            GenericFloatArray1<'a>,
+            Option<GenericFloatArray1<'a>>,
+        )>,
+        sorted: Option<bool>,
+        fill_value: Option<T>,
+        n_jobs: i64,
+    ) -> Res<PyObject>
+    where
+        T: lcf::Float + numpy::Element,
+        Arr<'a, T>: TryFrom<GenericFloatArray1<'a>>,
+    {
+        let wrapped_lcs = lcs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (t, m, sigma))| {
+                let t = TryInto::<Arr<_>>::try_into(t);
+                let m = TryInto::<Arr<_>>::try_into(m);
+                let sigma = sigma.map(TryInto::<Arr<_>>::try_into).transpose();
+
+                match (t, m, sigma) {
+                    (Ok(t), Ok(m), Ok(sigma)) => Ok((t, m, sigma)),
+                    _ => Err(Exception::TypeError(format!(
+                        "lcs[{}] elements have mismatched dtype with the lc[0][0] which is {}",
+                        i,
+                        std::any::type_name::<T>()
+                    ))),
+                }
+            })
+            .collect::<Res<Vec<_>>>()?;
+        Ok(Self::many_impl(
+            feature_evaluator,
+            wrapped_lcs,
+            sorted,
+            self.is_t_required(sorted),
+            fill_value,
+            n_jobs,
+        )?
+        .into_pyarray(py)
+        .into_py(py))
+    }
+
+    fn many_impl<T>(
+        feature_evaluator: &lcf::Feature<T>,
+        lcs: Vec<PyLightCurve<T>>,
+        sorted: Option<bool>,
+        is_t_required: bool,
+        fill_value: Option<T>,
+        n_jobs: i64,
+    ) -> Res<ndarray::Array2<T>>
+    where
+        T: lcf::Float + numpy::Element,
+    {
+        let n_jobs = if n_jobs < 0 { 0 } else { n_jobs as usize };
+
+        let mut result = ndarray::Array2::zeros((lcs.len(), feature_evaluator.size_hint()));
+
+        let mut tss = lcs
+            .iter()
+            .map(|(t, m, sigma)| {
+                Self::ts_from_numpy(feature_evaluator, t, m, sigma, sorted, is_t_required)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(n_jobs)
+            .build()
+            .unwrap()
+            .install(|| {
+                ndarray::Zip::from(result.outer_iter_mut())
+                    .and((&mut tss).into_producer())
+                    .into_par_iter()
+                    .try_for_each::<_, Res<_>>(|(mut map, mut ts)| {
+                        let features: ndarray::Array1<_> = match fill_value {
+                            Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
+                            None => feature_evaluator
+                                .eval(&mut ts)
+                                .map_err(|e| Exception::ValueError(e.to_string()))?,
+                        }
+                        .into();
+                        map.assign(&features);
+                        Ok(())
+                    })
+            })?;
+        Ok(result)
+    }
+
+    fn is_t_required(&self, sorted: Option<bool>) -> bool {
+        match (
+            self.feature_evaluator_f64.is_t_required(),
+            self.feature_evaluator_f64.is_sorting_required(),
             sorted,
         ) {
             // feature requires t
@@ -97,67 +292,119 @@ impl PyFeatureEvaluator {
             (false, true, Some(true)) => false,
             // neither t or sorting is required
             (false, false, _) => false,
-        };
-        let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
-            t.as_array().into()
-        } else {
-            F::array0_unity().broadcast(t.len()).unwrap().into()
-        };
-        match sorted {
-            Some(true) => {}
-            Some(false) => {
-                return Err(PyNotImplementedError::new_err(
-                    "sorting is not implemented, please provide time-sorted arrays",
-                ))
+        }
+    }
+}
+
+#[pymethods]
+impl PyFeatureEvaluator {
+    #[call]
+    #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
+    fn __call__(
+        &self,
+        py: Python,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
+        sigma: Option<GenericFloatArray1>,
+        sorted: Option<bool>,
+        fill_value: Option<f64>,
+    ) -> Res<PyObject> {
+        match (t, m) {
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
+                let sigma = sigma
+                    .map(|sigma| {
+                        sigma.try_into().map_err(|_| {
+                            Exception::ValueError(
+                                "sigma is float64, but t & m are float32".to_string(),
+                            )
+                        })
+                    })
+                    .transpose()?;
+                Ok(Self::call_impl(
+                    &self.feature_evaluator_f32,
+                    t,
+                    m,
+                    sigma,
+                    sorted,
+                    self.is_t_required(sorted),
+                    fill_value.map(|v| v as f32),
+                )?
+                .into_pyarray(py)
+                .into_py(py))
             }
-            None => {
-                if self.feature_evaluator.is_sorting_required() & !is_sorted(t.as_slice()) {
-                    return Err(PyValueError::new_err("t must be in ascending order"));
-                }
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
+                let sigma = sigma
+                    .map(|sigma| {
+                        sigma.try_into().map_err(|_| {
+                            Exception::ValueError(
+                                "sigma is float32, but t & m are float64".to_string(),
+                            )
+                        })
+                    })
+                    .map_or(Ok(None), |result| result.map(Some))?;
+                Ok(Self::call_impl(
+                    &self.feature_evaluator_f64,
+                    t,
+                    m,
+                    sigma,
+                    sorted,
+                    self.is_t_required(sorted),
+                    fill_value,
+                )?
+                .into_pyarray(py)
+                .into_py(py))
+            }
+            _ => Err(Exception::ValueError("t and m have different dtype".into())),
+        }
+    }
+
+    #[args(lcs, sorted = "None", fill_value = "None", n_jobs = -1)]
+    fn many(
+        &self,
+        py: Python,
+        lcs: Vec<(
+            GenericFloatArray1,
+            GenericFloatArray1,
+            Option<GenericFloatArray1>,
+        )>,
+        sorted: Option<bool>,
+        fill_value: Option<f64>,
+        n_jobs: i64,
+    ) -> Res<PyObject> {
+        if lcs.is_empty() {
+            Err(Exception::ValueError("lcs is empty".to_string()))
+        } else {
+            match lcs[0].0 {
+                GenericFloatArray1::Float32(_) => self.py_many(
+                    &self.feature_evaluator_f32,
+                    py,
+                    lcs,
+                    sorted,
+                    fill_value.map(|v| v as f32),
+                    n_jobs,
+                ),
+                GenericFloatArray1::Float64(_) => self.py_many(
+                    &self.feature_evaluator_f64,
+                    py,
+                    lcs,
+                    sorted,
+                    fill_value,
+                    n_jobs,
+                ),
             }
         }
-
-        let m: lcf::DataSample<_> = if self.feature_evaluator.is_m_required() || m.is_contiguous() {
-            m.as_array().into()
-        } else {
-            F::array0_unity().broadcast(m.len()).unwrap().into()
-        };
-
-        let w = sigma.and_then(|sigma| {
-            if self.feature_evaluator.is_w_required() {
-                let mut a = sigma.to_owned_array();
-                a.mapv_inplace(|x| x.powi(-2));
-                Some(a)
-            } else {
-                None
-            }
-        });
-
-        let mut ts = match w {
-            Some(w) => lcf::TimeSeries::new(t, m, w),
-            None => lcf::TimeSeries::new_without_weight(t, m),
-        };
-
-        let result = match fill_value {
-            Some(x) => self.feature_evaluator.eval_or_fill(&mut ts, x),
-            None => self
-                .feature_evaluator
-                .eval(&mut ts)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        };
-        Ok(result.into_pyarray(py))
     }
 
     /// Feature names
     #[getter]
     fn names(&self) -> Vec<&str> {
-        self.feature_evaluator.get_names()
+        self.feature_evaluator_f64.get_names()
     }
 
     /// Feature descriptions
     #[getter]
     fn descriptions(&self) -> Vec<&str> {
-        self.feature_evaluator.get_descriptions()
+        self.feature_evaluator_f64.get_descriptions()
     }
 }
 
@@ -170,17 +417,22 @@ impl Extractor {
     #[new]
     #[args(args = "*")]
     fn __new__(args: &PyTuple) -> PyResult<(Self, PyFeatureEvaluator)> {
-        let evals = args
-            .iter()
-            .map(|arg| {
-                arg.downcast::<PyCell<PyFeatureEvaluator>>()
-                    .map(|fe| fe.borrow().feature_evaluator.clone())
+        let evals_iter = args.iter().map(|arg| {
+            arg.downcast::<PyCell<PyFeatureEvaluator>>().map(|fe| {
+                let fe = fe.borrow();
+                (
+                    fe.feature_evaluator_f32.clone(),
+                    fe.feature_evaluator_f64.clone(),
+                )
             })
-            .collect::<Result<Vec<_>, _>>()?;
+        });
+        let (evals_f32, evals_f64) =
+            itertools::process_results(evals_iter, |iter| iter.unzip::<_, _, Vec<_>, Vec<_>>())?;
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: lcf::FeatureExtractor::new(evals).into(),
+                feature_evaluator_f32: lcf::FeatureExtractor::new(evals_f32).into(),
+                feature_evaluator_f64: lcf::FeatureExtractor::new(evals_f64).into(),
             },
         ))
     }
@@ -196,7 +448,7 @@ Parameters
     Feature objects
 {}
 "#,
-            lcf::FeatureExtractor::<F, Feature>::doc().trim_start(),
+            lcf::FeatureExtractor::<f64, lcf::Feature<f64>>::doc().trim_start(),
             COMMON_FEATURE_DOC,
         )
     }
@@ -215,7 +467,8 @@ macro_rules! evaluator {
                 (
                     Self {},
                     PyFeatureEvaluator {
-                        feature_evaluator: <$eval>::new().into(),
+                        feature_evaluator_f32: <$eval>::new().into(),
+                        feature_evaluator_f64: <$eval>::new().into(),
                     },
                 )
             }
@@ -259,6 +512,16 @@ macro_rules! fit_evaluator {
             }
         }
 
+        impl $name {
+            fn model_impl<T>(t: Arr<T>, params: Arr<T>) -> ndarray::Array1<T>
+            where
+                T: lcf::Float + numpy::Element,
+            {
+                let params = ContCowArray::from_view(params.as_array(), true);
+                t.as_array().mapv(|x| <$eval>::f(x, params.as_slice()))
+            }
+        }
+
         #[pymethods]
         impl $name {
             #[new]
@@ -297,27 +560,33 @@ macro_rules! fit_evaluator {
                     }
                 };
 
-                let eval = <$eval>::new(curve_fit_algorithm);
-
                 Ok((
                     Self {},
                     PyFeatureEvaluator {
-                        feature_evaluator: eval.into(),
+                        feature_evaluator_f32: <$eval>::new(curve_fit_algorithm.clone()).into(),
+                        feature_evaluator_f64: <$eval>::new(curve_fit_algorithm).into(),
                     },
                 ))
             }
 
             #[staticmethod]
             #[args(t, params)]
-            fn model<'py>(
-                py: Python<'py>,
-                t: Arr<'py, F>,
-                params: Arr<'py, F>,
-            ) -> &'py PyArray1<F> {
-                let params = ContCowArray::from_view(params.as_array(), true);
-                t.as_array()
-                    .mapv(|x| <$eval>::f(x, params.as_slice()))
-                    .into_pyarray(py)
+            fn model(
+                py: Python,
+                t: GenericFloatArray1,
+                params: GenericFloatArray1,
+            ) -> Res<PyObject> {
+                match (t, params) {
+                    (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(params)) => {
+                        Ok(Self::model_impl(t, params).into_pyarray(py).into_py(py))
+                    }
+                    (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(params)) => {
+                        Ok(Self::model_impl(t, params).into_pyarray(py).into_py(py))
+                    }
+                    _ => Err(Exception::ValueError(
+                        "t and params must have the same dtype".to_string(),
+                    )),
+                }
             }
 
             #[classattr]
@@ -358,15 +627,15 @@ model(t, params)
 
     Parameters
     ----------
-    t : np.ndarray of np.float64
+    t : np.ndarray of np.float32 or np.float64
         Time moments, can be unsorted
-    params : np.ndaarray of np.float64
+    params : np.ndaarray of np.float32 or np.float64
         Parameters of the model, this array can be longer than actual parameter
         list, the beginning part of the array will be used in this case
 
     Returns
     -------
-    np.ndarray of np.float64
+    np.ndarray of np.float32 or np.float64
         Array of model values corresponded to the given time moments
 
 Examples
@@ -408,11 +677,12 @@ pub struct BeyondNStd {}
 impl BeyondNStd {
     #[new]
     #[args(nstd)]
-    fn __new__(nstd: F) -> (Self, PyFeatureEvaluator) {
+    fn __new__(nstd: f64) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: lcf::BeyondNStd::new(nstd).into(),
+                feature_evaluator_f32: lcf::BeyondNStd::new(nstd as f32).into(),
+                feature_evaluator_f64: lcf::BeyondNStd::new(nstd).into(),
             },
         )
     }
@@ -427,7 +697,7 @@ Parameters
 nstd : positive float
     N
 {}"#,
-            lcf::BeyondNStd::<F>::doc().trim_start(),
+            lcf::BeyondNStd::<f64>::doc().trim_start(),
             COMMON_FEATURE_DOC,
         )
     }
@@ -446,24 +716,28 @@ impl Bins {
     fn __new__(
         py: Python,
         features: PyObject,
-        window: F,
-        offset: F,
+        window: f64,
+        offset: f64,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
-        let mut eval = lcf::Bins::default();
+        let mut eval_f32 = lcf::Bins::default();
+        let mut eval_f64 = lcf::Bins::default();
         for x in features.extract::<&PyAny>(py)?.iter()? {
-            let feature = x?
-                .downcast::<PyCell<PyFeatureEvaluator>>()?
-                .borrow()
-                .feature_evaluator
-                .clone();
-            eval.add_feature(feature);
+            let py_feature = x?.downcast::<PyCell<PyFeatureEvaluator>>()?.borrow();
+            eval_f32.add_feature(py_feature.feature_evaluator_f32.clone());
+            eval_f64.add_feature(py_feature.feature_evaluator_f64.clone());
         }
-        eval.set_window(window);
-        eval.set_offset(offset);
+
+        eval_f32.set_window(window as f32);
+        eval_f64.set_window(window);
+
+        eval_f32.set_offset(offset as f32);
+        eval_f64.set_offset(offset);
+
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: eval.into(),
+                feature_evaluator_f32: eval_f32.into(),
+                feature_evaluator_f64: eval_f64.into(),
             },
         ))
     }
@@ -482,7 +756,7 @@ window : positive float
 offset : float
     Zero time moment
 "#,
-            lcf::Bins::<F, Feature>::doc().trim_start()
+            lcf::Bins::<f64, lcf::Feature<f64>>::doc().trim_start()
         )
     }
 }
@@ -507,7 +781,8 @@ impl InterPercentileRange {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: lcf::InterPercentileRange::new(quantile).into(),
+                feature_evaluator_f32: lcf::InterPercentileRange::new(quantile).into(),
+                feature_evaluator_f64: lcf::InterPercentileRange::new(quantile).into(),
             },
         )
     }
@@ -559,7 +834,12 @@ impl MagnitudePercentageRatio {
         Ok((
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: lcf::MagnitudePercentageRatio::new(
+                feature_evaluator_f32: lcf::MagnitudePercentageRatio::new(
+                    quantile_numerator,
+                    quantile_denominator,
+                )
+                .into(),
+                feature_evaluator_f64: lcf::MagnitudePercentageRatio::new(
                     quantile_numerator,
                     quantile_denominator,
                 )
@@ -604,11 +884,13 @@ pub struct MedianBufferRangePercentage {}
 impl MedianBufferRangePercentage {
     #[new]
     #[args(quantile)]
-    fn __new__(quantile: F) -> (Self, PyFeatureEvaluator) {
+    fn __new__(quantile: f64) -> (Self, PyFeatureEvaluator) {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: lcf::MedianBufferRangePercentage::new(quantile).into(),
+                feature_evaluator_f32: lcf::MedianBufferRangePercentage::new(quantile as f32)
+                    .into(),
+                feature_evaluator_f64: lcf::MedianBufferRangePercentage::new(quantile).into(),
             },
         )
     }
@@ -623,7 +905,7 @@ Parameters
 quantile : positive float
     Relative range size
 {}"#,
-            lcf::MedianBufferRangePercentage::<F>::doc(),
+            lcf::MedianBufferRangePercentage::<f64>::doc(),
             COMMON_FEATURE_DOC
         )
     }
@@ -643,7 +925,10 @@ impl PercentDifferenceMagnitudePercentile {
         (
             Self {},
             PyFeatureEvaluator {
-                feature_evaluator: lcf::PercentDifferenceMagnitudePercentile::new(quantile).into(),
+                feature_evaluator_f32: lcf::PercentDifferenceMagnitudePercentile::new(quantile)
+                    .into(),
+                feature_evaluator_f64: lcf::PercentDifferenceMagnitudePercentile::new(quantile)
+                    .into(),
             },
         )
     }
@@ -664,16 +949,19 @@ quantile : positive float
     }
 }
 
+type LcfPeriodogram<T> = lcf::Periodogram<T, lcf::Feature<T>>;
+
 #[pyclass(extends = PyFeatureEvaluator)]
 #[pyo3(
     text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
 )]
 pub struct Periodogram {
-    eval: lcf::Periodogram<F, Feature>,
+    eval_f32: LcfPeriodogram<f32>,
+    eval_f64: LcfPeriodogram<f64>,
 }
 
 impl Periodogram {
-    fn create_eval(
+    fn create_evals(
         py: Python,
         peaks: Option<usize>,
         resolution: Option<f32>,
@@ -681,16 +969,23 @@ impl Periodogram {
         nyquist: Option<PyObject>,
         fast: Option<bool>,
         features: Option<PyObject>,
-    ) -> PyResult<lcf::Periodogram<F, Feature>> {
-        let mut eval = match peaks {
+    ) -> PyResult<(LcfPeriodogram<f32>, LcfPeriodogram<f64>)> {
+        let mut eval_f32 = match peaks {
             Some(peaks) => lcf::Periodogram::new(peaks),
             None => lcf::Periodogram::default(),
         };
+        let mut eval_f64 = match peaks {
+            Some(peaks) => lcf::Periodogram::new(peaks),
+            None => lcf::Periodogram::default(),
+        };
+
         if let Some(resolution) = resolution {
-            eval.set_freq_resolution(resolution);
+            eval_f32.set_freq_resolution(resolution);
+            eval_f64.set_freq_resolution(resolution);
         }
         if let Some(max_freq_factor) = max_freq_factor {
-            eval.set_max_freq_factor(max_freq_factor);
+            eval_f32.set_max_freq_factor(max_freq_factor);
+            eval_f64.set_max_freq_factor(max_freq_factor);
         }
         if let Some(nyquist) = nyquist {
             let nyquist_freq: lcf::NyquistFreq =
@@ -709,26 +1004,41 @@ impl Periodogram {
                         "nyquist must be one of: None, 'average', 'median' or quantile value",
                     ));
                 };
-            eval.set_nyquist(nyquist_freq);
+            eval_f32.set_nyquist(nyquist_freq.clone());
+            eval_f64.set_nyquist(nyquist_freq);
         }
         if let Some(fast) = fast {
             if fast {
-                eval.set_periodogram_algorithm(lcf::PeriodogramPowerFft::new().into());
+                eval_f32.set_periodogram_algorithm(lcf::PeriodogramPowerFft::new().into());
+                eval_f64.set_periodogram_algorithm(lcf::PeriodogramPowerFft::new().into());
             } else {
-                eval.set_periodogram_algorithm(lcf::PeriodogramPowerDirect {}.into());
+                eval_f32.set_periodogram_algorithm(lcf::PeriodogramPowerDirect {}.into());
+                eval_f64.set_periodogram_algorithm(lcf::PeriodogramPowerDirect {}.into());
             }
         }
         if let Some(features) = features {
             for x in features.extract::<&PyAny>(py)?.iter()? {
-                let feature = x?
-                    .downcast::<PyCell<PyFeatureEvaluator>>()?
-                    .borrow()
-                    .feature_evaluator
-                    .clone();
-                eval.add_feature(feature);
+                let py_feature = x?.downcast::<PyCell<PyFeatureEvaluator>>()?.borrow();
+                eval_f32.add_feature(py_feature.feature_evaluator_f32.clone());
+                eval_f64.add_feature(py_feature.feature_evaluator_f64.clone());
             }
         }
-        Ok(eval)
+        Ok((eval_f32, eval_f64))
+    }
+
+    fn freq_power_impl<T>(
+        eval: &lcf::Periodogram<T, lcf::Feature<T>>,
+        t: Arr<T>,
+        m: Arr<T>,
+    ) -> (ndarray::Array1<T>, ndarray::Array1<T>)
+    where
+        T: lcf::Float + numpy::Element,
+    {
+        let t: DataSample<_> = t.as_array().into();
+        let m: DataSample<_> = m.as_array().into();
+        let mut ts = lcf::TimeSeries::new_without_weight(t, m);
+        let (freq, power) = eval.freq_power(&mut ts);
+        (freq.into(), power.into())
     }
 }
 
@@ -752,7 +1062,7 @@ impl Periodogram {
         fast: Option<bool>,
         features: Option<PyObject>,
     ) -> PyResult<(Self, PyFeatureEvaluator)> {
-        let eval = Self::create_eval(
+        let (eval_f32, eval_f64) = Self::create_evals(
             py,
             peaks,
             resolution,
@@ -762,26 +1072,44 @@ impl Periodogram {
             features,
         )?;
         Ok((
-            Self { eval: eval.clone() },
+            Self {
+                eval_f32: eval_f32.clone(),
+                eval_f64: eval_f64.clone(),
+            },
             PyFeatureEvaluator {
-                feature_evaluator: eval.into(),
+                feature_evaluator_f32: eval_f32.into(),
+                feature_evaluator_f64: eval_f64.into(),
             },
         ))
     }
 
     /// Angular frequencies and periodogram values
     #[pyo3(text_signature = "(t, m)")]
-    fn freq_power<'py>(
+    fn freq_power(
         &self,
-        py: Python<'py>,
-        t: Arr<F>,
-        m: Arr<F>,
-    ) -> (&'py PyArray1<F>, &'py PyArray1<F>) {
-        let t: DataSample<_> = t.as_array().into();
-        let m: DataSample<_> = m.as_array().into();
-        let mut ts = lcf::TimeSeries::new_without_weight(t, m);
-        let (freq, power) = self.eval.freq_power(&mut ts);
-        (freq.into_pyarray(py), power.into_pyarray(py))
+        py: Python,
+        t: GenericFloatArray1,
+        m: GenericFloatArray1,
+    ) -> Res<(PyObject, PyObject)> {
+        match (t, m) {
+            (GenericFloatArray1::Float32(t), GenericFloatArray1::Float32(m)) => {
+                let (freq, power) = Self::freq_power_impl(&self.eval_f32, t, m);
+                Ok((
+                    freq.into_pyarray(py).into_py(py),
+                    power.into_pyarray(py).into_py(py),
+                ))
+            }
+            (GenericFloatArray1::Float64(t), GenericFloatArray1::Float64(m)) => {
+                let (freq, power) = Self::freq_power_impl(&self.eval_f64, t, m);
+                Ok((
+                    freq.into_pyarray(py).into_py(py),
+                    power.into_pyarray(py).into_py(py),
+                ))
+            }
+            _ => Err(Exception::ValueError(
+                "t and m must have the same dtype".to_string(),
+            )),
+        }
     }
 
     #[classattr]
@@ -819,16 +1147,16 @@ freq_power(t, m)
 
     Parameters
     ----------
-    t : np.ndarray of np.float64
+    t : np.ndarray of np.float32 or np.float64
         Time array
-    m : np.ndarray of np.float64
+    m : np.ndarray of np.float32 or np.float64
         Magnitude (flux) array
 
     Returns
     -------
-    freq : np.ndarray of np.float64
+    freq : np.ndarray of np.float32 or np.float64
         Frequency grid
-    power : np.ndarray of np.float64
+    power : np.ndarray of np.float32 or np.float64
         Periodogram power
 
 Examples
@@ -842,7 +1170,7 @@ Examples
 >>> peaks = periodogram(t, m, sorted=True)[::2]
 >>> frequency, power = periodogram.freq_power(t, m)
 "#,
-            intro = lcf::Periodogram::<F, Feature>::doc(),
+            intro = lcf::Periodogram::<f64, lcf::Feature<f64>>::doc(),
             common = ATTRIBUTES_DOC,
         )
     }

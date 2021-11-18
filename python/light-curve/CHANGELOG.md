@@ -31,6 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 —
 
+## [0.3.5]
+
+### Changed
+
+- Rust edition 2021
+- Minimum supported Rust version is 1.56
+- Maturin version 0.11
+
+## [0.3.4]
+
+### Fixed
+
+- An exception shouldn't be raised for the case of small time-series length and non-`None` `fill_value`
+
+## [0.3.3]
+
+### Added
+
+- Support `dtype=np.float32` for feature extractors
+- `_FeatureEvaluator.many(lcs)` method for parallel execution
+
 ## [0.3.2]
 
 ### Changed
