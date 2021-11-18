@@ -29,6 +29,5 @@ from .features.redchi2 import *
 from .features.medabsdev import *
 from .features.percampl import *
 from .features.extractor import *
-from .features.plateau import *
 from .features.bins import *
 from .features.otsusplit import *

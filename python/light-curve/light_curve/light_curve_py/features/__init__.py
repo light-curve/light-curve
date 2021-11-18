@@ -29,7 +29,6 @@ from .redchi2 import *
 from .medabsdev import *
 from .percampl import *
 from .extractor import *
-from .plateau import *
 from .bins import *
 from .otsusplit import *
 from .stetsonj import *
