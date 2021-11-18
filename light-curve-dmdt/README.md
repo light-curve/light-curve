@@ -33,39 +33,30 @@ dmdt \
 
 ```text
 Plot dm-dt map from light curve
-
 USAGE:
     dmdt [FLAGS] [OPTIONS] --max-abs-dm <max abs dm> --max-lgdt <max lgdt> --min-lgdt <min lgdt>
-
 FLAGS:
         --approx-smearing
             speed up smearing using approximate error function
-
         --help
             Prints help information
-
     -s, --smear
             Produce dm-``smeared'' output using observation errors, which must be the third column of the input. Instead
             of just adding some value to the lg(dt)-dm cell, the whole lg(dt) = const row is filled by normally
             distributed dm-probabilities
     -V, --version
             Prints version information
-
-
 OPTIONS:
     -h, --height <N dm>
             number of dm cells, height of the output image [default: 128]
-
     -w, --width <N lgdt>
             number of lg(dt) cells, width of the output image [default: 128]
-
     -i, --input <input>
             Path of the input file, should be built of space-separated columns of time, magnitude and magnitude error
             (required for --smare only). If '-' is given (the default), then the input is taken from the stdin [default:
             -]
         --max-abs-dm <max abs dm>
             Maximum dm value, the considered dm interval would be [-max-abs-dm, +max-abs-dm)
-
         --max-lgdt <max lgdt>
             Right border of the lg(dt) grid, note that decimal logarithm is required, i.e. 2.0 input means 100.0 time
             units
@@ -82,8 +73,6 @@ OPTIONS:
             as a PNG file. [possible values: lgdt, max]
     -o, --output <output>
             Path of the output PNG file. If '-' is given (the default), then outputs to the stdout [default: -]
-
-
 ```
 
 </details>

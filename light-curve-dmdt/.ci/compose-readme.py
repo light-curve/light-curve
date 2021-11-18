@@ -14,7 +14,10 @@ def get_help_message():
         ["cargo", "run", "--", "--help"],
         capture_output=True,
     )
-    return process.stdout.decode()
+    msg = process.stdout.decode()
+    msg = msg.strip()
+    msg = re.sub("\s+$", "", msg, flags=re.MULTILINE)
+    return msg
 
 
 def get_shell_example(path):
