@@ -82,12 +82,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 3.6
+    - name: Set up Python
       uses: actions/setup-python@v2
-      with:
-        python-version: 3.6
-    - name: Install twine
-      run: python3 -mpip install toml twine
+    - name: Install deps
+      run: |
+        python3 -mpip install -U pip setuptools
+        python3 -mpip install toml twine
     - name: Publish light-curve-python package
       run: |
         python3 setup.py sdist
