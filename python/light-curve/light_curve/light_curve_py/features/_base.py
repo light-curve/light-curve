@@ -2,6 +2,8 @@ import numpy as np
 
 from abc import ABC, abstractmethod
 
+from light_curve.light_curve_py.warnings import warn_experimental
+
 
 class BaseFeature(ABC):
     @staticmethod
@@ -39,6 +41,13 @@ class BaseFeature(ABC):
     def __call__(self, t, m, sigma=None, sorted=None, fill_value=None):
         t, m, sigma = self._normalize_input(t, m, sigma, sorted)
         return self._eval_and_fill(t, m, sigma, fill_value)
+
+    def __post_init__(self):
+        warn_experimental(
+            "Feature {} is experimental and not supported by meta-features implemented in Rust".format(
+                type(self).__name__
+            )
+        )
 
     def many(self, lcs, sorted=None, fill_value=None, n_jobs=-1):
         """Extract features in bulk
