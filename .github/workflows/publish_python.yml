@@ -27,8 +27,8 @@ jobs:
       run: docker run --rm -v $(realpath python/light-curve):/io maturin build --release -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features ${{ matrix.fftw_feature }},gsl"
     - name: Run Python tests
       run: docker run --rm -v $(realpath python/light-curve):/io --entrypoint=/bin/bash maturin -c 'python3.6 -m pip install target/wheels/*cp36*.whl && python3.7 -m pip install target/wheels/*cp37*.whl && python3.8 -m pip install target/wheels/*cp38*.whl && python3.9 -m pip install target/wheels/*cp39*.whl && tox -p --skip-pkg-install --sitepackages'
-    - name: Publish packages
-      run: docker run --rm -v $(realpath python/light-curve):/io maturin publish --no-sdist -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features ${{ matrix.fftw_feature }},gsl" -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+    - name: Publish light-curve packages
+      run: docker run --rm -v $(realpath python/light-curve):/io maturin publish --no-sdist -i python3.6 python3.7 python3.8 python3.9 --cargo-extra-args="--no-default-features --features ${{ matrix.fftw_feature }},gsl" -u __token__ -p ${{ secrets.PYPI_TOKEN_LIGHT_CURVE }}
 
 
   publish-macos:
@@ -65,8 +65,31 @@ jobs:
         brew install gsl
         brew list -v gsl | grep '.dylib' | xargs rm -vf
     - name: Install tox and maturin
-      run: pip install tox maturin twine
+      run: pip install tox maturin
     - name: Run Python tests
       run: tox -p -q
-    - name: Publish macOS packages
+    - name: Publish macOS light-curve packages
       run: maturin publish --cargo-extra-args="--no-default-features --features fftw-static,gsl" -i python3.6 python3.7 python3.8 python3.9 -u __token__ -p ${{ secrets.PYPI_TOKEN_LIGHT_CURVE }}
+
+  publish-light-curve-python:
+    runs-on: ubuntu-latest
+
+    needs: [publish-linux, publish-macos]
+
+    defaults:
+      run:
+        working-directory: python/light-curve-python
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.6
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Install twine
+      run: python3 -mpip install twine
+    - name: Publish light-curve-python package
+      run: |
+        python3 setup.py sdist
+        twine check --strict dist/*
+        twine upload dist/* -u __token__ -p ${{ secrets.PYPI_TOKEN }} --verbose
