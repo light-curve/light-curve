@@ -87,7 +87,7 @@ jobs:
       with:
         python-version: 3.6
     - name: Install twine
-      run: python3 -mpip install twine
+      run: python3 -mpip install toml twine
     - name: Publish light-curve-python package
       run: |
         python3 setup.py sdist
