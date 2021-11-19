@@ -19,5 +19,13 @@ repos:
     hooks:
     -   id: fmt
         name: cargo fmt
+    -   id: cargo-check
+        name: cargo check
     -   id: clippy
         name: cargo clippy
+
+# pre-commit.ci settings
+# Skip rust things due to
+# https://github.com/pre-commit-ci/issues/issues/89
+ci:
+    skip: [clippy, cargo-check, fmt]
