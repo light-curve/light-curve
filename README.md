@@ -1,4 +1,7 @@
 # `light-curve`
+
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/light-curve/light-curve/master.svg)](https://results.pre-commit.ci/latest/github/light-curve/light-curve/master)
+
 ## Irregular time series analysis toolbox for Rust and Python
 
 The project is aimed to build high-performance tools for light curve analysis suitable to process alert and archival data of current [ZTF](https://ztf.caltech.edu) and future [Vera Rubin Observatory LSST](https://lsst.org) photometric surveys.
