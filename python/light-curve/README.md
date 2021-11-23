@@ -66,6 +66,27 @@ We use the Python implementation of feature extractors to test Rust implementati
 Please note, that the Python implementation is much slower for the most of the extractors and doesn't provide the same functionality as the Rust implementation.
 However, the Python implementation provides some new feature extractors you can find useful.
 
+You can manually use extractors from both implementations:
+
+```python
+import numpy as np
+from numpy.testing import assert_allclose
+from light_curve.light_curve_ext import LinearTrend as RustLinearTrend
+from light_curve.light_curve_py import LinearTrend as PythonLinearTrend
+
+rust_fe = RustLinearTrend()
+py_fe = PythonLinearTrend()
+
+n = 100
+t = np.sort(np.random.normal(size=n))
+m = 3.14 * t - 2.16 + np.random.normal(size=n)
+
+assert_allclose(rust_fe(t, m), py_fe(t, m),
+                err_msg="Python and Rust implementations must provide the same result")
+```
+
+This should print a warning about experimental status of the Python class
+
 ## dm-dt map
 
 Class `DmDt` provides dm–dt mapper (based on [Mahabal et al. 2011](https://ui.adsabs.harvard.edu/abs/2011BASI...39..387M/abstract), [Soraisam et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...892..112S/abstract)). It is a Python wrapper for [`light-curve-dmdt` Rust crate](https://crates.io/crates/light-curve-dmdt).
