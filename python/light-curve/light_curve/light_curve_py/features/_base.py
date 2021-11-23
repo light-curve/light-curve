@@ -45,10 +45,10 @@ class BaseFeature(ABC):
         return self._eval_and_fill(t, m, sigma, fill_value)
 
     def __post_init__(self):
+        cls = type(self)
+        full_name = "{}.{}".format(cls.__module__, cls.__name__)
         warn_experimental(
-            "Feature {} is experimental and not supported by meta-features implemented in Rust".format(
-                type(self).__name__
-            )
+            "Feature {} is experimental and not supported by meta-features implemented in Rust".format(full_name)
         )
 
     def many(self, lcs, sorted=None, fill_value=None, n_jobs=-1):

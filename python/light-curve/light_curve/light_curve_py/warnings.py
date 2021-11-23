@@ -12,7 +12,8 @@ def warn_experimental(msg):
 
 def mark_experimental(msg=None):
     if msg is None:
-        msg = "Function {} is experimental and may cause any kind of troubles".format(f.__name__)
+        full_name = "{}.{}".format(f.__module__, f.__name__)
+        msg = "Function {} is experimental and may cause any kind of troubles".format(full_name)
 
     def inner(f):
         @functools.wraps(f)
