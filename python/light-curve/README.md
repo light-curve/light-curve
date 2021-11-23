@@ -5,10 +5,10 @@ This package provides a collection of light curve feature extractions classes.
 ## Installation
 
 ```sh
-python3 -mpip install light-curve-python
+python3 -mpip install light-curve
 ```
 
-Note that in the future the package will be renamed to `light-curve`
+The package is tested on Linux (x86-64, aarch64, ppc64) and macOS (x86-64). x86-64 pre-build wheels are available, other systems are required to have the Rust toolchain to build the package, please install it using your OS package manager of [`rustup` script](https://rustup.rs).
 
 ## Feature evaluators
 
@@ -59,9 +59,16 @@ import light_curve as lc
 help(lc.BazinFit)
 ```
 
+### Experimental extractors
+
+From the technical point of view the package consists of two parts: a wrapper for [`light-curve-feature` Rust crate](https://crates.io/crates/light-curve-feature) (`light_curve_ext` sub-package) and pure Python sub-package `light_curve_py`.
+We use the Python implementation of feature extractors to test Rust implementation and to implement new experimental extractors.
+Please note, that the Python implementation is much slower for the most of the extractors and doesn't provide the same functionality as the Rust implementation.
+However, the Python implementation provides some new feature extractors you can find useful.
+
 ## dm-dt map
 
-Class `DmDt` provides dm–dt mapper (based on [Mahabal et al. 2011](https://ui.adsabs.harvard.edu/abs/2011BASI...39..387M/abstract), [Soraisam et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...892..112S/abstract)).
+Class `DmDt` provides dm–dt mapper (based on [Mahabal et al. 2011](https://ui.adsabs.harvard.edu/abs/2011BASI...39..387M/abstract), [Soraisam et al. 2020](https://ui.adsabs.harvard.edu/abs/2020ApJ...892..112S/abstract)). It is a Python wrapper for [`light-curve-dmdt` Rust crate](https://crates.io/crates/light-curve-dmdt).
 
 ```python
 import numpy as np
