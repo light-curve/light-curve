@@ -1,10 +1,12 @@
 import numpy as np
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from light_curve.light_curve_py.warnings import warn_experimental
 
 
+@dataclass
 class BaseFeature(ABC):
     @staticmethod
     def _normalize_input(t, m, sigma, sorted):
