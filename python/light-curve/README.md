@@ -8,7 +8,9 @@ This package provides a collection of light curve feature extractions classes.
 python3 -mpip install light-curve
 ```
 
-The package is tested on Linux (x86-64, aarch64, ppc64) and macOS (x86-64). x86-64 pre-build wheels are available, other systems are required to have the Rust toolchain to build the package, please install it using your OS package manager of [`rustup` script](https://rustup.rs).
+Minimum supported Python version is 3.6.
+The package is tested on Linux (x86-64, aarch64, ppc64) and macOS (x86-64).
+x86-64 pre-built wheels are available, other systems are required to have the Rust toolchain to build the package, please install it using your OS package manager of [`rustup` script](https://rustup.rs).
 
 ## Feature evaluators
 
