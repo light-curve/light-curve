@@ -9,9 +9,11 @@ include = '\.py$'
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+# requires pytest-benchmark
 addopts = "-ra --import-mode=append --benchmark-min-time=0.1 --benchmark-max-time=5.0 --benchmark-sort=mean --benchmark-disable"
 testpaths = [
     "tests/",
+    "README.md", # requires pytest-markdown
 ]
 
 [tool.tox]
@@ -24,8 +26,9 @@ isolated_build = True
 deps =
     pytest
     pytest-benchmark
+    pytest-markdown
     numpy
     scipy
     feets
-commands = pytest
+commands = pytest README.md tests/ light_curve/
 """
