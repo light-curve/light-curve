@@ -31,4 +31,3 @@ from .percampl import *
 from .extractor import *
 from .bins import *
 from .otsusplit import *
-from .stetsonj import *
