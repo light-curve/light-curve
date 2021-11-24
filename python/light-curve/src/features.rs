@@ -87,7 +87,11 @@ const COMMON_FEATURE_DOC: &str = formatcp!("\n{}\n\n{}\n", ATTRIBUTES_DOC, METHO
 
 type PyLightCurve<'a, T> = (Arr<'a, T>, Arr<'a, T>, Option<Arr<'a, T>>);
 
-#[pyclass(subclass, name = "_FeatureEvaluator")]
+#[pyclass(
+    subclass,
+    name = "_FeatureEvaluator",
+    module = "light_curve.light_curve_ext"
+)]
 pub struct PyFeatureEvaluator {
     feature_evaluator_f32: lcf::Feature<f32>,
     feature_evaluator_f64: lcf::Feature<f64>,
@@ -408,7 +412,7 @@ impl PyFeatureEvaluator {
     }
 }
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(*features)")]
 pub struct Extractor {}
 
@@ -456,7 +460,7 @@ Parameters
 
 macro_rules! evaluator {
     ($name: ident, $eval: ty $(,)?) => {
-        #[pyclass(extends = PyFeatureEvaluator)]
+        #[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
         #[pyo3(text_signature = "()")]
         pub struct $name {}
 
@@ -502,7 +506,7 @@ const SUPPORTED_ALGORITHMS_CURVE_FIT: [&str; N_ALGO_CURVE_FIT] = [
 
 macro_rules! fit_evaluator {
     ($name: ident, $eval: ty $(,)?) => {
-        #[pyclass(extends = PyFeatureEvaluator)]
+        #[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
         #[pyo3(text_signature = "(algorithm, mcmc_niter=None, lmsder_niter=None)")]
         pub struct $name {}
 
@@ -669,7 +673,7 @@ evaluator!(Amplitude, lcf::Amplitude);
 
 evaluator!(AndersonDarlingNormal, lcf::AndersonDarlingNormal);
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(nstd, /)")]
 pub struct BeyondNStd {}
 
@@ -705,7 +709,7 @@ nstd : positive float
 
 fit_evaluator!(BazinFit, lcf::BazinFit);
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(features, window, offset)")]
 pub struct Bins {}
 
@@ -769,7 +773,7 @@ evaluator!(EtaE, lcf::EtaE);
 
 evaluator!(ExcessVariance, lcf::ExcessVariance);
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(quantile)")]
 pub struct InterPercentileRange {}
 
@@ -809,7 +813,7 @@ evaluator!(LinearFit, lcf::LinearFit);
 
 evaluator!(LinearTrend, lcf::LinearTrend);
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(quantile_numerator, quantile_denominator)")]
 pub struct MagnitudePercentageRatio {}
 
@@ -876,7 +880,7 @@ evaluator!(Median, lcf::Median);
 
 evaluator!(MedianAbsoluteDeviation, lcf::MedianAbsoluteDeviation,);
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(quantile)")]
 pub struct MedianBufferRangePercentage {}
 
@@ -913,7 +917,7 @@ quantile : positive float
 
 evaluator!(PercentAmplitude, lcf::PercentAmplitude);
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(quantile)")]
 pub struct PercentDifferenceMagnitudePercentile {}
 
@@ -951,7 +955,7 @@ quantile : positive float
 
 type LcfPeriodogram<T> = lcf::Periodogram<T, lcf::Feature<T>>;
 
-#[pyclass(extends = PyFeatureEvaluator)]
+#[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(
     text_signature = "(peaks=None, resolution=None, max_freq_factor=None, nyquist=None, fast=None, features=None)"
 )]

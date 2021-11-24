@@ -522,7 +522,7 @@ where
 
 macro_rules! dmdt_batches {
     ($worker: expr, $generic: ty, $name_batches: ident, $name_iter: ident, $t: ty $(,)?) => {
-        #[pyclass]
+        #[pyclass(module = "light_curve.light_curve_ext")]
         struct $name_batches {
             dmdt_batches: Arc<$generic>,
         }
@@ -535,7 +535,7 @@ macro_rules! dmdt_batches {
             }
         }
 
-        #[pyclass]
+        #[pyclass(module = "light_curve.light_curve_ext")]
         struct $name_iter {
             dmdt_batches: Arc<$generic>,
             lcs_order: Vec<usize>,
@@ -826,7 +826,7 @@ py_dmdt_batches!(
 /// gausses_batches(lcs, sorted=None, batch_size=1, yield_index=False, shuffle=False, drop_nobs=0, random_seed=None)
 ///     Gives a reusable iterable which yields smeared dmdt-maps
 ///
-#[pyclass]
+#[pyclass(module = "light_curve.light_curve_ext")]
 pub struct DmDt {
     dmdt_f64: GenericDmDt<f64>,
     dmdt_f32: GenericDmDt<f32>,
