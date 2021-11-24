@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pure Python implementation of the most of the features are added, now Rust-implemented features live in `light_curve_ext` sub-package, while the Python implementation is in `light_curve_py`. Python-implemented feature extractors have an experimental status
 - Now `dataclasses` (for Python 3.6 only) and `scipy` are required, they are used by the pure-Python implementation
 
+
+### Fixed
+
+- The Rust implemented classes `.__module__` was `buitins`, now it is `light_curve.light_curve_ext`
+
 ## [0.3.5]
 
 ### Changed
