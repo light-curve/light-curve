@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Python package is renamed to `light-curve`, `light-curve-python` still exists as an alias
 - Pure Python implementation of the most of the features are added, now Rust-implemented features live in `light_curve_ext` sub-package, while the Python implementation is in `light_curve_py`. Python-implemented feature extractors have an experimental status
 - Now `dataclasses` (for Python 3.6 only) and `scipy` are required, they are used by the pure-Python implementation
+- `maturin` version 0.12
 
 
 ### Fixed
