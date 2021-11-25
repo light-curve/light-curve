@@ -26,9 +26,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Set up QEMU for Docker Buildx
       uses: docker/setup-qemu-action@v1
-    - name: Set up Docker Buildx
-      id: buildx
-      uses: docker/setup-buildx-action@v1
     - name: Build docker image
       run: docker buildx build --platform=${{ matrix.platform }} --build-arg='ARCH=${{ matrix.arch }}' --no-cache --tag maturin -f .ci/Dockerfile.maturin .ci
     - name: Build wheels for tests
