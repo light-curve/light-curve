@@ -10,7 +10,7 @@ python3 -mpip install light-curve
 
 Minimum supported Python version is 3.6.
 The package is tested on Linux (x86-64, aarch64, ppc64) and macOS (x86-64).
-x86-64 pre-built wheels are available, other systems are required to have the Rust toolchain to build the package, please install it using your OS package manager of [`rustup` script](https://rustup.rs).
+Pre-built wheels for these platforms are available on [pypi.org](https://pypi.org/project/light-curve/#files), other systems are required to have the Rust toolchain to install the package, please get the toolchain using your OS package manager of [`rustup` script](https://rustup.rs).
 
 ## Feature evaluators
 
