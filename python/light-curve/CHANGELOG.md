@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python snippets in `README.md` are tested, this requires `pytest-markdown`
 - A lot of new unit-tests for the pure-Python implementation
 - New benchmarks to compare pure-Python and Rust implementations performance
+- Publish Linux packages for `aarch64` and `ppc64le`
 
 ### Changed
 
