@@ -15,9 +15,13 @@ supernovae classification:
 
 <span>
 $$
-f(t) = c + \frac1{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{array}{ll} A + \beta (t - t_0), &t < t_0 + \gamma \\ (A + \beta \gamma) \exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, &t \geq t_0 + \gamma \end{array} \right.
+f(t) = c + \frac{A}{ 1 + \exp{\frac{-(t - t_0)}{\tau_\mathrm{rise}}}}  \left\{ \begin{array}{ll} 1 - \frac{\nu (t - t_0)}{\gamma}, &t < t_0 + \gamma \\ (1 - \nu) \exp{\frac{-(t-t_0-\gamma)}{\tau_\mathrm{fall}}}, &t \geq t_0 + \gamma \end{array} \right.
 $$
 </span>
+where $A, \gamma, \tau_\mathrm{rise}, \tau_\mathrm{fall} > 0$, $\nu \in [0; 1)$.
+
+Here we introduce a new dimensionless parameter $\nu$ instead of the plateau slope $\beta$ from the
+orioginal paper: $\nu \equiv -\beta \gamma / A$.
 
 Note, that the Villar function is developed to be used with fluxes, not magnitudes.
 
@@ -80,7 +84,7 @@ impl VillarFit {
     {
         let mut param = values[..7].to_owned();
         // beta to b
-        param[5] = T::abs(param[5]);
+        param[5] = T::half() * (T::ln_1p(param[5]) - T::ln(T::one() - param[5]));
         Self::model(t, &param)
     }
 
@@ -91,16 +95,7 @@ impl VillarFit {
     {
         let t: U = t.into();
         let x = Params { storage: param };
-        let dt = x.dt(t);
-        let t1 = x.t1();
-        let rise = U::recip(U::one() + U::exp(-dt / x.tau_rise()));
-        let plateau = x.a() + x.beta() * U::min(dt, x.gamma());
-        let fall = if t < t1 {
-            U::one()
-        } else {
-            U::exp(-(t - t1) / x.tau_fall())
-        };
-        x.c() + rise * plateau * fall
+        x.c() + x.a() * x.rise(t) * x.plateau(t) * x.fall(t)
     }
 
     fn derivatives<T>(t: T, param: &[T], jac: &mut [T])
@@ -110,26 +105,24 @@ impl VillarFit {
         let x = Params { storage: param };
         let dt = x.dt(t);
         let t1 = x.t1();
-        let rise = T::recip(T::one() + T::exp(-dt / x.tau_rise()));
+        let nu = x.nu();
+        let plateau = x.plateau(t);
+        let rise = x.rise(t);
+        let fall = x.fall(t);
         let is_rise = t <= t1;
-        let fall = if is_rise {
-            T::one()
-        } else {
-            T::exp(-(t - t1) / x.tau_fall())
-        };
-        let plateau = x.a() + x.beta() * T::min(x.gamma(), dt);
-        let f_minus_c = plateau * rise * fall;
+        let f_minus_c = x.a() * plateau * rise * fall;
 
         // A
-        jac[0] = x.sgn_a() * rise * fall;
+        jac[0] = x.sgn_a() * plateau * rise * fall;
         // c
         jac[1] = T::one();
         // t0
-        jac[2] = rise
+        jac[2] = x.a()
+            * rise
             * fall
             * (-(T::one() - rise) * plateau / x.tau_rise()
                 + if is_rise {
-                    -x.beta()
+                    nu / x.gamma()
                 } else {
                     plateau / x.tau_fall()
                 });
@@ -141,14 +134,20 @@ impl VillarFit {
         } else {
             x.sgn_tau_fall() * f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
         };
-        // beta = -abs(b)
-        jac[5] = -x.sgn_b() * rise * fall * if is_rise { dt } else { x.gamma() };
+        // b = 1/2 * ln [(1 - nu) / (1 + nu)]
+        jac[5] = -x.sgn_b()
+            * (T::one() - nu.powi(2))
+            * x.a()
+            * rise
+            * fall
+            * if is_rise { dt / x.gamma() } else { T::one() };
         // gamma
-        jac[6] = if is_rise {
-            T::zero()
-        } else {
-            x.sgn_gamma() * (rise * fall * x.beta() + f_minus_c / x.tau_fall())
-        };
+        jac[6] = x.sgn_gamma()
+            * if is_rise {
+                x.a() * rise * fall * nu * dt / x.gamma().powi(2)
+            } else {
+                f_minus_c / x.tau_fall()
+            };
     }
 
     fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 7], [(f64, f64); 7]) {
@@ -166,8 +165,9 @@ impl VillarFit {
         let b_init = m_min;
         let b_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
 
+        // t0 is not a peak time, but something before the peak
         let t0_init = t_peak;
-        let t0_bound = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+        let t0_bound = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
 
         let tau_rise_init = 0.5 * t_amplitude;
         let tau_rise_bound = (0.0, 10.0 * t_amplitude);
@@ -175,8 +175,8 @@ impl VillarFit {
         let tau_fall_init = 0.5 * t_amplitude;
         let tau_fall_bound = (0.0, 10.0 * t_amplitude);
 
-        let beta_init = -0.1 * m_amplitude / t_amplitude;
-        let beta_bound = (-f64::INFINITY, 0.0);
+        let nu_init = 0.0;
+        let nu_bound = (0.0, 1.0);
 
         let gamma_init = 0.1 * t_amplitude;
         let gamma_bound = (0.0, 10.0 * t_amplitude);
@@ -188,7 +188,7 @@ impl VillarFit {
                 t0_init,
                 tau_rise_init,
                 tau_fall_init,
-                beta_init,
+                nu_init,
                 gamma_init,
             ],
             [
@@ -197,7 +197,7 @@ impl VillarFit {
                 t0_bound,
                 tau_rise_bound,
                 tau_fall_bound,
-                beta_bound,
+                nu_bound,
                 gamma_bound,
             ],
         )
@@ -216,36 +216,35 @@ where
         let (x0, bound) = {
             let (mut x0, mut bound) = Self::init_and_bounds_from_ts(ts);
 
-            // amplitude
+            // A amplitude
             x0[0] = norm_data.m_to_norm_scale(x0[0]);
             bound[0].0 = norm_data.m_to_norm_scale(bound[0].0);
             bound[0].1 = norm_data.m_to_norm_scale(bound[0].1);
 
-            // baseline
+            // c baseline
             x0[1] = norm_data.m_to_norm(x0[1]);
             bound[1].0 = norm_data.m_to_norm(bound[1].0);
             bound[1].1 = norm_data.m_to_norm(bound[1].1);
 
-            // peak time
+            // t_0 reference time
             x0[2] = norm_data.t_to_norm(x0[2]);
             bound[2].0 = norm_data.t_to_norm(bound[2].0);
             bound[2].1 = norm_data.t_to_norm(bound[2].1);
 
-            // rise time
+            // tau_rise rise time
             x0[3] = norm_data.t_to_norm_scale(x0[3]);
             bound[3].0 = norm_data.t_to_norm_scale(bound[3].0);
             bound[3].1 = norm_data.t_to_norm_scale(bound[3].1);
 
-            // fall time
+            // tau_fall fall time
             x0[4] = norm_data.t_to_norm_scale(x0[4]);
             bound[4].0 = norm_data.t_to_norm_scale(bound[4].0);
             bound[4].1 = norm_data.t_to_norm_scale(bound[4].1);
 
-            // plateau slope
-            x0[5] = norm_data.slope_to_norm(x0[5]);
-            bound[5] = (-f64::INFINITY, f64::INFINITY);
+            // nu = beta gamma / A relative plateau amplitude
+            // dimensionless, do nothing
 
-            // plateau duration
+            // gamma plateau duration
             x0[6] = norm_data.t_to_norm_scale(x0[6]);
             bound[6].0 = norm_data.t_to_norm_scale(bound[6].0);
             bound[6].1 = norm_data.t_to_norm_scale(bound[6].1);
@@ -265,13 +264,13 @@ where
             );
             let x = Params { storage: &x };
             let mut result = vec![0.0; 8];
-            result[0] = norm_data.m_to_orig_scale(x.a()); // amplitude
-            result[1] = norm_data.m_to_orig(x.c()); // offset
-            result[2] = norm_data.t_to_orig(x.t0()); // peak time
-            result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // rise time
-            result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // fall time
-            result[5] = norm_data.slope_to_orig(x.beta()); // plateau slope
-            result[6] = norm_data.t_to_orig_scale(x.gamma()); // plateau duration
+            result[0] = norm_data.m_to_orig_scale(x.a()); // A amplitude
+            result[1] = norm_data.m_to_orig(x.c()); // c offset
+            result[2] = norm_data.t_to_orig(x.t0()); // t_0 reference time
+            result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // tau_rise rise time
+            result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // tau_fall fall time
+            result[5] = x.nu(); // nu relative plateau amplitude
+            result[6] = norm_data.t_to_orig_scale(x.gamma()); // gamma plateau duration
             result[7] = reduced_chi2;
             result
                 .iter()
@@ -290,10 +289,10 @@ where
         vec![
             "villar_fit_amplitude",
             "villar_fit_baseline",
-            "villar_fit_peak_time",
+            "villar_fit_reference_time",
             "villar_fit_rise_time",
             "villar_fit_fall_time",
-            "villar_fit_plateau_slope",
+            "villar_fit_plateau_rel_amplitude",
             "villar_fit_plateau_duration",
             "villar_fit_reduced_chi2",
         ]
@@ -303,10 +302,10 @@ where
         vec![
             "half amplitude of the Villar function (A)",
             "baseline of the Villar function (c)",
-            "peak time of the Villar function (t_0)",
+            "reference time of the Villar function (t_0)",
             "rise time of the Villar function (tau_rise)",
             "decline time of the Villar function (tau_fall)",
-            "plateau slope of the Villar function (beta)",
+            "relative plateau amplitude of the Villar function (nu = beta gamma / A)",
             "plateau duration of the Villar function (gamma)",
             "Villar fit quality (reduced chi2)",
         ]
@@ -361,12 +360,16 @@ where
         self.storage[4].signum()
     }
 
+    /// $\nu = 2 logistic(2|b|) - 1$
+    /// Properties:
+    /// dnu/db = 4 logistic(2|b|) (1 - logistic(2|b|)) sgn(b) = (1 - nu^2) sgn(b)
+    /// $\nu = 0$ <=> $b = 0$, for this point $d\nu/db = 1$
+    /// $\nu = 1$ <=> $|b| = inf$
     #[inline]
-    fn beta(&self) -> T {
-        -self.storage[5].abs()
+    fn nu(&self) -> T {
+        T::two() * T::logistic(T::two() * self.storage[5].abs()) - T::one()
     }
 
-    /// beta = -abs(b)
     #[inline]
     fn sgn_b(&self) -> T {
         self.storage[5].signum()
@@ -390,6 +393,26 @@ where
     #[inline]
     fn dt(&self, t: T) -> T {
         t - self.t0()
+    }
+
+    #[inline]
+    fn rise(&self, t: T) -> T {
+        T::logistic(self.dt(t) / self.tau_rise())
+    }
+
+    #[inline]
+    fn plateau(&self, t: T) -> T {
+        T::one() - self.nu() * T::min(self.dt(t) / self.gamma(), T::one())
+    }
+
+    #[inline]
+    fn fall(&self, t: T) -> T {
+        let t1 = self.t1();
+        if t <= t1 {
+            T::one()
+        } else {
+            T::exp(-(t - t1) / self.tau_fall())
+        }
     }
 }
 
@@ -420,7 +443,7 @@ mod tests {
 
         let mut rng = StdRng::seed_from_u64(0);
 
-        let param_true = [1e4, 1e3, 30.0, 10.0, 30.0, -2e3 / 20.0, 20.0];
+        let param_true = [1e4, 1e3, 20.0, 5.0, 30.0, 0.3, 30.0];
 
         let t = linspace(0.0, 100.0, N);
         let model: Vec<_> = t.iter().map(|&x| VillarFit::f(x, &param_true)).collect();
@@ -436,15 +459,15 @@ mod tests {
         println!("{:?}\n{:?}\n{:?}\n{:?}", t, model, m, w);
         let mut ts = TimeSeries::new(&t, &m, &w);
 
-        // curve_fit(lambda t, a, c, t0, tau_rise, tau_fall, beta, gamma: c + (a + beta * np.where(t - t0 < gamma, t - t0, gamma)) / (1 + np.exp(-(t-t0) / tau_rise)) * np.where(t > t0 + gamma, np.exp(-(t-t0-gamma) / tau_fall), 1.0), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 30, 10, 30, -2e3/20, 20])
+        // curve_fit(lambda t, a, c, t0, tau_rise, tau_fall, nu, gamma: c + a * (1 - nu * np.where(t - t0 < gamma, (t - t0) / gamma, 1)) / (1 + np.exp(-(t-t0) / tau_rise)) * np.where(t > t0 + gamma, np.exp(-(t-t0-gamma) / tau_fall), 1.0), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 20, 5, 30, 0.3, 30])
         let desired = [
-            1.00889920e+04,
-            1.07252610e+03,
-            3.05265792e+01,
-            9.72828707e+00,
-            2.95601316e+01,
-            -1.11089712e+02,
-            1.93909272e+01,
+            1.00899754e+04,
+            1.00689083e+03,
+            2.02385802e+01,
+            5.04283765e+00,
+            3.00679883e+01,
+            3.00400783e-01,
+            2.94149214e+01,
         ];
 
         let values = eval.eval(&mut ts).unwrap();
@@ -453,13 +476,13 @@ mod tests {
 
     #[test]
     fn villar_fit_noisy_lmsder() {
-        villar_fit_noisy(VillarFit::new(LmsderCurveFit::new(7).into()));
+        villar_fit_noisy(VillarFit::new(LmsderCurveFit::new(6).into()));
     }
 
     #[test]
     fn villar_fit_noizy_mcmc_plus_lmsder() {
-        let lmsder = LmsderCurveFit::new(6);
-        let mcmc = McmcCurveFit::new(1024, Some(lmsder.into()));
+        let lmsder = LmsderCurveFit::new(1);
+        let mcmc = McmcCurveFit::new(2048, Some(lmsder.into()));
         villar_fit_noisy(VillarFit::new(mcmc.into()));
     }
 

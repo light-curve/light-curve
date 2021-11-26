@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rust edition 2021
 - Minimum rust version is 1.56
+- `VillarFit` now uses different parameter set to fix issue with non-physical negative flux fits, relative plateau amplitude `nu` replaces plateau slope `beta`. It is a breaking change
+- `VillarFit` name and description for `t_0` parameter are changed replacing "peak" to "reference", because this time moment does not correspond to the light-curve peak
+>>>>>>> 74239b4 (Redefine VillarFit parameters)
 
 ### Deprecated
 
