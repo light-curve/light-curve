@@ -18,7 +18,7 @@ $\frac{\sum{((m_i - c - \mathrm{slope} t_i) / \delta_i)^2}}{N - 2}$.
 
 - Depends on: **time**, **magnitude**, **magnitude error**
 - Minimum number of observations: **3**
-- Number of features: **3**  
+- Number of features: **3**
 "#;
 }
 

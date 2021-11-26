@@ -15,7 +15,7 @@ $\sigma_m = \sqrt{\sum_i (m_i - \langle m \rangle)^2 / (N-1)}$ is the magnitude 
 - Minimum number of observations: **3**
 - Number of features: **1**
 
-[Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)   
+[Wikipedia](https://en.wikipedia.org/wiki/Skewness#Sample_skewness)
 "#;
 }
 

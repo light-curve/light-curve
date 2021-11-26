@@ -11,7 +11,7 @@ This is non-weighted mean, see [WeightedMean](crate::WeightedMean) for weighted 
 
 - Depends on: **magnitude**
 - Minimum number of observations: **1**
-- Number of features: **1**    
+- Number of features: **1**
 "#;
 }
 

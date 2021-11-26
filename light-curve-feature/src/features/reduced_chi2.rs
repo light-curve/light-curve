@@ -16,7 +16,7 @@ and $\bar{m}$ is the weighted mean magnitude.
 
 This is a good measure of variability which takes into account observations uncertainties.
 
-[Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)    
+[Wikipedia](https://en.wikipedia.org/wiki/Reduced_chi-squared_statistic)
 "#;
 }
 

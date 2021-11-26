@@ -10,7 +10,7 @@ $$
 
 - Depends on: nothing
 - Minimum number of observations: **0**
-- Number of features: **1**  
+- Number of features: **1**
 "#;
 }
 

@@ -71,7 +71,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: light-curve-python
+        working-directory: python/light-curve
 
     steps:
     - uses: actions/checkout@v2
@@ -101,8 +101,8 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-    - name: Install maturin, black and tox
-      run: pip install maturin black tox
+    - name: Install maturin, tox and black
+      run: pip install maturin tox black
     - name: Build package with static FFTW
       run: maturin build
     - name: Build package with dynamic FFTW and GSL
@@ -123,6 +123,8 @@ jobs:
       run: black --check .
     - name: Run Python tests
       run: tox -p -q
+    - name: Check Python formatting
+      run: black --check --diff .
 
 
   arm:
@@ -137,4 +139,4 @@ jobs:
       run: cargo build --workspace --all-targets --exclude light-curve-python
     - name: build python
       run: maturin build
-      working-directory: light-curve-python
+      working-directory: python/light-curve

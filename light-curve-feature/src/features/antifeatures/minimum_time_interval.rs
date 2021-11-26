@@ -11,7 +11,7 @@ $$
 
 - Depends on: **time**
 - Minimum number of observations: **2**
-- Number of features: **1**    
+- Number of features: **1**
 "#;
 }
 

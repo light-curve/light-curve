@@ -22,7 +22,7 @@ fn number_ending(i: usize) -> &'static str {
 
 macro_const! {
     const PERIODOGRAM_PEAK_DOC: &'static str = r#"
-Peak evaluator for [Periodogram]  
+Peak evaluator for [Periodogram]
 "#;
 }
 

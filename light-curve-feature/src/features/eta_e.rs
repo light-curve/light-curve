@@ -17,7 +17,7 @@ Note that this definition is a bit different from both Kim et al. 2014 and
 - Minimum number of observations: **2**
 - Number of features: **1**
 
-Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)    
+Kim et al. 2014, [DOI:10.1051/0004-6361/201323252](https://doi.org/10.1051/0004-6361/201323252)
 "#;
 }
 

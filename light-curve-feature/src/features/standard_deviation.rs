@@ -15,7 +15,7 @@ and $\langle m \rangle$ is the mean magnitude.
 - Minimum number of observations: **2**
 - Number of features: **1**
 
-[Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)   
+[Wikipedia](https://en.wikipedia.org/wiki/Standard_deviation)
 "#;
 }
 

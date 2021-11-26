@@ -11,17 +11,20 @@ PROJECT_DIR = CURRENT_DIR.parent
 
 def get_help_message():
     process = subprocess.run(
-        ['cargo', 'run', '--', '--help'],
+        ["cargo", "run", "--", "--help"],
         capture_output=True,
     )
-    return process.stdout.decode()
+    msg = process.stdout.decode()
+    msg = msg.strip()
+    msg = re.sub("\s+$", "", msg, flags=re.MULTILINE)
+    return msg
 
 
 def get_shell_example(path):
     with open(path) as fh:
         text = fh.read()
-    start_str = '### Example start\n'
-    end_str = '\n### Example end'
+    start_str = "### Example start\n"
+    end_str = "\n### Example end"
     start = text.find(start_str) + len(start_str)
     end = text.find(end_str)
     script = text[start:end]
@@ -35,7 +38,7 @@ def update_png(script):
 def update_help(readme):
     help_msg = get_help_message()
     new_readme = re.sub(
-        r'''(?<=### `dmdt --help`
+        r"""(?<=### `dmdt --help`
 
 <details><summary>expand</summary>
 
@@ -43,7 +46,7 @@ def update_help(readme):
 ).+?(?=
 ```
 
-</details>)''',
+</details>)""",
         help_msg,
         readme,
         count=1,
@@ -54,9 +57,9 @@ def update_help(readme):
 
 def update_script(readme, script):
     new_readme = re.sub(
-        r'''(?<=```sh
+        r"""(?<=```sh
 )(.+?)(?=
-```)''',
+```)""",
         script,
         readme,
         count=1,
@@ -66,13 +69,13 @@ def update_script(readme, script):
 
 
 def main():
-    exe = 'dmdt'
-    script = get_shell_example(CURRENT_DIR.joinpath('readme-example.sh'))
+    exe = "dmdt"
+    script = get_shell_example(CURRENT_DIR.joinpath("readme-example.sh"))
 
     print("Plotting example.png")
     update_png(script.replace("dmdt", "cargo run --"))
 
-    readme_path = PROJECT_DIR.joinpath('README.md')
+    readme_path = PROJECT_DIR.joinpath("README.md")
     with open(readme_path) as fh:
         readme = fh.read()
 
@@ -81,9 +84,9 @@ def main():
     print("Updating README with script")
     readme = update_script(readme, script)
 
-    with open(readme_path, 'w') as fh:
+    with open(readme_path, "w") as fh:
         fh.write(readme)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
