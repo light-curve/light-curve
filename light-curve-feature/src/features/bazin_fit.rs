@@ -163,7 +163,7 @@ where
             bound[1].0 = norm_data.m_to_norm(bound[1].0);
             bound[1].1 = norm_data.m_to_norm(bound[1].1);
 
-            // peak time
+            // reference time
             x0[2] = norm_data.t_to_norm(x0[2]);
             bound[2].0 = norm_data.t_to_norm(bound[2].0);
             bound[2].1 = norm_data.t_to_norm(bound[2].1);
@@ -195,7 +195,7 @@ where
             let mut result = vec![0.0; 6];
             result[0] = norm_data.m_to_orig_scale(x.a()); // amplitude
             result[1] = norm_data.m_to_orig(x.b()); // offset
-            result[2] = norm_data.t_to_orig(x.t0()); // peak time
+            result[2] = norm_data.t_to_orig(x.t0()); // reference time
             result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // rise time
             result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // fall time
             result[5] = reduced_chi2;
@@ -216,7 +216,7 @@ where
         vec![
             "bazin_fit_amplitude",
             "bazin_fit_baseline",
-            "bazin_fit_peak_time",
+            "bazin_fit_reference_time",
             "bazin_fit_rise_time",
             "bazin_fit_fall_time",
             "bazin_fit_reduced_chi2",
@@ -227,7 +227,7 @@ where
         vec![
             "half amplitude of the Bazin function (A)",
             "baseline of the Bazin function (B)",
-            "peak time of the Bazin fit (t0)",
+            "reference time of the Bazin fit (t0)",
             "rise time of the Bazin function (tau_rise)",
             "fall time of the Bazin function (tau_fall)",
             "Bazin fit quality (reduced chi2)",
