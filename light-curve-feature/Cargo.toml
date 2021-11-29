@@ -19,6 +19,9 @@ fftw-mkl = ["fftw/intel-mkl"]
 gsl = ["GSL/v2_1"]
 
 [dependencies]
+# it is a dependency of intel-mkl-tool, we pin it to temporary solve
+# https://github.com/rust-math/intel-mkl-src/issues/68
+anyhow = "<1.0.49"
 conv = "^0.3.3"
 dyn-clonable = "^0.9.0"
 emcee = "^0.3.0"
