@@ -2,7 +2,7 @@ use crate::nl_fit::curve_fit::{CurveFitAlgorithm, CurveFitResult, CurveFitTrait}
 use crate::nl_fit::data::Data;
 
 use emcee::{EnsembleSampler, Guess, Prob};
-use emcee_rand::*;
+use emcee_rand::{distributions::IndependentSample, *};
 use ndarray::Zip;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -84,22 +84,24 @@ impl CurveFitTrait for McmcCurveFit {
             }
         };
 
-        let initial_guess = Guess::new(&x0.iter().map(|&x| x as f32).collect::<Vec<_>>());
-        let initial_lnprob = lnlike(&initial_guess);
+        let x0_f32: Vec<_> = x0.iter().map(|&x| x as f32).collect();
+        let bounds_f32: Vec<_> = bounds
+            .iter()
+            .map(|&(lower, upper)| (lower as f32, upper as f32))
+            .collect();
+
+        let initial_guesses =
+            generate_initial_guesses(nwalkers, &x0_f32, &bounds_f32, &mut StdRng::from_seed(&[]));
+        let initial_lnprob = lnlike(&initial_guesses[0]);
         let emcee_model = EmceeModel {
             func: lnlike,
-            bounds: bounds
-                .iter()
-                .map(|&(lower, upper)| (lower as f32, upper as f32))
-                .collect(),
+            bounds: &bounds_f32,
         };
         let mut sampler = EnsembleSampler::new(nwalkers, ndims, &emcee_model).unwrap();
         sampler.seed(&[]);
 
         let (best_x, best_lnprob) = {
-            let (mut best_x, mut best_lnprob) = (initial_guess.values.clone(), initial_lnprob);
-            let initial_guesses =
-                initial_guess.create_initial_guess_with_rng(nwalkers, &mut StdRng::from_seed(&[]));
+            let (mut best_x, mut best_lnprob) = (initial_guesses[0].values.clone(), initial_lnprob);
             let _ = sampler.sample(&initial_guesses, self.niterations as usize, |step| {
                 for (pos, &lnprob) in step.pos.iter().zip(step.lnprob.iter()) {
                     if lnprob > best_lnprob {
@@ -125,12 +127,62 @@ impl CurveFitTrait for McmcCurveFit {
     }
 }
 
-struct EmceeModel<F> {
-    func: F,
-    bounds: Vec<(f32, f32)>,
+fn generate_initial_guesses<R>(
+    nwalkers: usize,
+    x0: &[f32],
+    bounds: &[(f32, f32)],
+    rng: &mut R,
+) -> Vec<Guess>
+where
+    R: Rng,
+{
+    const STD: f64 = 0.1;
+
+    // First guess is the user-defined initial guess
+    std::iter::once(x0.to_vec())
+        // Next nwalkers-1 guesses
+        .chain((1..nwalkers).map(|_| {
+            // Iterate components of user-defined initial guess and boundary conditions
+            x0.iter()
+                .zip(bounds.iter())
+                .map(|(component, (left, right))| {
+                    assert!(
+                        *left <= *right,
+                        "Left boundary is larger than right one: {} > {}",
+                        *left,
+                        *right,
+                    );
+                    assert!(
+                        (*left <= *component) && (*component <= *right),
+                        "Initial guess is not between boundaries: {} not in [{}, {}]",
+                        *component,
+                        *left,
+                        *right,
+                    );
+                    if (right - left) < f32::EPSILON {
+                        return *component;
+                    }
+                    let std = f64::min(STD, (*right - *left) as f64);
+                    let normal_distr = distributions::Normal::new((*component) as f64, std);
+                    loop {
+                        let sample = normal_distr.ind_sample(rng) as f32;
+                        if (*left < sample) && (sample < *right) {
+                            break sample;
+                        }
+                    }
+                })
+                .collect()
+        }))
+        .map(|v| Guess { values: v })
+        .collect()
 }
 
-impl<F> Prob for EmceeModel<F>
+struct EmceeModel<'b, F> {
+    func: F,
+    bounds: &'b [(f32, f32)],
+}
+
+impl<'b, F> Prob for EmceeModel<'b, F>
 where
     F: Fn(&Guess) -> f32,
 {
