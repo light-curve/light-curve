@@ -6,6 +6,7 @@ use emcee_rand::{distributions::IndependentSample, *};
 use ndarray::Zip;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 /// MCMC sampler for non-linear least squares

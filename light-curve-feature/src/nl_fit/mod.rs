@@ -11,6 +11,8 @@ pub use lmsder::LmsderCurveFit;
 pub mod mcmc;
 pub use mcmc::McmcCurveFit;
 
+pub mod prior;
+
 #[cfg(test)]
 pub trait HyperdualFloat: hyperdual::Float {
     fn two() -> Self;
