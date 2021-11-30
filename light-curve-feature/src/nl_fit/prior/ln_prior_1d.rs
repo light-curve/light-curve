@@ -14,11 +14,21 @@ pub trait LnPrior1DTrait: Clone + Debug + Serialize + DeserializeOwned {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum LnPrior1D {
+    None(NoneLnPrior1D),
     LogNormal(LogNormalLnPrior1D),
     LogUniform(LogUniformLnPrior1D),
     Normal(NormalLnPrior1D),
     Uniform(UniformLnPrior1D),
     Mix(MixLnPrior1D),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct NoneLnPrior1D {}
+
+impl LnPrior1DTrait for NoneLnPrior1D {
+    fn ln_prior_1d(&self, _x: f64) -> f64 {
+        0.0
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

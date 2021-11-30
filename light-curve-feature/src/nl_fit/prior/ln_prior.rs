@@ -16,7 +16,17 @@ pub trait LnPriorTrait: Clone + Debug + Serialize + DeserializeOwned {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum LnPrior {
+    None(NoneLnPrior),
     IndComponents(IndComponentsLnPrior),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct NoneLnPrior {}
+
+impl LnPriorTrait for NoneLnPrior {
+    fn ln_prior(&self, _params: &[f64]) -> f64 {
+        0.0
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
