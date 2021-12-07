@@ -35,6 +35,7 @@ impl Eta {
 
 lazy_info!(
     ETA_INFO,
+    Eta,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -42,6 +43,16 @@ lazy_info!(
     w_required: false,
     sorting_required: true,
 );
+
+impl FeatureNamesDescriptionsTrait for Eta {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["eta"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["Von Neummann eta-coefficient for magnitude sample"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for Eta
 where
@@ -59,18 +70,6 @@ where
                 / (ts.lenf() - T::one())
                 / m_std2;
         Ok(vec![value])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &ETA_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["eta"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["Von Neummann eta-coefficient for magnitude sample"]
     }
 }
 

@@ -39,6 +39,7 @@ impl AndersonDarlingNormal {
 
 lazy_info!(
     ANDERSON_DARLING_NORMAL_INFO,
+    AndersonDarlingNormal,
     size: 1,
     min_ts_length: 4,
     t_required: false,
@@ -46,6 +47,16 @@ lazy_info!(
     w_required: false,
     sorting_required: false,
 );
+
+impl FeatureNamesDescriptionsTrait for AndersonDarlingNormal {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["anderson_darling_normal"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["unbiased Anderson-Darling normality test statistics"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for AndersonDarlingNormal
 where
@@ -73,18 +84,6 @@ where
             (T::one() + T::four() / n - (T::five() / n).powi(2))
                 * (n * (T::two() * T::LN_2() - T::one()) - sum.approx_as::<T>().unwrap() / n),
         ])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &ANDERSON_DARLING_NORMAL_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["anderson_darling_normal"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["unbiased Anderson-Darling normality test statistics"]
     }
 }
 

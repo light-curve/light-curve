@@ -23,6 +23,7 @@ pub struct PercentAmplitude {}
 
 lazy_info!(
     PERCENT_AMPLITUDE_INFO,
+    PercentAmplitude,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -41,6 +42,16 @@ impl PercentAmplitude {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for PercentAmplitude {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["percent_amplitude"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["maximum absolute deviation of magnitude from its median"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for PercentAmplitude
 where
     T: Float,
@@ -51,18 +62,6 @@ where
         let m_max = ts.m.get_max();
         let m_median = ts.m.get_median();
         Ok(vec![T::max(m_max - m_median, m_median - m_min)])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &PERCENT_AMPLITUDE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["percent_amplitude"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["maximum absolute deviation of magnitude from its median"]
     }
 }
 

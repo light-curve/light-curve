@@ -86,6 +86,8 @@ impl<T> BeyondNStd<T> {
 
 lazy_info!(
     BEYOND_N_STD_INFO,
+    BeyondNStd<T>,
+    T,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -103,6 +105,19 @@ where
     }
 }
 
+impl<T> FeatureNamesDescriptionsTrait for BeyondNStd<T>
+where
+    T: Float,
+{
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for BeyondNStd<T>
 where
     T: Float,
@@ -116,18 +131,6 @@ where
             count + (beyond as u32)
         });
         Ok(vec![count_beyond.value_as::<T>().unwrap() / ts.lenf()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &BEYOND_N_STD_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![self.description.as_str()]
     }
 }
 

@@ -96,6 +96,29 @@ impl Default for PeriodogramPeaks {
     }
 }
 
+impl EvaluatorInfoTrait for PeriodogramPeaks {
+    fn get_info(&self) -> &EvaluatorInfo {
+        &self.properties.info
+    }
+}
+impl FeatureNamesDescriptionsTrait for PeriodogramPeaks {
+    fn get_names(&self) -> Vec<&str> {
+        self.properties
+            .names
+            .iter()
+            .map(|name| name.as_str())
+            .collect()
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        self.properties
+            .descriptions
+            .iter()
+            .map(|descr| descr.as_str())
+            .collect()
+    }
+}
+
 impl<T> FeatureEvaluator<T> for PeriodogramPeaks
 where
     T: Float,
@@ -112,26 +135,6 @@ where
             .chain(iter::repeat(T::zero()))
             .take(2 * self.peaks)
             .collect())
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &self.properties.info
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        self.properties
-            .names
-            .iter()
-            .map(|name| name.as_str())
-            .collect()
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        self.properties
-            .descriptions
-            .iter()
-            .map(|desc| desc.as_str())
-            .collect()
     }
 }
 
@@ -301,8 +304,8 @@ where
         let peaks = PeriodogramPeaks::new(peaks);
         let peak_names = peaks.properties.names.clone();
         let peak_descriptions = peaks.properties.descriptions.clone();
-        let peaks_size_hint = FeatureEvaluator::<T>::size_hint(&peaks);
-        let peaks_min_ts_length = FeatureEvaluator::<T>::min_ts_length(&peaks);
+        let peaks_size_hint = peaks.size_hint();
+        let peaks_min_ts_length = peaks.min_ts_length();
         let info = EvaluatorInfo {
             size: peaks_size_hint,
             min_ts_length: usize::max(peaks_min_ts_length, 2),
@@ -359,6 +362,40 @@ where
 {
     fn default() -> Self {
         Self::new(Self::default_peaks())
+    }
+}
+
+impl<T, F> EvaluatorInfoTrait for Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
+{
+    fn get_info(&self) -> &EvaluatorInfo {
+        &self.properties.info
+    }
+}
+
+impl<T, F> FeatureNamesDescriptionsTrait for Periodogram<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T> + From<PeriodogramPeaks> + TryInto<PeriodogramPeaks>,
+    <F as std::convert::TryInto<PeriodogramPeaks>>::Error: Debug,
+{
+    fn get_names(&self) -> Vec<&str> {
+        self.properties
+            .names
+            .iter()
+            .map(|name| name.as_str())
+            .collect()
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        self.properties
+            .descriptions
+            .iter()
+            .map(|descr| descr.as_str())
+            .collect()
     }
 }
 

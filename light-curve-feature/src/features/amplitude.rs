@@ -40,6 +40,7 @@ impl Amplitude {
 
 lazy_info!(
     AMPLITUDE_INFO,
+    Amplitude,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -48,6 +49,16 @@ lazy_info!(
     sorting_required: false,
 );
 
+impl FeatureNamesDescriptionsTrait for Amplitude {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["amplitude"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["half of the interval between maximum and minimum magnitude"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for Amplitude
 where
     T: Float,
@@ -55,18 +66,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![T::half() * (ts.m.get_max() - ts.m.get_min())])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &AMPLITUDE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["amplitude"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["half of the interval between maximum and minimum magnitude"]
     }
 }
 

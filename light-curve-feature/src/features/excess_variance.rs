@@ -25,6 +25,7 @@ pub struct ExcessVariance {}
 
 lazy_info!(
     EXCESS_VARIANCE_INFO,
+    ExcessVariance,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -43,6 +44,16 @@ impl ExcessVariance {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for ExcessVariance {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["excess_variance"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["variability amplitude (excess of magnitude variability over typical error)"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for ExcessVariance
 where
     T: Float,
@@ -53,18 +64,6 @@ where
         Ok(vec![
             (ts.m.get_std2() - mean_error2) / ts.m.get_mean().powi(2),
         ])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &EXCESS_VARIANCE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["excess_variance"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["variability amplitude (excess of magnitude variability over typical error)"]
     }
 }
 

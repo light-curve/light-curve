@@ -30,6 +30,8 @@ pub struct MedianBufferRangePercentage<T> {
 
 lazy_info!(
     MEDIAN_BUFFER_RANGE_PERCENTAGE_INFO,
+    MedianBufferRangePercentage<T>,
+    T,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -83,6 +85,19 @@ where
     }
 }
 
+impl<T> FeatureNamesDescriptionsTrait for MedianBufferRangePercentage<T>
+where
+    T: Float,
+{
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for MedianBufferRangePercentage<T>
 where
     T: Float,
@@ -97,18 +112,6 @@ where
             count + (under as u32)
         });
         Ok(vec![count_under.value_as::<T>().unwrap() / ts.lenf()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MEDIAN_BUFFER_RANGE_PERCENTAGE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![self.description.as_str()]
     }
 }
 

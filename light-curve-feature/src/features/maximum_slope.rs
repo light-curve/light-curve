@@ -23,6 +23,7 @@ pub struct MaximumSlope {}
 
 lazy_info!(
     MAXIMUM_SLOPE_INFO,
+    MaximumSlope,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -40,7 +41,15 @@ impl MaximumSlope {
         DOC
     }
 }
+impl FeatureNamesDescriptionsTrait for MaximumSlope {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["maximum_slope"]
+    }
 
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["maximum slope of time-series"]
+    }
+}
 impl<T> FeatureEvaluator<T> for MaximumSlope
 where
     T: Float,
@@ -63,18 +72,6 @@ where
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .expect("All points of the light curve have the same time");
         Ok(vec![result])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MAXIMUM_SLOPE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["maximum_slope"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["maximum slope of time-series"]
     }
 }
 

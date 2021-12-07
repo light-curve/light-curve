@@ -30,6 +30,7 @@ impl Duration {
 
 lazy_info!(
     DURATION_INFO,
+    Duration,
     size: 1,
     min_ts_length: 1,
     t_required: true,
@@ -38,6 +39,16 @@ lazy_info!(
     sorting_required: true,
 );
 
+impl FeatureNamesDescriptionsTrait for Duration {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_duration"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["time-series duration"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for Duration
 where
     T: Float,
@@ -45,18 +56,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.t.sample[ts.lenu() - 1] - ts.t.sample[0]])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &DURATION_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_duration"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["time-series duration"]
     }
 }
 

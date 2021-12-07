@@ -36,6 +36,7 @@ impl Kurtosis {
 
 lazy_info!(
     KURTOSIS_INFO,
+    Kurtosis,
     size: 1,
     min_ts_length: 4,
     t_required: false,
@@ -43,6 +44,16 @@ lazy_info!(
     w_required: false,
     sorting_required: false,
 );
+
+impl FeatureNamesDescriptionsTrait for Kurtosis {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["kurtosis"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["unbiased excess kurtosis of magnitudes"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for Kurtosis
 where
@@ -63,18 +74,6 @@ where
         let value = forth_moment / m_std2.powi(2) * n * n1 / (n_1 * n_2 * n_3)
             - T::three() * n_1.powi(2) / (n_2 * n_3);
         Ok(vec![value])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &KURTOSIS_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["kurtosis"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["unbiased excess kurtosis of magnitudes"]
     }
 }
 

@@ -25,6 +25,7 @@ pub struct Skew {}
 
 lazy_info!(
     SKEW_INFO,
+    Skew,
     size: 1,
     min_ts_length: 3,
     t_required: false,
@@ -43,6 +44,16 @@ impl Skew {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for Skew {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["skew"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["skew of magnitude sample"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for Skew
 where
     T: Float,
@@ -58,18 +69,6 @@ where
             ts.m.sample
                 .fold(T::zero(), |sum, &m| sum + (m - m_mean).powi(3));
         Ok(vec![third_moment / m_std.powi(3) * n / (n_1 * n_2)])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &SKEW_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["skew"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["skew of magnitude sample"]
     }
 }
 

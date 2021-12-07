@@ -26,6 +26,7 @@ pub struct ReducedChi2 {}
 
 lazy_info!(
     REDUCED_CHI2_INFO,
+    ReducedChi2,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -44,6 +45,16 @@ impl ReducedChi2 {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for ReducedChi2 {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["chi2"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["reduced chi2 as a goodness of constant fit with respect to observation errors"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for ReducedChi2
 where
     T: Float,
@@ -51,18 +62,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.get_m_reduced_chi2()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &REDUCED_CHI2_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["chi2"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["reduced chi2 as a goodness of constant fit with respect to observation errors"]
     }
 }
 

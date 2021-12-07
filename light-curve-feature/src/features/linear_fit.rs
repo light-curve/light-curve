@@ -38,6 +38,7 @@ impl LinearFit {
 
 lazy_info!(
     LINEAR_FIT_INFO,
+    LinearFit,
     size: 3,
     min_ts_length: 3,
     t_required: true,
@@ -46,24 +47,7 @@ lazy_info!(
     sorting_required: true,
 );
 
-impl<T> FeatureEvaluator<T> for LinearFit
-where
-    T: Float,
-{
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        self.check_ts_length(ts)?;
-        let result = fit_straight_line(ts, true);
-        Ok(vec![
-            result.slope,
-            T::sqrt(result.slope_sigma2),
-            result.reduced_chi2,
-        ])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &LINEAR_FIT_INFO
-    }
-
+impl FeatureNamesDescriptionsTrait for LinearFit {
     fn get_names(&self) -> Vec<&str> {
         vec![
             "linear_fit_slope",
@@ -78,6 +62,21 @@ where
             "error of slope of linear fit",
             "linear fit quality (reduced chi2)",
         ]
+    }
+}
+
+impl<T> FeatureEvaluator<T> for LinearFit
+where
+    T: Float,
+{
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+        self.check_ts_length(ts)?;
+        let result = fit_straight_line(ts, true);
+        Ok(vec![
+            result.slope,
+            T::sqrt(result.slope_sigma2),
+            result.reduced_chi2,
+        ])
     }
 }
 

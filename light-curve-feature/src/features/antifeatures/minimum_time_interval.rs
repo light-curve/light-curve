@@ -31,6 +31,7 @@ impl MinimumTimeInterval {
 
 lazy_info!(
     MINIMUM_TIME_INTERVAL_INFO,
+    MinimumTimeInterval,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -38,6 +39,16 @@ lazy_info!(
     w_required: false,
     sorting_required: true,
 );
+
+impl FeatureNamesDescriptionsTrait for MinimumTimeInterval {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_minimum_time_interval"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["minimum time interval between consequent observations"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for MinimumTimeInterval
 where
@@ -53,18 +64,6 @@ where
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
         Ok(vec![dt])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MINIMUM_TIME_INTERVAL_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_minimum_time_interval"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["minimum time interval between consequent observations"]
     }
 }
 

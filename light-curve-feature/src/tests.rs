@@ -1,4 +1,4 @@
-pub use crate::evaluator::FeatureEvaluator;
+pub use crate::evaluator::*;
 pub use crate::extractor::FeatureExtractor;
 pub use crate::feature::Feature;
 pub use crate::float_trait::Float;
@@ -64,14 +64,14 @@ pub fn eval_info_tests(eval: Feature<f64>) {
     let m = randvec::<f64>(&mut rng, N);
     let w = positive_randvec::<f64>(&mut rng, N);
 
-    let size_hint = FeatureEvaluator::<f64>::size_hint(&eval);
+    let size_hint = eval.size_hint();
     assert_eq!(
-        FeatureEvaluator::<f64>::get_names(&eval).len(),
+        eval.get_names().len(),
         size_hint,
         "names vector has a wrong size"
     );
     assert_eq!(
-        FeatureEvaluator::<f64>::get_descriptions(&eval).len(),
+        eval.get_descriptions().len(),
         size_hint,
         "description vector has a wrong size"
     );
@@ -111,7 +111,7 @@ fn eval_info_ts_length_test(
     w: &[f64],
     n: usize,
 ) -> Option<Vec<f64>> {
-    let min_ts_length = FeatureEvaluator::<f64>::min_ts_length(eval);
+    let min_ts_length = eval.min_ts_length();
     let mut ts = TimeSeries::new(&t_sorted[..n], &m[..n], &w[..n]);
     let result = eval.eval(&mut ts);
     assert_eq!(
@@ -145,14 +145,14 @@ fn eval_info_t_required_test(
     let neq_baseline = !simeq(&v, baseline, 1e-12);
     assert_eq!(
         neq_baseline,
-        FeatureEvaluator::<f64>::is_t_required(eval),
+        eval.is_t_required(),
         "is_t_required() returns wrong value, \
                     v != baseline: {} ({:?} <=> {:?}), \
                     is_t_required(): {}",
         neq_baseline,
         v,
         baseline,
-        FeatureEvaluator::<f64>::is_t_required(eval),
+        eval.is_t_required(),
     );
     v
 }
@@ -174,14 +174,14 @@ fn eval_info_m_required_test(
     let neq_baseline = !simeq(&v, baseline, 1e-12);
     assert_eq!(
         neq_baseline,
-        FeatureEvaluator::<f64>::is_m_required(eval),
+        eval.is_m_required(),
         "is_m_required() returns wrong value, \
                     v != baseline: {} ({:?} <=> {:?}), \
                     is_m_required(): {}",
         neq_baseline,
         v,
         baseline,
-        FeatureEvaluator::<f64>::is_m_required(eval),
+        eval.is_m_required(),
     );
     v
 }
@@ -202,12 +202,12 @@ fn eval_info_w_required_test(
     let neq_baseline = !simeq(&v, baseline, 1e-12);
     assert_eq!(
         neq_baseline,
-        FeatureEvaluator::<f64>::is_w_required(eval),
+        eval.is_w_required(),
         "is_w_required() returns wrong value, \
                     v != baseline: {}, \
                     is_w_required(): {}",
         neq_baseline,
-        FeatureEvaluator::<f64>::is_w_required(eval),
+        eval.is_w_required(),
     );
     v
 }
@@ -224,7 +224,7 @@ fn eval_info_sorting_required_test(
     let w_ordered = sorted_by(w, t);
     assert_ne!(w_ordered, w);
 
-    let is_sorting_required = FeatureEvaluator::<f64>::is_sorting_required(eval);
+    let is_sorting_required = eval.is_sorting_required();
 
     // FeatureEvaluator is allowed to panic for unsorted input if it requires sorted input
     let v = match (
