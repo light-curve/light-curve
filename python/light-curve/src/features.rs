@@ -267,11 +267,11 @@ impl PyFeatureEvaluator {
                 ndarray::Zip::from(result.outer_iter_mut())
                     .and((&mut tss).into_producer())
                     .into_par_iter()
-                    .try_for_each::<_, Res<_>>(|(mut map, mut ts)| {
+                    .try_for_each::<_, Res<_>>(|(mut map, ts)| {
                         let features: ndarray::Array1<_> = match fill_value {
-                            Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
+                            Some(x) => feature_evaluator.eval_or_fill(ts, x),
                             None => feature_evaluator
-                                .eval(&mut ts)
+                                .eval(ts)
                                 .map_err(|e| Exception::ValueError(e.to_string()))?,
                         }
                         .into();

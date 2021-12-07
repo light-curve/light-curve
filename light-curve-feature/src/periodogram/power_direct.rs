@@ -63,23 +63,6 @@ where
     }
 }
 
-#[derive(Clone)]
-struct PeriodogramSums<T> {
-    m_sin: T,
-    m_cos: T,
-    sin2: T,
-}
-
-impl<T: Float> Default for PeriodogramSums<T> {
-    fn default() -> Self {
-        Self {
-            m_sin: T::zero(),
-            m_cos: T::zero(),
-            sin2: T::zero(),
-        }
-    }
-}
-
 struct SinCosOmegaTau<T> {
     sin_cos_2omega_x: Vec<RecurrentSinCos<T>>,
 }
