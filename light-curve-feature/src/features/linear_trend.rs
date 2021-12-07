@@ -36,6 +36,7 @@ impl LinearTrend {
 
 lazy_info!(
     LINEAR_TREND_INFO,
+    LinearTrend,
     size: 3,
     min_ts_length: 3,
     t_required: true,
@@ -43,6 +44,20 @@ lazy_info!(
     w_required: false,
     sorting_required: true,
 );
+
+impl FeatureNamesDescriptionsTrait for LinearTrend {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["linear_trend", "linear_trend_sigma", "linear_trend_noise"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![
+            "linear trend without respect to observation errors",
+            "error of slope of linear fit without respect to observation errors",
+            "standard deviation of noise for linear fit without respect to observation errors",
+        ]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for LinearTrend
 where
@@ -56,22 +71,6 @@ where
             T::sqrt(result.slope_sigma2),
             T::sqrt(result.reduced_chi2),
         ])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &LINEAR_TREND_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["linear_trend", "linear_trend_sigma", "linear_trend_noise"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![
-            "linear trend without respect to observation errors",
-            "error of slope of linear fit without respect to observation errors",
-            "standard deviation of noise for linear fit without respect to observation errors",
-        ]
     }
 }
 

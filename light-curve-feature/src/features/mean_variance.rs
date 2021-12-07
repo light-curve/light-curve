@@ -20,6 +20,7 @@ pub struct MeanVariance {}
 
 lazy_info!(
     MEAN_VARIANCE_INFO,
+    MeanVariance,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -38,6 +39,16 @@ impl MeanVariance {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for MeanVariance {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["mean_variance"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["standard deviation of magnitude to its mean value ratio"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for MeanVariance
 where
     T: Float,
@@ -45,18 +56,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_std() / ts.m.get_mean()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MEAN_VARIANCE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["mean_variance"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["standard deviation of magnitude to its mean value ratio"]
     }
 }
 

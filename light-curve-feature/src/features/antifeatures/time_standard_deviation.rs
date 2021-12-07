@@ -30,6 +30,7 @@ impl TimeStandardDeviation {
 
 lazy_info!(
     TIME_STANDARD_DEVIATION_INFO,
+    TimeStandardDeviation,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -38,6 +39,16 @@ lazy_info!(
     sorting_required: false,
 );
 
+impl FeatureNamesDescriptionsTrait for TimeStandardDeviation {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_time_standard_deviation"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["standard deviation of time moments"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for TimeStandardDeviation
 where
     T: Float,
@@ -45,18 +56,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.t.get_std()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &TIME_STANDARD_DEVIATION_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_time_standard_deviation"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["standard deviation of time moments"]
     }
 }
 

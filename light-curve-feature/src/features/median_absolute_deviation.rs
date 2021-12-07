@@ -23,6 +23,7 @@ pub struct MedianAbsoluteDeviation {}
 
 lazy_info!(
     MEDIAN_ABSOLUTE_DEVIATION_INFO,
+    MedianAbsoluteDeviation,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -41,6 +42,16 @@ impl MedianAbsoluteDeviation {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for MedianAbsoluteDeviation {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["median_absolute_deviation"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["median of absolute magnitude deviation from its median"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for MedianAbsoluteDeviation
 where
     T: Float,
@@ -54,18 +65,6 @@ where
                 .into_raw_vec()
                 .into();
         Ok(vec![sorted_deviation.median()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MEDIAN_ABSOLUTE_DEVIATION_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["median_absolute_deviation"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["median of absolute magnitude deviation from its median"]
     }
 }
 

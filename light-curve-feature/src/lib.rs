@@ -8,7 +8,7 @@ mod tests;
 mod macros;
 
 mod evaluator;
-pub use evaluator::FeatureEvaluator;
+pub use evaluator::{EvaluatorInfoTrait, FeatureEvaluator, FeatureNamesDescriptionsTrait};
 
 mod error;
 pub use error::EvaluatorError;
@@ -40,6 +40,8 @@ pub use periodogram::{
     AverageNyquistFreq, MedianNyquistFreq, NyquistFreq, PeriodogramPower, PeriodogramPowerDirect,
     PeriodogramPowerFft, QuantileNyquistFreq,
 };
+
+pub mod prelude;
 
 mod sorted_array;
 

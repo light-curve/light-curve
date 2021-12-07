@@ -35,6 +35,7 @@ pub struct InterPercentileRange {
 
 lazy_info!(
     INTER_PERCENTILE_RANGE_INFO,
+    InterPercentileRange,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -76,6 +77,16 @@ impl Default for InterPercentileRange {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for InterPercentileRange {
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for InterPercentileRange
 where
     T: Float,
@@ -86,18 +97,6 @@ where
         let ppf_high = ts.m.get_sorted().ppf(1.0 - self.quantile);
         let value = ppf_high - ppf_low;
         Ok(vec![value])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &INTER_PERCENTILE_RANGE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![self.description.as_str()]
     }
 }
 

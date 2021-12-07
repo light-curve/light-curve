@@ -69,6 +69,7 @@ impl Default for VillarFit {
 
 lazy_info!(
     VILLAR_FIT_INFO,
+    VillarFit,
     size: 8,
     min_ts_length: 8,
     t_required: true,
@@ -204,6 +205,34 @@ impl VillarFit {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for VillarFit {
+    fn get_names(&self) -> Vec<&str> {
+        vec![
+            "villar_fit_amplitude",
+            "villar_fit_baseline",
+            "villar_fit_reference_time",
+            "villar_fit_rise_time",
+            "villar_fit_fall_time",
+            "villar_fit_plateau_rel_amplitude",
+            "villar_fit_plateau_duration",
+            "villar_fit_reduced_chi2",
+        ]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![
+            "half amplitude of the Villar function (A)",
+            "baseline of the Villar function (c)",
+            "reference time of the Villar function (t_0)",
+            "rise time of the Villar function (tau_rise)",
+            "decline time of the Villar function (tau_fall)",
+            "relative plateau amplitude of the Villar function (nu = beta gamma / A)",
+            "plateau duration of the Villar function (gamma)",
+            "Villar fit quality (reduced chi2)",
+        ]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for VillarFit
 where
     T: Float,
@@ -279,36 +308,6 @@ where
         };
 
         Ok(result)
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &VILLAR_FIT_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![
-            "villar_fit_amplitude",
-            "villar_fit_baseline",
-            "villar_fit_reference_time",
-            "villar_fit_rise_time",
-            "villar_fit_fall_time",
-            "villar_fit_plateau_rel_amplitude",
-            "villar_fit_plateau_duration",
-            "villar_fit_reduced_chi2",
-        ]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![
-            "half amplitude of the Villar function (A)",
-            "baseline of the Villar function (c)",
-            "reference time of the Villar function (t_0)",
-            "rise time of the Villar function (tau_rise)",
-            "decline time of the Villar function (tau_fall)",
-            "relative plateau amplitude of the Villar function (nu = beta gamma / A)",
-            "plateau duration of the Villar function (gamma)",
-            "Villar fit quality (reduced chi2)",
-        ]
     }
 }
 

@@ -30,6 +30,7 @@ impl ObservationCount {
 
 lazy_info!(
     OBSERVATION_COUNT_INFO,
+    ObservationCount,
     size: 1,
     min_ts_length: 0,
     t_required: false,
@@ -38,6 +39,16 @@ lazy_info!(
     sorting_required: false,
 );
 
+impl FeatureNamesDescriptionsTrait for ObservationCount {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_observation_count"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["observation count"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for ObservationCount
 where
     T: Float,
@@ -45,18 +56,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.lenf()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &OBSERVATION_COUNT_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_observation_count"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["observation count"]
     }
 }
 

@@ -25,6 +25,7 @@ pub struct StandardDeviation {}
 
 lazy_info!(
     STANDARD_DEVIATION_INFO,
+    StandardDeviation,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -43,6 +44,16 @@ impl StandardDeviation {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for StandardDeviation {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["standard_deviation"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["standard deviation of magnitude sample"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for StandardDeviation
 where
     T: Float,
@@ -50,18 +61,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_std()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &STANDARD_DEVIATION_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["standard_deviation"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["standard deviation of magnitude sample"]
     }
 }
 

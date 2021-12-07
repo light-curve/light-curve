@@ -20,12 +20,64 @@ macro_rules! lazy_info {
             };
         }
     };
+    (
+        $name: ident,
+        $feature: ty,
+        size: $size: expr,
+        min_ts_length: $len: expr,
+        t_required: $t: expr,
+        m_required: $m: expr,
+        w_required: $w: expr,
+        sorting_required: $sort: expr,
+    ) => {
+        lazy_info!(
+            $name,
+            size: $size,
+            min_ts_length: $len,
+            t_required: $t,
+            m_required: $m,
+            w_required: $w,
+            sorting_required: $sort,
+        );
+
+        impl EvaluatorInfoTrait for $feature {
+            fn get_info(&self) -> &EvaluatorInfo {
+                &$name
+            }
+        }
+    };
+    (
+        $name: ident,
+        $feature: ty,
+        T,
+        size: $size: expr,
+        min_ts_length: $len: expr,
+        t_required: $t: expr,
+        m_required: $m: expr,
+        w_required: $w: expr,
+        sorting_required: $sort: expr,
+    ) => {
+        lazy_info!(
+            $name,
+            size: $size,
+            min_ts_length: $len,
+            t_required: $t,
+            m_required: $m,
+            w_required: $w,
+            sorting_required: $sort,
+        );
+
+        impl<T: Float> EvaluatorInfoTrait for $feature {
+            fn get_info(&self) -> &EvaluatorInfo {
+                &$name
+            }
+        }
+    };
 }
 
 /// Helper for FeatureEvaluator implementations using time-series transformation.
 /// You must implement:
-/// - method `transform_ts(ts: &mut TimeSeries<T>) -> Result<impl OwnedArrays<T>, EvaluatorError>`
-/// - attribute `properties: Box<EvaluatorProperties>`
+/// - `transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<impl OwnedArrays<T>, EvaluatorError>`
 macro_rules! transformer_eval {
     () => {
         fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
@@ -41,26 +93,6 @@ macro_rules! transformer_eval {
             };
             let mut new_ts = arrays.ts();
             self.feature_extractor.eval_or_fill(&mut new_ts, fill_value)
-        }
-
-        fn get_info(&self) -> &EvaluatorInfo {
-            &self.properties.info
-        }
-
-        fn get_names(&self) -> Vec<&str> {
-            self.properties
-                .names
-                .iter()
-                .map(|name| name.as_str())
-                .collect()
-        }
-
-        fn get_descriptions(&self) -> Vec<&str> {
-            self.properties
-                .descriptions
-                .iter()
-                .map(|desc| desc.as_str())
-                .collect()
         }
     };
 }

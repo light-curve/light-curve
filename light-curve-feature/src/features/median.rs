@@ -20,6 +20,7 @@ pub struct Median {}
 
 lazy_info!(
     MEDIAN_INFO,
+    Median,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -38,6 +39,16 @@ impl Median {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for Median {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["median"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["median magnitude"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for Median
 where
     T: Float,
@@ -45,18 +56,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_median()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MEDIAN_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["median"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["median magnitude"]
     }
 }
 

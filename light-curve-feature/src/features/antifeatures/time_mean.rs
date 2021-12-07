@@ -30,6 +30,7 @@ impl TimeMean {
 
 lazy_info!(
     TIME_MEAN_INFO,
+    TimeMean,
     size: 1,
     min_ts_length: 1,
     t_required: true,
@@ -37,7 +38,15 @@ lazy_info!(
     w_required: false,
     sorting_required: false,
 );
+impl FeatureNamesDescriptionsTrait for TimeMean {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_time_mean"]
+    }
 
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["mean of time moments"]
+    }
+}
 impl<T> FeatureEvaluator<T> for TimeMean
 where
     T: Float,
@@ -45,18 +54,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.t.get_mean()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &TIME_MEAN_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_time_mean"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["mean of time moments"]
     }
 }
 

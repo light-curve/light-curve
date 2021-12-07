@@ -64,6 +64,7 @@ impl Default for BazinFit {
 
 lazy_info!(
     BAZIN_FIT_INFO,
+    BazinFit,
     size: 6,
     min_ts_length: 6,
     t_required: true,
@@ -141,6 +142,30 @@ impl BazinFit {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for BazinFit {
+    fn get_names(&self) -> Vec<&str> {
+        vec![
+            "bazin_fit_amplitude",
+            "bazin_fit_baseline",
+            "bazin_fit_reference_time",
+            "bazin_fit_rise_time",
+            "bazin_fit_fall_time",
+            "bazin_fit_reduced_chi2",
+        ]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![
+            "half amplitude of the Bazin function (A)",
+            "baseline of the Bazin function (B)",
+            "reference time of the Bazin fit (t0)",
+            "rise time of the Bazin function (tau_rise)",
+            "fall time of the Bazin function (tau_fall)",
+            "Bazin fit quality (reduced chi2)",
+        ]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for BazinFit
 where
     T: Float,
@@ -206,32 +231,6 @@ where
         };
 
         Ok(result)
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &BAZIN_FIT_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![
-            "bazin_fit_amplitude",
-            "bazin_fit_baseline",
-            "bazin_fit_reference_time",
-            "bazin_fit_rise_time",
-            "bazin_fit_fall_time",
-            "bazin_fit_reduced_chi2",
-        ]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![
-            "half amplitude of the Bazin function (A)",
-            "baseline of the Bazin function (B)",
-            "reference time of the Bazin fit (t0)",
-            "rise time of the Bazin function (tau_rise)",
-            "fall time of the Bazin function (tau_fall)",
-            "Bazin fit quality (reduced chi2)",
-        ]
     }
 }
 

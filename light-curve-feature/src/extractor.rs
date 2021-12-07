@@ -73,6 +73,35 @@ impl<T, F> FeatureExtractor<T, F> {
     }
 }
 
+impl<T, F> EvaluatorInfoTrait for FeatureExtractor<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn get_info(&self) -> &EvaluatorInfo {
+        &self.info
+    }
+}
+
+impl<T, F> FeatureNamesDescriptionsTrait for FeatureExtractor<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    /// Get feature names
+    fn get_names(&self) -> Vec<&str> {
+        self.features.iter().flat_map(|x| x.get_names()).collect()
+    }
+
+    /// Get feature descriptions
+    fn get_descriptions(&self) -> Vec<&str> {
+        self.features
+            .iter()
+            .flat_map(|x| x.get_descriptions())
+            .collect()
+    }
+}
+
 impl<T, F> FeatureEvaluator<T> for FeatureExtractor<T, F>
 where
     T: Float,
@@ -90,23 +119,6 @@ where
         self.features
             .iter()
             .flat_map(|x| x.eval_or_fill(ts, fill_value))
-            .collect()
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &self.info
-    }
-
-    /// Get feature names
-    fn get_names(&self) -> Vec<&str> {
-        self.features.iter().flat_map(|x| x.get_names()).collect()
-    }
-
-    /// Get feature descriptions
-    fn get_descriptions(&self) -> Vec<&str> {
-        self.features
-            .iter()
-            .flat_map(|x| x.get_descriptions())
             .collect()
     }
 }

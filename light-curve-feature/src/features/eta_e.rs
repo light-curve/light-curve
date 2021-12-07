@@ -37,6 +37,7 @@ impl EtaE {
 
 lazy_info!(
     ETA_E_INFO,
+    EtaE,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -44,6 +45,16 @@ lazy_info!(
     w_required: false,
     sorting_required: true,
 );
+
+impl FeatureNamesDescriptionsTrait for EtaE {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["eta_e"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["generalised Von Neummann eta for irregular time-series"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for EtaE
 where
@@ -64,18 +75,6 @@ where
             / m_std2
             / (ts.lenf() - T::one()).powi(3);
         Ok(vec![value])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &ETA_E_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["eta_e"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["generalised Von Neummann eta for irregular time-series"]
     }
 }
 

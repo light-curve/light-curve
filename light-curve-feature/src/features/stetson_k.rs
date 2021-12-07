@@ -27,6 +27,7 @@ pub struct StetsonK {}
 
 lazy_info!(
     STETSON_K_INFO,
+    StetsonK,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -45,6 +46,16 @@ impl StetsonK {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for StetsonK {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["stetson_K"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["normalized weighted deviation of magnitude from its weighted mean"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for StetsonK
 where
     T: Float,
@@ -58,18 +69,6 @@ where
             .fold(T::zero(), |acc, &y, &w| acc + T::abs(y - mean) * T::sqrt(w))
             / T::sqrt(ts.lenf() * chi2);
         Ok(vec![value])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &STETSON_K_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["stetson_K"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["normalized weighted deviation of magnitude from its weighted mean"]
     }
 }
 

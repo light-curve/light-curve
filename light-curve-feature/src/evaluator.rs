@@ -28,32 +28,14 @@ pub struct EvaluatorProperties {
     pub descriptions: Vec<String>,
 }
 
-/// The trait each feature should implement
+// pub trait EvaluatorPropertiesTrait {
+//     fn get_properties(&self) -> &EvaluatorProperties;
+// }
+
 #[enum_dispatch]
-pub trait FeatureEvaluator<T: Float>:
-    Send + Clone + Debug + Serialize + DeserializeOwned + JsonSchema
-{
-    /// Vector of feature values or `EvaluatorError`
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
-
-    /// Returns vector of feature values and fill invalid components with given value
-    fn eval_or_fill(&self, ts: &mut TimeSeries<T>, fill_value: T) -> Vec<T> {
-        match self.eval(ts) {
-            Ok(v) => v,
-            Err(_) => vec![fill_value; self.size_hint()],
-        }
-    }
-
+pub trait EvaluatorInfoTrait {
     /// Get feature evaluator meta-information
     fn get_info(&self) -> &EvaluatorInfo;
-
-    /// Vector of feature names. The length and feature order corresponds to
-    /// [eval()](FeatureEvaluator::eval) output
-    fn get_names(&self) -> Vec<&str>;
-
-    /// Vector of feature descriptions. The length and feature order corresponds to
-    /// [eval()](FeatureEvaluator::eval) output
-    fn get_descriptions(&self) -> Vec<&str>;
 
     /// Size of vectors returned by [eval()](FeatureEvaluator::eval),
     /// [get_names()](FeatureEvaluator::get_names) and
@@ -85,6 +67,71 @@ pub trait FeatureEvaluator<T: Float>:
     /// If feature requires time-sorting on the input [TimeSeries]
     fn is_sorting_required(&self) -> bool {
         self.get_info().sorting_required
+    }
+}
+
+// impl<P> EvaluatorInfoTrait for P
+// where
+//     P: EvaluatorPropertiesTrait,
+// {
+//     fn get_info(&self) -> &EvaluatorInfo {
+//         &self.get_properties().info
+//     }
+// }
+
+#[enum_dispatch]
+pub trait FeatureNamesDescriptionsTrait {
+    /// Vector of feature names. The length and feature order corresponds to
+    /// [eval()](FeatureEvaluator::eval) output
+    fn get_names(&self) -> Vec<&str>;
+
+    /// Vector of feature descriptions. The length and feature order corresponds to
+    /// [eval()](FeatureEvaluator::eval) output
+    fn get_descriptions(&self) -> Vec<&str>;
+}
+
+// impl<P> FeatureNamesDescriptionsTrait for P
+// where
+//     P: EvaluatorPropertiesTrait,
+// {
+//     fn get_names(&self) -> Vec<&str> {
+//         self.get_properties()
+//             .names
+//             .iter()
+//             .map(|name| name.as_str())
+//             .collect()
+//     }
+//
+//     fn get_descriptions(&self) -> Vec<&str> {
+//         self.get_properties()
+//             .descriptions
+//             .iter()
+//             .map(|descr| descr.as_str())
+//             .collect()
+//     }
+// }
+
+/// The trait each feature should implement
+#[enum_dispatch]
+pub trait FeatureEvaluator<T: Float>:
+    FeatureNamesDescriptionsTrait
+    + EvaluatorInfoTrait
+    + Send
+    + Clone
+    + Debug
+    + Serialize
+    + DeserializeOwned
+    + JsonSchema
+{
+    /// Vector of feature values or `EvaluatorError`
+    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError>;
+
+    /// Returns vector of feature values and fill invalid components with given value
+    fn eval_or_fill(&self, ts: &mut TimeSeries<T>, fill_value: T) -> Vec<T> {
+        match self.eval(ts) {
+            Ok(v) => v,
+            Err(_) => vec![fill_value; self.size_hint()],
+        }
     }
 
     /// Checks if [TimeSeries] has enough points to evaluate the feature

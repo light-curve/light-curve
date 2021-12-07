@@ -39,6 +39,7 @@ impl Cusum {
 
 lazy_info!(
     CUSUM_INFO,
+    Cusum,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -46,6 +47,16 @@ lazy_info!(
     w_required: false,
     sorting_required: true,
 );
+
+impl FeatureNamesDescriptionsTrait for Cusum {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["cusum"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["range of cumulative sums of magnitudes"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for Cusum
 where
@@ -63,18 +74,6 @@ where
             },
         );
         Ok(vec![(max_cusum - min_cusum) / (m_std * ts.lenf())])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &CUSUM_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["cusum"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["range of cumulative sums of magnitudes"]
     }
 }
 

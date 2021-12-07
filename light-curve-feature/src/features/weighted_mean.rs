@@ -21,6 +21,7 @@ pub struct WeightedMean {}
 
 lazy_info!(
     WEIGHTED_MEAN_INFO,
+    WeightedMean,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -39,6 +40,16 @@ impl WeightedMean {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for WeightedMean {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["weighted_mean"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["magnitude averaged weighted by inverse square error"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for WeightedMean
 where
     T: Float,
@@ -46,18 +57,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.get_m_weighted_mean()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &WEIGHTED_MEAN_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["weighted_mean"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["magnitude averaged weighted by inverse square error"]
     }
 }
 

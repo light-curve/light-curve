@@ -31,6 +31,7 @@ impl MaximumTimeInterval {
 
 lazy_info!(
     MAXIMUM_TIME_INTERVAL_INFO,
+    MaximumTimeInterval,
     size: 1,
     min_ts_length: 2,
     t_required: true,
@@ -38,6 +39,16 @@ lazy_info!(
     w_required: false,
     sorting_required: true,
 );
+
+impl FeatureNamesDescriptionsTrait for MaximumTimeInterval {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["ANTIFEATURE_maximum_time_interval"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["maximum time interval between consequent observations"]
+    }
+}
 
 impl<T> FeatureEvaluator<T> for MaximumTimeInterval
 where
@@ -53,18 +64,6 @@ where
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap();
         Ok(vec![dt])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MAXIMUM_TIME_INTERVAL_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_maximum_time_interval"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["maximum time interval between consequent observations"]
     }
 }
 

@@ -5,11 +5,11 @@ implements extraction of numerous light curve features used in astrophysics.
 
 All features are available in [Feature](crate::Feature) enum, and the recommended way to extract multiple features at
 once is [FeatureExtractor](crate::FeatureExtractor) struct built from a `Vec<Feature>`. Data is represented by
-[TimeSeries](crate::TimeSeries) struct built from time, magnitude (or flux) and weights arrays, all having the same length. Note
+[TimeSeries](crate::TimeSeries) struct built from time, magnitude (or flux) and weight arrays, all having the same length. Note
 that multiple features interpret weight array as inversed squared observation errors.
 
 ```rust
-use light_curve_feature::*;
+use light_curve_feature::prelude::*;
 
 // Let's find amplitude and reduced Chi-squared of the light curve
 let fe = FeatureExtractor::<_, Feature<_>>::new(vec![Amplitude::default().into(), ReducedChi2::default().into()]);
@@ -29,7 +29,7 @@ There are a couple of meta-features, which transform a light curve before featur
 [Bins](crate::Bins) feature accumulates data inside time-windows and extracts features from this new light curve.
 
 ```rust
-use light_curve_feature::*;
+use light_curve_feature::prelude::*;
 use ndarray::Array1;
 
 // Define features, "raw" MaximumSlope and binned with zero offset and 1-day window

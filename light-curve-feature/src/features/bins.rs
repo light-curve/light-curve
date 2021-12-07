@@ -112,6 +112,26 @@ where
         self
     }
 
+    #[inline]
+    pub fn default_window() -> T {
+        T::one()
+    }
+
+    #[inline]
+    pub fn default_offset() -> T {
+        T::zero()
+    }
+}
+
+impl<T, F> Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    pub fn doc() -> &'static str {
+        DOC
+    }
+
     fn transform_ts(&self, ts: &mut TimeSeries<T>) -> Result<TmwArrays<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         let (t, m, w): (Vec<_>, Vec<_>, Vec<_>) =
@@ -140,26 +160,6 @@ where
             w: w.into(),
         })
     }
-
-    #[inline]
-    pub fn default_window() -> T {
-        T::one()
-    }
-
-    #[inline]
-    pub fn default_offset() -> T {
-        T::zero()
-    }
-}
-
-impl<T, F> Bins<T, F>
-where
-    T: Float,
-    F: FeatureEvaluator<T>,
-{
-    pub fn doc() -> &'static str {
-        DOC
-    }
 }
 
 impl<T, F> Default for Bins<T, F>
@@ -169,6 +169,37 @@ where
 {
     fn default() -> Self {
         Self::new(Self::default_window(), Self::default_offset())
+    }
+}
+
+impl<T, F> EvaluatorInfoTrait for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn get_info(&self) -> &EvaluatorInfo {
+        &self.properties.info
+    }
+}
+impl<T, F> FeatureNamesDescriptionsTrait for Bins<T, F>
+where
+    T: Float,
+    F: FeatureEvaluator<T>,
+{
+    fn get_names(&self) -> Vec<&str> {
+        self.properties
+            .names
+            .iter()
+            .map(|name| name.as_str())
+            .collect()
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        self.properties
+            .descriptions
+            .iter()
+            .map(|descr| descr.as_str())
+            .collect()
     }
 }
 

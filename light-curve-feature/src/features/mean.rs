@@ -21,6 +21,7 @@ pub struct Mean {}
 
 lazy_info!(
     MEAN_INFO,
+    Mean,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -39,6 +40,16 @@ impl Mean {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for Mean {
+    fn get_names(&self) -> Vec<&str> {
+        vec!["mean"]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec!["mean magnitude"]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for Mean
 where
     T: Float,
@@ -46,18 +57,6 @@ where
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
         Ok(vec![ts.m.get_mean()])
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MEAN_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec!["mean"]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec!["mean magnitude"]
     }
 }
 

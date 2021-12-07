@@ -34,6 +34,7 @@ pub struct MagnitudePercentageRatio {
 
 lazy_info!(
     MAGNITUDE_PERCENTAGE_RATIO_INFO,
+    MagnitudePercentageRatio,
     size: 1,
     min_ts_length: 2,
     t_required: false,
@@ -97,6 +98,16 @@ impl Default for MagnitudePercentageRatio {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for MagnitudePercentageRatio {
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for MagnitudePercentageRatio
 where
     T: Float,
@@ -113,18 +124,6 @@ where
         } else {
             Ok(vec![numerator / denumerator])
         }
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &MAGNITUDE_PERCENTAGE_RATIO_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![self.description.as_str()]
     }
 }
 

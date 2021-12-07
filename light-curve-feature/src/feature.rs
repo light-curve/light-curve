@@ -11,7 +11,7 @@ use std::fmt::Debug;
 /// All features are available as variants of this enum
 ///
 /// Consider to import [crate::FeatureEvaluator] as well
-#[enum_dispatch(FeatureEvaluator<T>)]
+#[enum_dispatch(FeatureEvaluator<T>, FeatureNamesDescriptionsTrait, EvaluatorInfoTrait)]
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(bound = "T: Float")]
 #[non_exhaustive]

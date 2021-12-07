@@ -31,6 +31,7 @@ pub struct PercentDifferenceMagnitudePercentile {
 
 lazy_info!(
     PERCENT_DIFFERENCE_MAGNITUDE_PERCENTILE_INFO,
+    PercentDifferenceMagnitudePercentile,
     size: 1,
     min_ts_length: 1,
     t_required: false,
@@ -79,6 +80,16 @@ impl Default for PercentDifferenceMagnitudePercentile {
     }
 }
 
+impl FeatureNamesDescriptionsTrait for PercentDifferenceMagnitudePercentile {
+    fn get_names(&self) -> Vec<&str> {
+        vec![self.name.as_str()]
+    }
+
+    fn get_descriptions(&self) -> Vec<&str> {
+        vec![self.description.as_str()]
+    }
+}
+
 impl<T> FeatureEvaluator<T> for PercentDifferenceMagnitudePercentile
 where
     T: Float,
@@ -93,18 +104,6 @@ where
         } else {
             Ok(vec![nominator / denominator])
         }
-    }
-
-    fn get_info(&self) -> &EvaluatorInfo {
-        &PERCENT_DIFFERENCE_MAGNITUDE_PERCENTILE_INFO
-    }
-
-    fn get_names(&self) -> Vec<&str> {
-        vec![self.name.as_str()]
-    }
-
-    fn get_descriptions(&self) -> Vec<&str> {
-        vec![self.description.as_str()]
     }
 }
 
