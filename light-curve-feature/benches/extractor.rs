@@ -138,8 +138,8 @@ where
                     format!("SN Ia {:?} {}", f, type_name::<T>()).as_str(),
                     |b| {
                         b.iter(|| {
-                            real_data.iter_mut().for_each(|mut ts| {
-                                let _v = f.eval(black_box(&mut ts)).unwrap();
+                            real_data.iter_mut().for_each(|ts| {
+                                let _v = f.eval(black_box(ts)).unwrap();
                             });
                         });
                     },
