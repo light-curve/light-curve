@@ -113,3 +113,64 @@ macro_rules! json_schema {
         }
     };
 }
+
+/// Helper implemnting *Fit feature evaluators
+/// You must:
+/// - implement all traits of [nl_fit::evaluator]
+/// - satisfy all [FeatureEvaluator] trait constraints
+/// - declare `const NPARAMS: usize` in your code
+macro_rules! fit_eval {
+    () => {
+        fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
+            self.check_ts_length(ts)?;
+
+            let norm_data = NormalizedData::<f64>::from_ts(ts);
+
+            let (x0, bound) = {
+                let (mut x0, bound) = Self::init_and_bounds_from_ts(ts);
+                let (left, right): (Vec<_>, Vec<_>) = bound.into_iter().unzip();
+                x0 = Self::convert_to_internal(&norm_data, &x0);
+                let left =
+                    Self::convert_to_internal(&norm_data, (&left as &[_]).try_into().unwrap());
+                let right =
+                    Self::convert_to_internal(&norm_data, (&right as &[_]).try_into().unwrap());
+                let bound: [_; NPARAMS] = left
+                    .into_iter()
+                    .zip(right.into_iter())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap();
+                (x0, bound)
+            };
+
+            let result = {
+                let norm_data_for_prior = norm_data.clone();
+                let CurveFitResult {
+                    x, reduced_chi2, ..
+                } = self.get_algorithm().curve_fit(
+                    norm_data.data.clone(),
+                    &x0,
+                    &bound,
+                    Self::model,
+                    Self::derivatives,
+                    self.get_ln_prior()
+                        .as_func_with_transformation(move |params| {
+                            Self::convert_to_external(
+                                &norm_data_for_prior,
+                                params.try_into().unwrap(),
+                            )
+                        }),
+                );
+                let result =
+                    Self::convert_to_external(&norm_data, (&x as &[_]).try_into().unwrap());
+                result
+                    .into_iter()
+                    .chain(std::iter::once(reduced_chi2))
+                    .map(|x| x.approx_as::<T>().unwrap())
+                    .collect()
+            };
+
+            Ok(result)
+        }
+    };
+}

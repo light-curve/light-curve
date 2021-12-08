@@ -1,10 +1,12 @@
 use crate::evaluator::*;
 use crate::nl_fit::{
-    data::NormalizedData, CurveFitAlgorithm, CurveFitResult, CurveFitTrait, F64LikeFloat,
-    McmcCurveFit,
+    data::NormalizedData, evaluator::*, CurveFitAlgorithm, CurveFitResult, CurveFitTrait,
+    LikeFloat, LnPrior, McmcCurveFit,
 };
 
 use conv::ConvUtil;
+
+const NPARAMS: usize = 7;
 
 macro_const! {
     const DOC: &str = r#"
@@ -37,6 +39,7 @@ Villar et al. 2019 [DOI:10.3847/1538-4357/ab418c](https://doi.org/10.3847/1538-4
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct VillarFit {
     algorithm: CurveFitAlgorithm,
+    ln_prior: LnPrior,
 }
 
 impl VillarFit {
@@ -46,64 +49,100 @@ impl VillarFit {
     /// [CurveFitAlgorithm], currently supported algorithms are [MCMC](McmcCurveFit) and
     /// [LMSDER](crate::nl_fit::LmsderCurveFit) (a Levenberg–Marquard algorithm modification,
     /// requires `gsl` Cargo feature).
-    pub fn new(algorithm: CurveFitAlgorithm) -> Self {
-        Self { algorithm }
+    ///
+    /// `ln_prior` is an instance of [LnPrior] and specifies the natural logarithm of the prior to
+    /// use. Some curve-fit algorithms doesn't support this and ignores the prior
+    pub fn new(algorithm: CurveFitAlgorithm, ln_prior: LnPrior) -> Self {
+        Self {
+            algorithm,
+            ln_prior,
+        }
     }
 
-    /// [VillarFit] with the default [McmcCurveFit]
+    /// Default [McmcCurveFit] for [VillarFit]
     #[inline]
     pub fn default_algorithm() -> CurveFitAlgorithm {
-        McmcCurveFit::new(McmcCurveFit::default_niterations(), None).into()
+        McmcCurveFit::new(
+            McmcCurveFit::default_niterations(),
+            McmcCurveFit::default_fine_tuning_algorithm(),
+        )
+        .into()
+    }
+
+    /// Default [LnPrior] for [VillarFit]
+    #[inline]
+    pub fn default_ln_prior() -> LnPrior {
+        LnPrior::none()
     }
 
     pub fn doc() -> &'static str {
         DOC
     }
+
+    fn nu_to_b<U>(nu: U) -> U
+    where
+        U: LikeFloat,
+    {
+        U::half() * (U::ln_1p(nu) - U::ln(U::one() - nu))
+    }
+
+    fn b_to_nu<U>(b: U) -> U
+    where
+        U: LikeFloat,
+    {
+        U::two() * U::logistic(U::two() * b.abs()) - U::one()
+    }
 }
 
 impl Default for VillarFit {
     fn default() -> Self {
-        Self::new(Self::default_algorithm())
+        Self::new(Self::default_algorithm(), Self::default_ln_prior())
     }
 }
 
 lazy_info!(
     VILLAR_FIT_INFO,
     VillarFit,
-    size: 8,
-    min_ts_length: 8,
+    size: NPARAMS + 1,
+    min_ts_length: NPARAMS + 1,
     t_required: true,
     m_required: true,
     w_required: true,
     sorting_required: true, // improve reproducibility
 );
 
-impl VillarFit {
-    pub fn f<T>(t: T, values: &[T]) -> T
-    where
-        T: Float,
-    {
-        let mut param = values[..7].to_owned();
-        // beta to b
-        param[5] = T::half() * (T::ln_1p(param[5]) - T::ln(T::one() - param[5]));
-        Self::model(t, &param)
-    }
-
-    fn model<T, U>(t: T, param: &[U]) -> U
-    where
-        T: Into<U>,
-        U: F64LikeFloat,
-    {
+impl<T, U> FitModelTrait<T, U> for VillarFit
+where
+    T: Float + Into<U>,
+    U: LikeFloat,
+{
+    fn model(t: T, param: &[U]) -> U {
         let t: U = t.into();
-        let x = Params { storage: param };
+        let x = param
+            .try_into()
+            .expect("input param slice has wrong length");
+        let x = Params {
+            internal: &x,
+            external: Self::internal_to_dimensionless(&x),
+        };
         x.c() + x.a() * x.rise(t) * x.plateau(t) * x.fall(t)
     }
+}
 
-    fn derivatives<T>(t: T, param: &[T], jac: &mut [T])
-    where
-        T: Float,
-    {
-        let x = Params { storage: param };
+impl<T> FitFunctionTrait<T, NPARAMS> for VillarFit where T: Float {}
+
+impl<T> FitDerivalivesTrait<T> for VillarFit
+where
+    T: Float,
+{
+    fn derivatives(t: T, param: &[T], jac: &mut [T]) {
+        let x = param
+            .try_into()
+            .expect("input param slice has wrong length");
+        let x = Params {
+            internal: &x,
+            external: Self::internal_to_dimensionless(&x),
+        };
         let dt = x.dt(t);
         let t1 = x.t1();
         let nu = x.nu();
@@ -113,8 +152,10 @@ impl VillarFit {
         let is_rise = t <= t1;
         let f_minus_c = x.a() * plateau * rise * fall;
 
+        let jac: &mut [T; NPARAMS] = jac.try_into().unwrap();
+
         // A
-        jac[0] = x.sgn_a() * plateau * rise * fall;
+        jac[0] = x.sgn_a_internal() * plateau * rise * fall;
         // c
         jac[1] = T::one();
         // t0
@@ -128,12 +169,13 @@ impl VillarFit {
                     plateau / x.tau_fall()
                 });
         // tau_rise
-        jac[3] = -x.sgn_tau_rise() * f_minus_c * (T::one() - rise) * dt / x.tau_rise().powi(2);
+        jac[3] =
+            -x.sgn_tau_rise_internal() * f_minus_c * (T::one() - rise) * dt / x.tau_rise().powi(2);
         // tau_fall
         jac[4] = if is_rise {
             T::zero()
         } else {
-            x.sgn_tau_fall() * f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
+            x.sgn_tau_fall_internal() * f_minus_c * (dt - x.gamma()) / x.tau_fall().powi(2)
         };
         // b = 1/2 * ln [(1 - nu) / (1 + nu)]
         jac[5] = -x.sgn_b()
@@ -143,15 +185,20 @@ impl VillarFit {
             * fall
             * if is_rise { dt / x.gamma() } else { T::one() };
         // gamma
-        jac[6] = x.sgn_gamma()
+        jac[6] = x.sgn_gamma_internal()
             * if is_rise {
                 x.a() * rise * fall * nu * dt / x.gamma().powi(2)
             } else {
                 f_minus_c / x.tau_fall()
             };
     }
+}
 
-    fn init_and_bounds_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> ([f64; 7], [(f64, f64); 7]) {
+impl<T> FitInitsBoundsTrait<T, NPARAMS> for VillarFit
+where
+    T: Float,
+{
+    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> ([f64; NPARAMS], [(f64, f64); NPARAMS]) {
         let t_min: f64 = ts.t.get_min().value_into().unwrap();
         let t_max: f64 = ts.t.get_max().value_into().unwrap();
         let t_amplitude = t_max - t_min;
@@ -163,8 +210,8 @@ impl VillarFit {
         let a_init = 0.5 * m_amplitude;
         let a_bound = (0.0, 100.0 * m_amplitude);
 
-        let b_init = m_min;
-        let b_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+        let c_init = m_min;
+        let c_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
 
         // t0 is not a peak time, but something before the peak
         let t0_init = t_peak;
@@ -185,7 +232,7 @@ impl VillarFit {
         (
             [
                 a_init,
-                b_init,
+                c_init,
                 t0_init,
                 tau_rise_init,
                 tau_fall_init,
@@ -194,7 +241,7 @@ impl VillarFit {
             ],
             [
                 a_bound,
-                b_bound,
+                c_bound,
                 t0_bound,
                 tau_rise_bound,
                 tau_fall_bound,
@@ -202,6 +249,79 @@ impl VillarFit {
                 gamma_bound,
             ],
         )
+    }
+}
+
+impl FitParametersOriginalDimLessTrait<NPARAMS> for VillarFit {
+    fn orig_to_dimensionless(
+        norm_data: &NormalizedData<f64>,
+        orig: &[f64; NPARAMS],
+    ) -> [f64; NPARAMS] {
+        [
+            norm_data.m_to_norm_scale(orig[0]), // A amplitude
+            norm_data.m_to_norm(orig[1]),       // c baseline
+            norm_data.t_to_norm(orig[2]),       // t_0 reference time
+            norm_data.t_to_norm_scale(orig[3]), // tau_rise rise time
+            norm_data.t_to_norm_scale(orig[4]), // tau_fall fall time
+            orig[5],                            // nu = (beta gamma / A), dimensionless
+            norm_data.t_to_norm_scale(orig[6]), // gamma plateau duration
+        ]
+    }
+
+    fn dimensionless_to_orig(
+        norm_data: &NormalizedData<f64>,
+        norm: &[f64; NPARAMS],
+    ) -> [f64; NPARAMS] {
+        [
+            norm_data.m_to_orig_scale(norm[0]), // A amplitude
+            norm_data.m_to_orig(norm[1]),       // c baseline
+            norm_data.t_to_orig(norm[2]),       // t_0 reference time
+            norm_data.t_to_orig_scale(norm[3]), // tau_rise rise time
+            norm_data.t_to_orig_scale(norm[4]), // tau_fall fall time
+            norm[5], // nu = (beta gamma / A) relative plateau amplitude, dimensionless
+            norm_data.t_to_orig_scale(norm[6]), // gamma plateau duration
+        ]
+    }
+}
+
+impl<U> FitParametersInternalDimlessTrait<U, NPARAMS> for VillarFit
+where
+    U: LikeFloat,
+{
+    fn dimensionless_to_internal(params: &[U; NPARAMS]) -> [U; NPARAMS] {
+        [
+            params[0],
+            params[1],
+            params[2],
+            params[3],
+            params[4],
+            Self::nu_to_b(params[5]),
+            params[6],
+        ]
+    }
+
+    fn internal_to_dimensionless(params: &[U; NPARAMS]) -> [U; NPARAMS] {
+        [
+            params[0].abs(),
+            params[1],
+            params[2],
+            params[3].abs(),
+            params[4].abs(),
+            Self::b_to_nu(params[5]),
+            params[6].abs(),
+        ]
+    }
+}
+
+impl FitParametersInternalExternalTrait<NPARAMS> for VillarFit {}
+
+impl FitFeatureEvaluatorGettersTrait for VillarFit {
+    fn get_algorithm(&self) -> &CurveFitAlgorithm {
+        &self.algorithm
+    }
+
+    fn get_ln_prior(&self) -> &LnPrior {
+        &self.ln_prior
     }
 }
 
@@ -237,126 +357,56 @@ impl<T> FeatureEvaluator<T> for VillarFit
 where
     T: Float,
 {
-    fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
-        self.check_ts_length(ts)?;
-
-        let norm_data = NormalizedData::<f64>::from_ts(ts);
-
-        let (x0, bound) = {
-            let (mut x0, mut bound) = Self::init_and_bounds_from_ts(ts);
-
-            // A amplitude
-            x0[0] = norm_data.m_to_norm_scale(x0[0]);
-            bound[0].0 = norm_data.m_to_norm_scale(bound[0].0);
-            bound[0].1 = norm_data.m_to_norm_scale(bound[0].1);
-
-            // c baseline
-            x0[1] = norm_data.m_to_norm(x0[1]);
-            bound[1].0 = norm_data.m_to_norm(bound[1].0);
-            bound[1].1 = norm_data.m_to_norm(bound[1].1);
-
-            // t_0 reference time
-            x0[2] = norm_data.t_to_norm(x0[2]);
-            bound[2].0 = norm_data.t_to_norm(bound[2].0);
-            bound[2].1 = norm_data.t_to_norm(bound[2].1);
-
-            // tau_rise rise time
-            x0[3] = norm_data.t_to_norm_scale(x0[3]);
-            bound[3].0 = norm_data.t_to_norm_scale(bound[3].0);
-            bound[3].1 = norm_data.t_to_norm_scale(bound[3].1);
-
-            // tau_fall fall time
-            x0[4] = norm_data.t_to_norm_scale(x0[4]);
-            bound[4].0 = norm_data.t_to_norm_scale(bound[4].0);
-            bound[4].1 = norm_data.t_to_norm_scale(bound[4].1);
-
-            // nu = beta gamma / A relative plateau amplitude
-            // dimensionless, do nothing
-
-            // gamma plateau duration
-            x0[6] = norm_data.t_to_norm_scale(x0[6]);
-            bound[6].0 = norm_data.t_to_norm_scale(bound[6].0);
-            bound[6].1 = norm_data.t_to_norm_scale(bound[6].1);
-
-            (x0, bound)
-        };
-
-        let result = {
-            let CurveFitResult {
-                x, reduced_chi2, ..
-            } = self.algorithm.curve_fit(
-                norm_data.data.clone(),
-                &x0,
-                &bound,
-                Self::model::<f64, f64>,
-                Self::derivatives::<f64>,
-            );
-            let x = Params { storage: &x };
-            let mut result = vec![0.0; 8];
-            result[0] = norm_data.m_to_orig_scale(x.a()); // A amplitude
-            result[1] = norm_data.m_to_orig(x.c()); // c offset
-            result[2] = norm_data.t_to_orig(x.t0()); // t_0 reference time
-            result[3] = norm_data.t_to_orig_scale(x.tau_rise()); // tau_rise rise time
-            result[4] = norm_data.t_to_orig_scale(x.tau_fall()); // tau_fall fall time
-            result[5] = x.nu(); // nu relative plateau amplitude
-            result[6] = norm_data.t_to_orig_scale(x.gamma()); // gamma plateau duration
-            result[7] = reduced_chi2;
-            result
-                .iter()
-                .map(|&x| x.approx_as::<T>().unwrap())
-                .collect()
-        };
-
-        Ok(result)
-    }
+    fit_eval!();
 }
 
 struct Params<'a, T> {
-    storage: &'a [T],
+    internal: &'a [T; NPARAMS],
+    external: [T; NPARAMS],
 }
 
 impl<'a, T> Params<'a, T>
 where
-    T: F64LikeFloat,
+    T: LikeFloat,
 {
     #[inline]
     fn a(&self) -> T {
-        self.storage[0].abs()
+        self.external[0]
     }
 
     #[inline]
-    fn sgn_a(&self) -> T {
-        self.storage[0].signum()
+    fn sgn_a_internal(&self) -> T {
+        self.internal[0].signum()
     }
 
     #[inline]
     fn c(&self) -> T {
-        self.storage[1]
+        self.external[1]
     }
 
     #[inline]
     fn t0(&self) -> T {
-        self.storage[2]
+        self.external[2]
     }
 
     #[inline]
     fn tau_rise(&self) -> T {
-        self.storage[3].abs()
+        self.external[3]
     }
 
     #[inline]
-    fn sgn_tau_rise(&self) -> T {
-        self.storage[3].signum()
+    fn sgn_tau_rise_internal(&self) -> T {
+        self.internal[3].signum()
     }
 
     #[inline]
     fn tau_fall(&self) -> T {
-        self.storage[4].abs()
+        self.external[4]
     }
 
     #[inline]
-    fn sgn_tau_fall(&self) -> T {
-        self.storage[4].signum()
+    fn sgn_tau_fall_internal(&self) -> T {
+        self.internal[4].signum()
     }
 
     /// $\nu = 2 logistic(2|b|) - 1$
@@ -366,22 +416,22 @@ where
     /// $\nu = 1$ <=> $|b| = inf$
     #[inline]
     fn nu(&self) -> T {
-        T::two() * T::logistic(T::two() * self.storage[5].abs()) - T::one()
+        self.external[5]
     }
 
     #[inline]
     fn sgn_b(&self) -> T {
-        self.storage[5].signum()
+        self.internal[5].signum()
     }
 
     #[inline]
     fn gamma(&self) -> T {
-        self.storage[6].abs()
+        self.external[6]
     }
 
     #[inline]
-    fn sgn_gamma(&self) -> T {
-        self.storage[6].signum()
+    fn sgn_gamma_internal(&self) -> T {
+        self.internal[6].signum()
     }
 
     #[inline]
@@ -420,6 +470,7 @@ where
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
+    use crate::nl_fit::LnPrior1D;
     use crate::tests::*;
     use crate::LmsderCurveFit;
     use crate::TimeSeries;
@@ -455,7 +506,6 @@ mod tests {
             })
             .collect();
         let w: Vec<_> = model.iter().copied().map(f64::recip).collect();
-        println!("{:?}\n{:?}\n{:?}\n{:?}", t, model, m, w);
         let mut ts = TimeSeries::new(&t, &m, &w);
 
         // curve_fit(lambda t, a, c, t0, tau_rise, tau_fall, nu, gamma: c + a * (1 - nu * np.where(t - t0 < gamma, (t - t0) / gamma, 1)) / (1 + np.exp(-(t-t0) / tau_rise)) * np.where(t > t0 + gamma, np.exp(-(t-t0-gamma) / tau_fall), 1.0), xdata=t, ydata=m, sigma=np.array(w)**-0.5, p0=[1e4, 1e3, 20, 5, 30, 0.3, 30])
@@ -470,19 +520,44 @@ mod tests {
         ];
 
         let values = eval.eval(&mut ts).unwrap();
-        assert_relative_eq!(&values[..7], &desired[..], max_relative = 0.01);
+
+        println!(
+            "t = {:?}\nmodel = {:?}\nm = {:?}\nw = {:?}\nreduced_chi2 = {}",
+            t, model, m, w, values[NPARAMS]
+        );
+
+        assert_relative_eq!(&values[..NPARAMS], &desired[..], max_relative = 0.01);
     }
 
     #[test]
     fn villar_fit_noisy_lmsder() {
-        villar_fit_noisy(VillarFit::new(LmsderCurveFit::new(6).into()));
+        villar_fit_noisy(VillarFit::new(
+            LmsderCurveFit::new(6).into(),
+            LnPrior::none(),
+        ));
     }
 
     #[test]
     fn villar_fit_noizy_mcmc_plus_lmsder() {
         let lmsder = LmsderCurveFit::new(1);
         let mcmc = McmcCurveFit::new(2048, Some(lmsder.into()));
-        villar_fit_noisy(VillarFit::new(mcmc.into()));
+        villar_fit_noisy(VillarFit::new(mcmc.into(), LnPrior::none()));
+    }
+
+    #[test]
+    fn villar_fit_noizy_mcmc_with_prior() {
+        let prior = LnPrior::ind_components(vec![
+            LnPrior1D::normal(1e4, 1e4),
+            LnPrior1D::normal(1e3, 1e3),
+            LnPrior1D::uniform(5.0, 30.0),
+            LnPrior1D::log_normal(f64::ln(5.0), 1.0),
+            LnPrior1D::log_normal(f64::ln(30.0), 1.0),
+            LnPrior1D::uniform(0.0, 0.5),
+            LnPrior1D::log_normal(f64::ln(30.0), 1.0),
+        ]);
+        let lmsder = LmsderCurveFit::new(1);
+        let mcmc = McmcCurveFit::new(1024, Some(lmsder.into()));
+        villar_fit_noisy(VillarFit::new(mcmc.into(), prior));
     }
 
     #[test]
@@ -493,10 +568,10 @@ mod tests {
         for _ in 0..REPEAT {
             let t = 10.0 * rng.gen::<f64>();
 
-            let param: Vec<_> = (0..7).map(|_| rng.gen::<f64>() - 0.5).collect();
+            let param: Vec<_> = (0..NPARAMS).map(|_| rng.gen::<f64>() - 0.5).collect();
             println!("{:?}", param);
             let actual = {
-                let mut jac = [0.0; 7];
+                let mut jac = [0.0; NPARAMS];
                 VillarFit::derivatives(t, &param, &mut jac);
                 jac
             };

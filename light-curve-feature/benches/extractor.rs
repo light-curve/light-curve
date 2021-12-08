@@ -130,8 +130,8 @@ where
         ];
         for curve_fit in curve_fits.into_iter() {
             let features: Vec<Feature<_>> = vec![
-                BazinFit::new(curve_fit.clone()).into(),
-                VillarFit::new(curve_fit).into(),
+                BazinFit::new(curve_fit.clone(), LnPrior::none()).into(),
+                VillarFit::new(curve_fit, LnPrior::none()).into(),
             ];
             for f in features {
                 c.bench_function(

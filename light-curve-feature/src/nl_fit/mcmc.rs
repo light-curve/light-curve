@@ -6,6 +6,7 @@ use emcee_rand::{distributions::IndependentSample, *};
 use ndarray::Zip;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 /// MCMC sampler for non-linear least squares
@@ -15,6 +16,9 @@ use std::rc::Rc;
 /// and chooses guess corresponding to the minimum sum of squared deviations (maximum likelihood).
 /// Optionally, if `fine_tuning_algorithm` is `Some`, it sends this best guess to the next
 /// optimization as an initial guess and returns its result
+///
+/// This method supports both boundaries and priors while doesn't use the function derivatives if
+/// not required by `fine_tuning_algorithm`
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Mcmc")]
 pub struct McmcCurveFit {
@@ -51,17 +55,19 @@ impl Default for McmcCurveFit {
 }
 
 impl CurveFitTrait for McmcCurveFit {
-    fn curve_fit<F, DF>(
+    fn curve_fit<F, DF, LP>(
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64],
         bounds: &[(f64, f64)],
         model: F,
         derivatives: DF,
+        ln_prior: LP,
     ) -> CurveFitResult<f64>
     where
         F: 'static + Clone + Fn(f64, &[f64]) -> f64,
         DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]),
+        LP: Clone + Fn(&[f64]) -> f64,
     {
         const NWALKERS_PER_DIMENSION: usize = 4;
         let ndims = x0.len();
@@ -80,7 +86,14 @@ impl CurveFitTrait for McmcCurveFit {
                     .for_each(|&t, &m, &inv_err| {
                         residual += (inv_err * (model(t, &params) - m)).powi(2);
                     });
-                -residual as f32
+                -0.5 * residual as f32
+            }
+        };
+        let lnprior = {
+            let ln_prior = ln_prior.clone();
+            move |params: &Guess| {
+                let params = params.values.iter().map(|&x| x as f64).collect::<Vec<_>>();
+                ln_prior(&params) as f32
             }
         };
 
@@ -94,7 +107,8 @@ impl CurveFitTrait for McmcCurveFit {
             generate_initial_guesses(nwalkers, &x0_f32, &bounds_f32, &mut StdRng::from_seed(&[]));
         let initial_lnprob = lnlike(&initial_guesses[0]);
         let emcee_model = EmceeModel {
-            func: lnlike,
+            ln_like: lnlike,
+            ln_prior: lnprior,
             bounds: &bounds_f32,
         };
         let mut sampler = EnsembleSampler::new(nwalkers, ndims, &emcee_model).unwrap();
@@ -117,7 +131,7 @@ impl CurveFitTrait for McmcCurveFit {
         };
 
         match self.fine_tuning_algorithm.as_ref() {
-            Some(algo) => algo.curve_fit(ts, &best_x, bounds, model, derivatives),
+            Some(algo) => algo.curve_fit(ts, &best_x, bounds, model, derivatives, ln_prior),
             None => CurveFitResult {
                 x: best_x,
                 reduced_chi2: -best_lnprob / ((nsamples - ndims) as f64),
@@ -177,25 +191,27 @@ where
         .collect()
 }
 
-struct EmceeModel<'b, F> {
-    func: F,
+struct EmceeModel<'b, F, LP> {
+    ln_like: F,
+    ln_prior: LP,
     bounds: &'b [(f32, f32)],
 }
 
-impl<'b, F> Prob for EmceeModel<'b, F>
+impl<'b, F, LP> Prob for EmceeModel<'b, F, LP>
 where
     F: Fn(&Guess) -> f32,
+    LP: Fn(&Guess) -> f32,
 {
     fn lnlike(&self, params: &Guess) -> f32 {
-        (self.func)(params)
+        (self.ln_like)(params)
     }
 
     fn lnprior(&self, params: &Guess) -> f32 {
         for (&p, &(lower, upper)) in params.values.iter().zip(self.bounds.iter()) {
             if p < lower || p > upper {
-                return -f32::INFINITY;
+                return f32::NEG_INFINITY;
             }
         }
-        0.0
+        (self.ln_prior)(params)
     }
 }

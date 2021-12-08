@@ -20,6 +20,9 @@ use std::rc::Rc;
 /// LMSDER GSL non-linear least-squares wrapper
 ///
 /// Requires `gsl` Cargo feature
+///
+/// Non-linear squares-based light-curve fitters. It requires the function Jacobean, and it doesn't
+/// support neither boundaries nor priors
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename = "Lmsder")]
 pub struct LmsderCurveFit {
@@ -44,17 +47,19 @@ impl Default for LmsderCurveFit {
 }
 
 impl CurveFitTrait for LmsderCurveFit {
-    fn curve_fit<F, DF>(
+    fn curve_fit<F, DF, LP>(
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64],
         _bounds: &[(f64, f64)],
         model: F,
         derivatives: DF,
+        _ln_prior: LP,
     ) -> CurveFitResult<f64>
     where
         F: 'static + Clone + Fn(f64, &[f64]) -> f64,
         DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]),
+        LP: Clone + Fn(&[f64]) -> f64,
     {
         let f = {
             let ts = ts.clone();
