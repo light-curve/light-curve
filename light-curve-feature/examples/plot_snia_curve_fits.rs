@@ -1,6 +1,7 @@
 use clap::Parser;
 use light_curve_feature::{
-    BazinFit, Feature, FeatureEvaluator, LmsderCurveFit, McmcCurveFit, TimeSeries, VillarFit,
+    prelude::*, BazinFit, Feature, FeatureEvaluator, LmsderCurveFit, LnPrior, McmcCurveFit,
+    TimeSeries, VillarFit,
 };
 use light_curve_feature_test_util::iter_sn1a_flux_ts;
 use ndarray::{Array1, ArrayView1};
@@ -20,21 +21,27 @@ fn main() {
     let features: Vec<(&str, Feature<_>)> = vec![
         (
             "BazinFit LMSDER",
-            BazinFit::new(LmsderCurveFit::default().into()).into(),
+            BazinFit::new(LmsderCurveFit::default().into(), LnPrior::none()).into(),
         ),
         (
             "BazinFit MCMC+LMSDER",
-            BazinFit::new(McmcCurveFit::new(1024, Some(LmsderCurveFit::default().into())).into())
-                .into(),
+            BazinFit::new(
+                McmcCurveFit::new(1024, Some(LmsderCurveFit::default().into())).into(),
+                LnPrior::none(),
+            )
+            .into(),
         ),
         (
             "VillarFit LMSDER",
-            VillarFit::new(LmsderCurveFit::default().into()).into(),
+            VillarFit::new(LmsderCurveFit::default().into(), LnPrior::none()).into(),
         ),
         (
             "VillarFit MCMC+LMSDER",
-            VillarFit::new(McmcCurveFit::new(1024, Some(LmsderCurveFit::default().into())).into())
-                .into(),
+            VillarFit::new(
+                McmcCurveFit::new(1024, Some(LmsderCurveFit::default().into())).into(),
+                LnPrior::none(),
+            )
+            .into(),
         ),
     ];
     iter_sn1a_flux_ts()
@@ -67,8 +74,8 @@ fn fitted_model(
     let values = feature.eval(ts).expect("Feature cannot be extracted");
     let reduced_chi2 = values[values.len() - 1];
     let model: Box<dyn Fn(f64, &[f64]) -> f64> = match feature {
-        Feature::BazinFit(..) => Box::new(BazinFit::f::<f64>),
-        Feature::VillarFit(..) => Box::new(VillarFit::f::<f64>),
+        Feature::BazinFit(..) => Box::new(BazinFit::f),
+        Feature::VillarFit(..) => Box::new(BazinFit::f),
         _ => panic!("Unknown *Fit variant"),
     };
     let flux = t.mapv(|t| model(t, &values));

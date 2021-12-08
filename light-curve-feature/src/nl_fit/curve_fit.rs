@@ -19,17 +19,19 @@ pub struct CurveFitResult<T> {
 
 #[enum_dispatch]
 pub trait CurveFitTrait: Clone + Debug + Serialize + DeserializeOwned {
-    fn curve_fit<F, DF>(
+    fn curve_fit<F, DF, LP>(
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64],
         bounds: &[(f64, f64)],
         model: F,
         derivatives: DF,
+        ln_prior: LP,
     ) -> CurveFitResult<f64>
     where
         F: 'static + Clone + Fn(f64, &[f64]) -> f64,
-        DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]);
+        DF: 'static + Clone + Fn(f64, &[f64], &mut [f64]),
+        LP: Clone + Fn(&[f64]) -> f64;
 }
 
 /// Optimization algorithm for non-linear least squares

@@ -22,6 +22,28 @@ pub enum LnPrior1D {
     Mix(MixLnPrior1D),
 }
 
+impl LnPrior1D {
+    pub fn none() -> Self {
+        NoneLnPrior1D {}.into()
+    }
+
+    pub fn log_normal(mu: f64, std: f64) -> Self {
+        LogNormalLnPrior1D::new(mu, std).into()
+    }
+
+    pub fn log_uniform(left: f64, right: f64) -> Self {
+        LogUniformLnPrior1D::new(left, right).into()
+    }
+
+    pub fn normal(mu: f64, std: f64) -> Self {
+        NormalLnPrior1D::new(mu, std).into()
+    }
+
+    pub fn uniform(left: f64, right: f64) -> Self {
+        UniformLnPrior1D::new(left, right).into()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct NoneLnPrior1D {}
 

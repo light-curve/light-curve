@@ -29,9 +29,10 @@ pub use float_trait::Float;
 mod lnerfc;
 
 mod nl_fit;
-pub use nl_fit::prior;
+pub use nl_fit::evaluator::FitFeatureEvaluatorGettersTrait;
 #[cfg(feature = "gsl")]
 pub use nl_fit::LmsderCurveFit;
+pub use nl_fit::{prior, LnPrior, LnPrior1D};
 pub use nl_fit::{CurveFitAlgorithm, McmcCurveFit};
 
 #[doc(hidden)]
