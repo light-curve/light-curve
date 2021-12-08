@@ -327,6 +327,7 @@ where
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
+    use crate::nl_fit::LnPrior1D;
     use crate::tests::*;
     use crate::LmsderCurveFit;
     use crate::TimeSeries;
@@ -388,9 +389,22 @@ mod tests {
 
     #[test]
     fn bazin_fit_noizy_mcmc_plus_lmsder() {
-        let lmsder = LmsderCurveFit::new(8);
-        let mcmc = McmcCurveFit::new(128, Some(lmsder.into()));
+        let lmsder = LmsderCurveFit::new(1);
+        let mcmc = McmcCurveFit::new(512, Some(lmsder.into()));
         bazin_fit_noisy(BazinFit::new(mcmc.into(), LnPrior::none()));
+    }
+
+    #[test]
+    fn bazin_fit_noizy_mcmc_with_prior() {
+        let prior = LnPrior::ind_components(vec![
+            LnPrior1D::normal(1e4, 2e3),
+            LnPrior1D::normal(1e3, 2e2),
+            LnPrior1D::uniform(25.0, 35.0),
+            LnPrior1D::log_normal(f64::ln(10.0), 0.2),
+            LnPrior1D::log_normal(f64::ln(30.0), 0.2),
+        ]);
+        let mcmc = McmcCurveFit::new(1024, None);
+        bazin_fit_noisy(BazinFit::new(mcmc.into(), prior));
     }
 
     #[test]

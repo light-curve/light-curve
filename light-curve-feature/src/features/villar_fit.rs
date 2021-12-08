@@ -470,6 +470,7 @@ where
 #[allow(clippy::excessive_precision)]
 mod tests {
     use super::*;
+    use crate::nl_fit::LnPrior1D;
     use crate::tests::*;
     use crate::LmsderCurveFit;
     use crate::TimeSeries;
@@ -541,6 +542,22 @@ mod tests {
         let lmsder = LmsderCurveFit::new(1);
         let mcmc = McmcCurveFit::new(2048, Some(lmsder.into()));
         villar_fit_noisy(VillarFit::new(mcmc.into(), LnPrior::none()));
+    }
+
+    #[test]
+    fn villar_fit_noizy_mcmc_with_prior() {
+        let prior = LnPrior::ind_components(vec![
+            LnPrior1D::normal(1e4, 1e4),
+            LnPrior1D::normal(1e3, 1e3),
+            LnPrior1D::uniform(5.0, 30.0),
+            LnPrior1D::log_normal(f64::ln(5.0), 1.0),
+            LnPrior1D::log_normal(f64::ln(30.0), 1.0),
+            LnPrior1D::uniform(0.0, 0.5),
+            LnPrior1D::log_normal(f64::ln(30.0), 1.0),
+        ]);
+        let lmsder = LmsderCurveFit::new(1);
+        let mcmc = McmcCurveFit::new(1024, Some(lmsder.into()));
+        villar_fit_noisy(VillarFit::new(mcmc.into(), prior));
     }
 
     #[test]
