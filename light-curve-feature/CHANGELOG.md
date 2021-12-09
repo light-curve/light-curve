@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BazinFit` and `VillarFit` are reimplemented using new traits, which all are included into `prelude`
 - `VillarFit` now uses a different parameter set to fix issue with non-physical negative flux fits, relative plateau amplitude `nu` replaces plateau slope `beta`. It is a breaking change
 - `BazinFit` and `VillarFit` name and description for `t_0` parameter are changed replacing "peak" to "reference", because this time moment does not correspond to the light-curve peak
+- `BazinFit` and `VillarFit` have two new fields (and require two new argments in there `new` constructors): `ln_prior` and `inits_bounds`. The last one supports custom initial guess and boundaries for the optimization problem
 - MCMC uses more diverse initial guesses which take into account boundary conditions
 
 ### Deprecated
