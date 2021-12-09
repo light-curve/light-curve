@@ -1,6 +1,7 @@
 use crate::nl_fit::prior::ln_prior_1d::{LnPrior1D, LnPrior1DTrait};
 
 use enum_dispatch::enum_dispatch;
+use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use std::fmt::Debug;
 
 #[enum_dispatch(LnPrior)]
 pub trait LnPriorTrait: Clone + Debug + Serialize + DeserializeOwned {
-    fn ln_prior(&self, params: &[f64]) -> f64;
+    fn ln_prior<const NPARAMS: usize>(&self, params: &[f64; NPARAMS]) -> f64;
 }
 
 /// Natural logarithm of prior for non-linear curve-fit problem
@@ -29,26 +30,24 @@ impl LnPrior {
         IndComponentsLnPrior { components }.into()
     }
 
-    pub fn into_func(self) -> impl 'static + Clone + Fn(&[f64]) -> f64 {
+    pub fn into_func<const NPARAMS: usize>(
+        self,
+    ) -> impl 'static + Clone + Fn(&[f64; NPARAMS]) -> f64 {
         move |params| self.ln_prior(params)
     }
 
-    pub fn as_func(&self) -> impl '_ + Fn(&[f64]) -> f64 {
+    pub fn as_func<const NPARAMS: usize>(&self) -> impl '_ + Fn(&[f64; NPARAMS]) -> f64 {
         |params| self.ln_prior(params)
     }
 
-    pub fn as_func_with_transformation<'a, F, R>(
+    pub fn as_func_with_transformation<'a, F, const NPARAMS: usize>(
         &'a self,
         transform: F,
-    ) -> impl 'a + Clone + Fn(&[f64]) -> f64
+    ) -> impl 'a + Clone + Fn(&[f64; NPARAMS]) -> f64
     where
-        F: 'a + Clone + Fn(&[f64]) -> R,
-        R: AsRef<[f64]>,
+        F: 'a + Clone + Fn(&[f64; NPARAMS]) -> [f64; NPARAMS],
     {
-        move |params| {
-            let transformed = transform(params);
-            self.ln_prior(transformed.as_ref())
-        }
+        move |params| self.ln_prior(&transform(params))
     }
 }
 
@@ -56,7 +55,7 @@ impl LnPrior {
 pub struct NoneLnPrior {}
 
 impl LnPriorTrait for NoneLnPrior {
-    fn ln_prior(&self, _params: &[f64]) -> f64 {
+    fn ln_prior<const NPARAMS: usize>(&self, _params: &[f64; NPARAMS]) -> f64 {
         0.0
     }
 }
@@ -67,10 +66,10 @@ pub struct IndComponentsLnPrior {
 }
 
 impl LnPriorTrait for IndComponentsLnPrior {
-    fn ln_prior(&self, params: &[f64]) -> f64 {
+    fn ln_prior<const NPARAMS: usize>(&self, params: &[f64; NPARAMS]) -> f64 {
         params
             .iter()
-            .zip(self.components.iter())
+            .zip_eq(self.components.iter())
             .map(|(&x, ln_prior)| ln_prior.ln_prior_1d(x))
             .sum()
     }
