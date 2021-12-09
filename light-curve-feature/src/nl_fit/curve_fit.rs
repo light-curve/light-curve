@@ -23,7 +23,7 @@ pub trait CurveFitTrait: Clone + Debug + Serialize + DeserializeOwned {
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64; NPARAMS],
-        bounds: &[(f64, f64); NPARAMS],
+        bounds: (&[f64; NPARAMS], &[f64; NPARAMS]),
         model: F,
         derivatives: DF,
         ln_prior: LP,

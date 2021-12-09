@@ -126,21 +126,16 @@ macro_rules! fit_eval {
 
             let norm_data = NormalizedData::<f64>::from_ts(ts);
 
-            let (x0, bound) = {
-                let (mut x0, bound) = Self::init_and_bounds_from_ts(ts);
-                let (left, right): (Vec<_>, Vec<_>) = bound.into_iter().unzip();
+            let (x0, lower, upper) = {
+                let FitInitsBounds {
+                    init: mut x0,
+                    mut lower,
+                    mut upper,
+                } = Self::init_and_bounds_from_ts(ts);
                 x0 = Self::convert_to_internal(&norm_data, &x0);
-                let left =
-                    Self::convert_to_internal(&norm_data, (&left as &[_]).try_into().unwrap());
-                let right =
-                    Self::convert_to_internal(&norm_data, (&right as &[_]).try_into().unwrap());
-                let bound: [_; NPARAMS] = left
-                    .into_iter()
-                    .zip(right.into_iter())
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
-                (x0, bound)
+                lower = Self::convert_to_internal(&norm_data, &lower);
+                upper = Self::convert_to_internal(&norm_data, &upper);
+                (x0, lower, upper)
             };
 
             let result = {
@@ -150,7 +145,7 @@ macro_rules! fit_eval {
                 } = self.get_algorithm().curve_fit(
                     norm_data.data.clone(),
                     &x0,
-                    &bound,
+                    (&lower, &upper),
                     Self::model,
                     Self::derivatives,
                     self.get_ln_prior()

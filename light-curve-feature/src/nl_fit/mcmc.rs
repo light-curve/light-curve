@@ -61,7 +61,7 @@ impl CurveFitTrait for McmcCurveFit {
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64; NPARAMS],
-        bounds: &[(f64, f64); NPARAMS],
+        bounds: (&[f64; NPARAMS], &[f64; NPARAMS]),
         model: F,
         derivatives: DF,
         ln_prior: LP,
@@ -98,22 +98,21 @@ impl CurveFitTrait for McmcCurveFit {
             }
         };
 
-        let x0_f32 = slice_to_array(x0);
-        let bounds_f32 = {
-            let mut array = [(0.0, 0.0); NPARAMS];
-            for (input, output) in bounds.iter().zip_eq(array.iter_mut()) {
-                *output = (input.0 as f32, input.1 as f32)
-            }
-            array
-        };
+        let x0_f32: [_; NPARAMS] = slice_to_array(x0);
+        let bounds_f32 = (slice_to_array(bounds.0), slice_to_array(bounds.1));
 
-        let initial_guesses =
-            generate_initial_guesses(nwalkers, &x0_f32, &bounds_f32, &mut StdRng::from_seed(&[]));
+        let initial_guesses = generate_initial_guesses(
+            nwalkers,
+            &x0_f32,
+            (&bounds_f32.0, &bounds_f32.1),
+            &mut StdRng::from_seed(&[]),
+        );
         let initial_lnprob = lnlike(&initial_guesses[0]);
         let emcee_model = EmceeModel {
             ln_like: lnlike,
             ln_prior: lnprior,
-            bounds: &bounds_f32,
+            lower: &bounds_f32.0,
+            upper: &bounds_f32.1,
         };
         let mut sampler = EnsembleSampler::new(nwalkers, NPARAMS, &emcee_model).unwrap();
         sampler.seed(&[]);
@@ -169,13 +168,14 @@ where
 fn generate_initial_guesses<R, const NPARAMS: usize>(
     nwalkers: usize,
     x0: &[f32; NPARAMS],
-    bounds: &[(f32, f32); NPARAMS],
+    bounds: (&[f32; NPARAMS], &[f32; NPARAMS]),
     rng: &mut R,
 ) -> Vec<Guess>
 where
     R: Rng,
 {
     const STD: f64 = 0.1;
+    let (lower, upper) = bounds;
 
     // First guess is the user-defined initial guess
     std::iter::once(x0.to_vec())
@@ -183,7 +183,7 @@ where
         .chain((1..nwalkers).map(|_| {
             // Iterate components of user-defined initial guess and boundary conditions
             x0.iter()
-                .zip(bounds.iter())
+                .zip(lower.iter().zip(upper.iter()))
                 .map(|(component, (left, right))| {
                     assert!(
                         *left <= *right,
@@ -216,13 +216,14 @@ where
         .collect()
 }
 
-struct EmceeModel<'b, F, LP> {
+struct EmceeModel<'b, F, LP, const NPARAMS: usize> {
     ln_like: F,
     ln_prior: LP,
-    bounds: &'b [(f32, f32)],
+    lower: &'b [f32; NPARAMS],
+    upper: &'b [f32; NPARAMS],
 }
 
-impl<'b, F, LP> Prob for EmceeModel<'b, F, LP>
+impl<'b, F, LP, const NPARAMS: usize> Prob for EmceeModel<'b, F, LP, NPARAMS>
 where
     F: Fn(&Guess) -> f32,
     LP: Fn(&Guess) -> f32,
@@ -232,7 +233,11 @@ where
     }
 
     fn lnprior(&self, params: &Guess) -> f32 {
-        for (&p, &(lower, upper)) in params.values.iter().zip(self.bounds.iter()) {
+        for (&p, (&lower, &upper)) in params
+            .values
+            .iter()
+            .zip(self.lower.iter().zip(self.upper.iter()))
+        {
             if p < lower || p > upper {
                 return f32::NEG_INFINITY;
             }

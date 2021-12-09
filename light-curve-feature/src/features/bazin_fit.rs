@@ -196,7 +196,7 @@ impl<T> FitInitsBoundsTrait<T, NPARAMS> for BazinFit
 where
     T: Float,
 {
-    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> ([f64; NPARAMS], [(f64, f64); NPARAMS]) {
+    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> FitInitsBounds<NPARAMS> {
         let t_min: f64 = ts.t.get_min().value_into().unwrap();
         let t_max: f64 = ts.t.get_max().value_into().unwrap();
         let t_amplitude = t_max - t_min;
@@ -206,23 +206,25 @@ where
         let m_amplitude = m_max - m_min;
 
         let a_init = 0.5 * m_amplitude;
-        let a_bound = (0.0, 100.0 * m_amplitude);
+        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
 
-        let b_init = m_min;
-        let b_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+        let c_init = m_min;
+        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
 
         let t0_init = t_peak;
-        let t0_bound = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+        let (t0_lower, t0_upper) = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
 
         let rise_init = 0.5 * t_amplitude;
-        let rise_bound = (0.0, 10.0 * t_amplitude);
+        let (rise_lower, rise_upper) = (0.0, 10.0 * t_amplitude);
 
         let fall_init = 0.5 * t_amplitude;
-        let fall_bound = (0.0, 10.0 * t_amplitude);
-        (
-            [a_init, b_init, t0_init, rise_init, fall_init],
-            [a_bound, b_bound, t0_bound, rise_bound, fall_bound],
-        )
+        let (fall_lower, fall_upper) = (0.0, 10.0 * t_amplitude);
+
+        FitInitsBounds {
+            init: [a_init, c_init, t0_init, rise_init, fall_init],
+            lower: [a_lower, c_lower, t0_lower, rise_lower, fall_lower],
+            upper: [a_upper, c_upper, t0_upper, rise_upper, fall_upper],
+        }
     }
 }
 

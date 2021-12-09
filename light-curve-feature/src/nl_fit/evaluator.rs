@@ -30,8 +30,14 @@ pub trait FitDerivalivesTrait<T: Float, const NPARAMS: usize> {
     fn derivatives(t: T, param: &[T; NPARAMS], jac: &mut [T; NPARAMS]);
 }
 
+pub struct FitInitsBounds<const NPARAMS: usize> {
+    pub init: [f64; NPARAMS],
+    pub lower: [f64; NPARAMS],
+    pub upper: [f64; NPARAMS],
+}
+
 pub trait FitInitsBoundsTrait<T: Float, const NPARAMS: usize> {
-    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> ([f64; NPARAMS], [(f64, f64); NPARAMS]);
+    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> FitInitsBounds<NPARAMS>;
 }
 
 pub trait FitParametersInternalDimlessTrait<U: LikeFloat, const NPARAMS: usize> {

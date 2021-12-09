@@ -190,7 +190,7 @@ impl<T> FitInitsBoundsTrait<T, NPARAMS> for VillarFit
 where
     T: Float,
 {
-    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> ([f64; NPARAMS], [(f64, f64); NPARAMS]) {
+    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> FitInitsBounds<NPARAMS> {
         let t_min: f64 = ts.t.get_min().value_into().unwrap();
         let t_max: f64 = ts.t.get_max().value_into().unwrap();
         let t_amplitude = t_max - t_min;
@@ -200,29 +200,29 @@ where
         let m_amplitude = m_max - m_min;
 
         let a_init = 0.5 * m_amplitude;
-        let a_bound = (0.0, 100.0 * m_amplitude);
+        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
 
         let c_init = m_min;
-        let c_bound = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
 
         // t0 is not a peak time, but something before the peak
         let t0_init = t_peak;
-        let t0_bound = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+        let (t0_lower, t0_upper) = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
 
         let tau_rise_init = 0.5 * t_amplitude;
-        let tau_rise_bound = (0.0, 10.0 * t_amplitude);
+        let (tau_rise_lower, tau_rise_upper) = (0.0, 10.0 * t_amplitude);
 
         let tau_fall_init = 0.5 * t_amplitude;
-        let tau_fall_bound = (0.0, 10.0 * t_amplitude);
+        let (tau_fall_lower, tau_fall_upper) = (0.0, 10.0 * t_amplitude);
 
         let nu_init = 0.0;
-        let nu_bound = (0.0, 1.0);
+        let (nu_lower, nu_upper) = (0.0, 1.0);
 
         let gamma_init = 0.1 * t_amplitude;
-        let gamma_bound = (0.0, 10.0 * t_amplitude);
+        let (gamma_lower, gamma_upper) = (0.0, 10.0 * t_amplitude);
 
-        (
-            [
+        FitInitsBounds {
+            init: [
                 a_init,
                 c_init,
                 t0_init,
@@ -231,16 +231,25 @@ where
                 nu_init,
                 gamma_init,
             ],
-            [
-                a_bound,
-                c_bound,
-                t0_bound,
-                tau_rise_bound,
-                tau_fall_bound,
-                nu_bound,
-                gamma_bound,
+            lower: [
+                a_lower,
+                c_lower,
+                t0_lower,
+                tau_rise_lower,
+                tau_fall_lower,
+                nu_lower,
+                gamma_lower,
             ],
-        )
+            upper: [
+                a_upper,
+                c_upper,
+                t0_upper,
+                tau_rise_upper,
+                tau_fall_upper,
+                nu_upper,
+                gamma_upper,
+            ],
+        }
     }
 }
 

@@ -51,7 +51,7 @@ impl CurveFitTrait for LmsderCurveFit {
         &self,
         ts: Rc<Data<f64>>,
         x0: &[f64; NPARAMS],
-        _bounds: &[(f64, f64); NPARAMS],
+        _bounds: (&[f64; NPARAMS], &[f64; NPARAMS]),
         model: F,
         derivatives: DF,
         _ln_prior: LP,
