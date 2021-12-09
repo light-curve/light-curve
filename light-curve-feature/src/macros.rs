@@ -148,8 +148,8 @@ macro_rules! fit_eval {
                     (&lower, &upper),
                     Self::model,
                     Self::derivatives,
-                    self.get_ln_prior()
-                        .as_func_with_transformation(move |params| {
+                    self.ln_prior_from_ts(ts)
+                        .into_func_with_transformation(move |params| {
                             Self::convert_to_external(&norm_data_for_prior, params)
                         }),
                 );

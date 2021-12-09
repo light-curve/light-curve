@@ -1,104 +1,12 @@
 use crate::evaluator::*;
 use crate::nl_fit::{
     data::NormalizedData, evaluator::*, CurveFitAlgorithm, CurveFitResult, CurveFitTrait,
-    LikeFloat, LnPrior, McmcCurveFit,
+    LikeFloat, LnPrior, LnPrior1D, McmcCurveFit,
 };
 
 use conv::ConvUtil;
 
 const NPARAMS: usize = 7;
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-pub enum VillarInitsBounds {
-    Default,
-    Arrays(Box<FitInitsBoundsArrays<NPARAMS>>),
-    OptionArrays(Box<OptionFitInitsBoundsArrays<NPARAMS>>),
-}
-
-impl Default for VillarInitsBounds {
-    fn default() -> Self {
-        Self::Default
-    }
-}
-
-impl VillarInitsBounds {
-    pub fn arrays(init: [f64; NPARAMS], lower: [f64; NPARAMS], upper: [f64; NPARAMS]) -> Self {
-        Self::Arrays(FitInitsBoundsArrays::new(init, lower, upper).into())
-    }
-
-    pub fn option_arrays(
-        init: [Option<f64>; NPARAMS],
-        lower: [Option<f64>; NPARAMS],
-        upper: [Option<f64>; NPARAMS],
-    ) -> Self {
-        Self::OptionArrays(OptionFitInitsBoundsArrays::new(init, lower, upper).into())
-    }
-
-    fn default_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> FitInitsBoundsArrays<NPARAMS> {
-        let t_min: f64 = ts.t.get_min().value_into().unwrap();
-        let t_max: f64 = ts.t.get_max().value_into().unwrap();
-        let t_amplitude = t_max - t_min;
-        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
-        let m_min: f64 = ts.m.get_min().value_into().unwrap();
-        let m_max: f64 = ts.m.get_max().value_into().unwrap();
-        let m_amplitude = m_max - m_min;
-
-        let a_init = 0.5 * m_amplitude;
-        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
-
-        let c_init = m_min;
-        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
-
-        // t0 is not a peak time, but something before the peak
-        let t0_init = t_peak;
-        let (t0_lower, t0_upper) = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
-
-        let tau_rise_init = 0.5 * t_amplitude;
-        let (tau_rise_lower, tau_rise_upper) = (0.0, 10.0 * t_amplitude);
-
-        let tau_fall_init = 0.5 * t_amplitude;
-        let (tau_fall_lower, tau_fall_upper) = (0.0, 10.0 * t_amplitude);
-
-        let nu_init = 0.0;
-        let (nu_lower, nu_upper) = (0.0, 1.0);
-
-        let gamma_init = 0.1 * t_amplitude;
-        let (gamma_lower, gamma_upper) = (0.0, 10.0 * t_amplitude);
-
-        FitInitsBoundsArrays {
-            init: [
-                a_init,
-                c_init,
-                t0_init,
-                tau_rise_init,
-                tau_fall_init,
-                nu_init,
-                gamma_init,
-            ]
-            .into(),
-            lower: [
-                a_lower,
-                c_lower,
-                t0_lower,
-                tau_rise_lower,
-                tau_fall_lower,
-                nu_lower,
-                gamma_lower,
-            ]
-            .into(),
-            upper: [
-                a_upper,
-                c_upper,
-                t0_upper,
-                tau_rise_upper,
-                tau_fall_upper,
-                nu_upper,
-                gamma_upper,
-            ]
-            .into(),
-        }
-    }
-}
 
 macro_const! {
     const DOC: &str = r#"
@@ -131,7 +39,7 @@ Villar et al. 2019 [DOI:10.3847/1538-4357/ab418c](https://doi.org/10.3847/1538-4
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct VillarFit {
     algorithm: CurveFitAlgorithm,
-    ln_prior: LnPrior,
+    ln_prior: VillarLnPrior,
     inits_bounds: VillarInitsBounds,
 }
 
@@ -145,14 +53,17 @@ impl VillarFit {
     ///
     /// `ln_prior` is an instance of [LnPrior] and specifies the natural logarithm of the prior to
     /// use. Some curve-fit algorithms doesn't support this and ignores the prior
-    pub fn new(
+    pub fn new<VLP>(
         algorithm: CurveFitAlgorithm,
-        ln_prior: LnPrior,
+        ln_prior: VLP,
         inits_bounds: VillarInitsBounds,
-    ) -> Self {
+    ) -> Self
+    where
+        VLP: Into<VillarLnPrior>,
+    {
         Self {
             algorithm,
-            ln_prior,
+            ln_prior: ln_prior.into(),
             inits_bounds,
         }
     }
@@ -167,10 +78,10 @@ impl VillarFit {
         .into()
     }
 
-    /// Default [LnPrior] for [VillarFit]
+    /// Default [VillarLnPrior] for [VillarFit]
     #[inline]
-    pub fn default_ln_prior() -> LnPrior {
-        LnPrior::none()
+    pub fn default_ln_prior() -> VillarLnPrior {
+        LnPrior::none().into()
     }
 
     #[inline]
@@ -376,8 +287,8 @@ impl FitFeatureEvaluatorGettersTrait for VillarFit {
         &self.algorithm
     }
 
-    fn get_ln_prior(&self) -> &LnPrior {
-        &self.ln_prior
+    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior {
+        self.ln_prior.ln_prior_from_ts(ts)
     }
 }
 
@@ -518,6 +429,162 @@ where
         } else {
             T::exp(-(t - t1) / self.tau_fall())
         }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[non_exhaustive]
+pub enum VillarInitsBounds {
+    Default,
+    Arrays(Box<FitInitsBoundsArrays<NPARAMS>>),
+    OptionArrays(Box<OptionFitInitsBoundsArrays<NPARAMS>>),
+}
+
+impl Default for VillarInitsBounds {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+impl VillarInitsBounds {
+    pub fn arrays(init: [f64; NPARAMS], lower: [f64; NPARAMS], upper: [f64; NPARAMS]) -> Self {
+        Self::Arrays(FitInitsBoundsArrays::new(init, lower, upper).into())
+    }
+
+    pub fn option_arrays(
+        init: [Option<f64>; NPARAMS],
+        lower: [Option<f64>; NPARAMS],
+        upper: [Option<f64>; NPARAMS],
+    ) -> Self {
+        Self::OptionArrays(OptionFitInitsBoundsArrays::new(init, lower, upper).into())
+    }
+
+    fn default_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> FitInitsBoundsArrays<NPARAMS> {
+        let t_min: f64 = ts.t.get_min().value_into().unwrap();
+        let t_max: f64 = ts.t.get_max().value_into().unwrap();
+        let t_amplitude = t_max - t_min;
+        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+        let m_min: f64 = ts.m.get_min().value_into().unwrap();
+        let m_max: f64 = ts.m.get_max().value_into().unwrap();
+        let m_amplitude = m_max - m_min;
+
+        let a_init = 0.5 * m_amplitude;
+        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
+
+        let c_init = m_min;
+        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+
+        // t0 is not a peak time, but something before the peak
+        let t0_init = t_peak;
+        let (t0_lower, t0_upper) = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+
+        let tau_rise_init = 0.5 * t_amplitude;
+        let (tau_rise_lower, tau_rise_upper) = (0.0, 10.0 * t_amplitude);
+
+        let tau_fall_init = 0.5 * t_amplitude;
+        let (tau_fall_lower, tau_fall_upper) = (0.0, 10.0 * t_amplitude);
+
+        let nu_init = 0.0;
+        let (nu_lower, nu_upper) = (0.0, 1.0);
+
+        let gamma_init = 0.1 * t_amplitude;
+        let (gamma_lower, gamma_upper) = (0.0, 10.0 * t_amplitude);
+
+        FitInitsBoundsArrays {
+            init: [
+                a_init,
+                c_init,
+                t0_init,
+                tau_rise_init,
+                tau_fall_init,
+                nu_init,
+                gamma_init,
+            ]
+            .into(),
+            lower: [
+                a_lower,
+                c_lower,
+                t0_lower,
+                tau_rise_lower,
+                tau_fall_lower,
+                nu_lower,
+                gamma_lower,
+            ]
+            .into(),
+            upper: [
+                a_upper,
+                c_upper,
+                t0_upper,
+                tau_rise_upper,
+                tau_fall_upper,
+                nu_upper,
+                gamma_upper,
+            ]
+            .into(),
+        }
+    }
+}
+
+/// Logarithm of priors for [VillarFit] parameters
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
+pub enum VillarLnPrior {
+    Fixed(Box<LnPrior>),
+    /// Adopted from Hosseinzadeh, et al. 2020, table 2
+    ///
+    /// `time_units_in_day` specifies the units of time you use in yout `TimeSeries` object, it
+    /// should be `1` for days, `86400` for seconds, etc. `min_amplitude` is a lower bound for
+    /// the log-uniform prior of amplitude, the original paper used unity
+    Hosseinzadeh2020 {
+        time_units_in_day: f64,
+        min_amplitude: f64,
+    },
+}
+
+impl VillarLnPrior {
+    pub fn fixed(ln_prior: LnPrior) -> Self {
+        Self::Fixed(ln_prior.into())
+    }
+
+    pub fn hosseinzadeh2020(time_units_in_day: f64, min_flux: f64) -> Self {
+        Self::Hosseinzadeh2020 {
+            time_units_in_day,
+            min_amplitude: min_flux,
+        }
+    }
+
+    pub fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior {
+        match self {
+            Self::Fixed(ln_prior) => ln_prior.as_ref().clone(),
+            Self::Hosseinzadeh2020 {
+                time_units_in_day: day,
+                min_amplitude,
+            } => {
+                let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+                let m_min: f64 = ts.m.get_min().value_into().unwrap();
+                let m_max: f64 = ts.m.get_max().value_into().unwrap();
+                let m_amplitude = m_max - m_min;
+
+                LnPrior::ind_components(vec![
+                    LnPrior1D::log_uniform(f64::ln(*min_amplitude), f64::ln(100.0 * m_amplitude)), // amplitude
+                    LnPrior1D::none(), // offset, not used in the original paper
+                    LnPrior1D::uniform(t_peak - 50.0 * day, t_peak + 300.0 * day), // reference time
+                    LnPrior1D::uniform(0.01 * day, 50.0 * day), // tau_rise
+                    LnPrior1D::uniform(1.0 * day, 300.0 * day), // tau_fall
+                    LnPrior1D::none(), // relative plateau amplitude, original paper used slope in day^-1
+                    LnPrior1D::mix(vec![
+                        (2.0, LnPrior1D::normal(5.0 * day, 5.0 * day)),
+                        (1.0, LnPrior1D::normal(60.0 * day, 30.0 * day)),
+                    ]), // plateau duration
+                ])
+            }
+        }
+    }
+}
+
+impl From<LnPrior> for VillarLnPrior {
+    fn from(item: LnPrior) -> Self {
+        Self::fixed(item)
     }
 }
 

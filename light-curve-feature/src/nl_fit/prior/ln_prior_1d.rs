@@ -42,6 +42,10 @@ impl LnPrior1D {
     pub fn uniform(left: f64, right: f64) -> Self {
         UniformLnPrior1D::new(left, right).into()
     }
+
+    pub fn mix(weight_prior_pairs: Vec<(f64, LnPrior1D)>) -> Self {
+        MixLnPrior1D::new(weight_prior_pairs).into()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

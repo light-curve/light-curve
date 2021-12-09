@@ -36,6 +36,16 @@ impl LnPrior {
         move |params| self.ln_prior(params)
     }
 
+    pub fn into_func_with_transformation<'a, F, const NPARAMS: usize>(
+        self,
+        transform: F,
+    ) -> impl 'a + Clone + Fn(&[f64; NPARAMS]) -> f64
+    where
+        F: 'a + Clone + Fn(&[f64; NPARAMS]) -> [f64; NPARAMS],
+    {
+        move |params| self.ln_prior(&transform(params))
+    }
+
     pub fn as_func<const NPARAMS: usize>(&self) -> impl '_ + Fn(&[f64; NPARAMS]) -> f64 {
         |params| self.ln_prior(params)
     }
