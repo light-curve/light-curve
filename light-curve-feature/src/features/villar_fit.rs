@@ -560,8 +560,13 @@ mod tests {
         for _ in 0..REPEAT {
             let t = 10.0 * rng.gen::<f64>();
 
-            let param: Vec<_> = (0..NPARAMS).map(|_| rng.gen::<f64>() - 0.5).collect();
-            println!("{:?}", param);
+            let param = {
+                let mut param = [0.0; NPARAMS];
+                for x in param.iter_mut() {
+                    *x = rng.gen::<f64>() - 0.5;
+                }
+                param
+            };
             let actual = {
                 let mut jac = [0.0; NPARAMS];
                 VillarFit::derivatives(t, &param, &mut jac);
@@ -569,17 +574,16 @@ mod tests {
             };
 
             let desired: Vec<_> = {
-                let param: Vec<Hyperdual<f64, 8>> = param
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &x)| {
-                        let mut x = Hyperdual::from_real(x);
-                        x[i + 1] = 1.0;
-                        x
-                    })
-                    .collect();
-                let result = VillarFit::model(t, &param);
-                (1..=7).map(|i| result[i]).collect()
+                let hyper_param = {
+                    let mut hyper = [Hyperdual::<f64, { NPARAMS + 1 }>::from_real(0.0); NPARAMS];
+                    for (i, (x, h)) in param.iter().zip(hyper.iter_mut()).enumerate() {
+                        h[0] = *x;
+                        h[i + 1] = 1.0;
+                    }
+                    hyper
+                };
+                let result = VillarFit::model(t, &hyper_param);
+                (1..=NPARAMS).map(|i| result[i]).collect()
             };
 
             assert_relative_eq!(&actual[..], &desired[..], epsilon = 1e-9);
