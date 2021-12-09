@@ -127,11 +127,11 @@ macro_rules! fit_eval {
             let norm_data = NormalizedData::<f64>::from_ts(ts);
 
             let (x0, lower, upper) = {
-                let FitInitsBounds {
-                    init: mut x0,
-                    mut lower,
-                    mut upper,
-                } = Self::init_and_bounds_from_ts(ts);
+                let FitInitsBoundsArrays {
+                    init: FitArray(mut x0),
+                    lower: FitArray(mut lower),
+                    upper: FitArray(mut upper),
+                } = self.init_and_bounds_from_ts(ts);
                 x0 = Self::convert_to_internal(&norm_data, &x0);
                 lower = Self::convert_to_internal(&norm_data, &lower);
                 upper = Self::convert_to_internal(&norm_data, &upper);

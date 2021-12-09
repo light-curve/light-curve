@@ -8,6 +8,98 @@ use conv::ConvUtil;
 
 const NPARAMS: usize = 7;
 
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+pub enum VillarInitsBounds {
+    Default,
+    Arrays(Box<FitInitsBoundsArrays<NPARAMS>>),
+    OptionArrays(Box<OptionFitInitsBoundsArrays<NPARAMS>>),
+}
+
+impl Default for VillarInitsBounds {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+impl VillarInitsBounds {
+    pub fn arrays(init: [f64; NPARAMS], lower: [f64; NPARAMS], upper: [f64; NPARAMS]) -> Self {
+        Self::Arrays(FitInitsBoundsArrays::new(init, lower, upper).into())
+    }
+
+    pub fn option_arrays(
+        init: [Option<f64>; NPARAMS],
+        lower: [Option<f64>; NPARAMS],
+        upper: [Option<f64>; NPARAMS],
+    ) -> Self {
+        Self::OptionArrays(OptionFitInitsBoundsArrays::new(init, lower, upper).into())
+    }
+
+    fn default_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> FitInitsBoundsArrays<NPARAMS> {
+        let t_min: f64 = ts.t.get_min().value_into().unwrap();
+        let t_max: f64 = ts.t.get_max().value_into().unwrap();
+        let t_amplitude = t_max - t_min;
+        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+        let m_min: f64 = ts.m.get_min().value_into().unwrap();
+        let m_max: f64 = ts.m.get_max().value_into().unwrap();
+        let m_amplitude = m_max - m_min;
+
+        let a_init = 0.5 * m_amplitude;
+        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
+
+        let c_init = m_min;
+        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+
+        // t0 is not a peak time, but something before the peak
+        let t0_init = t_peak;
+        let (t0_lower, t0_upper) = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+
+        let tau_rise_init = 0.5 * t_amplitude;
+        let (tau_rise_lower, tau_rise_upper) = (0.0, 10.0 * t_amplitude);
+
+        let tau_fall_init = 0.5 * t_amplitude;
+        let (tau_fall_lower, tau_fall_upper) = (0.0, 10.0 * t_amplitude);
+
+        let nu_init = 0.0;
+        let (nu_lower, nu_upper) = (0.0, 1.0);
+
+        let gamma_init = 0.1 * t_amplitude;
+        let (gamma_lower, gamma_upper) = (0.0, 10.0 * t_amplitude);
+
+        FitInitsBoundsArrays {
+            init: [
+                a_init,
+                c_init,
+                t0_init,
+                tau_rise_init,
+                tau_fall_init,
+                nu_init,
+                gamma_init,
+            ]
+            .into(),
+            lower: [
+                a_lower,
+                c_lower,
+                t0_lower,
+                tau_rise_lower,
+                tau_fall_lower,
+                nu_lower,
+                gamma_lower,
+            ]
+            .into(),
+            upper: [
+                a_upper,
+                c_upper,
+                t0_upper,
+                tau_rise_upper,
+                tau_fall_upper,
+                nu_upper,
+                gamma_upper,
+            ]
+            .into(),
+        }
+    }
+}
+
 macro_const! {
     const DOC: &str = r#"
 Villar function fit
@@ -40,6 +132,7 @@ Villar et al. 2019 [DOI:10.3847/1538-4357/ab418c](https://doi.org/10.3847/1538-4
 pub struct VillarFit {
     algorithm: CurveFitAlgorithm,
     ln_prior: LnPrior,
+    inits_bounds: VillarInitsBounds,
 }
 
 impl VillarFit {
@@ -52,10 +145,15 @@ impl VillarFit {
     ///
     /// `ln_prior` is an instance of [LnPrior] and specifies the natural logarithm of the prior to
     /// use. Some curve-fit algorithms doesn't support this and ignores the prior
-    pub fn new(algorithm: CurveFitAlgorithm, ln_prior: LnPrior) -> Self {
+    pub fn new(
+        algorithm: CurveFitAlgorithm,
+        ln_prior: LnPrior,
+        inits_bounds: VillarInitsBounds,
+    ) -> Self {
         Self {
             algorithm,
             ln_prior,
+            inits_bounds,
         }
     }
 
@@ -73,6 +171,11 @@ impl VillarFit {
     #[inline]
     pub fn default_ln_prior() -> LnPrior {
         LnPrior::none()
+    }
+
+    #[inline]
+    pub fn default_inits_bounds() -> VillarInitsBounds {
+        VillarInitsBounds::Default
     }
 
     pub fn doc() -> &'static str {
@@ -96,7 +199,11 @@ impl VillarFit {
 
 impl Default for VillarFit {
     fn default() -> Self {
-        Self::new(Self::default_algorithm(), Self::default_ln_prior())
+        Self::new(
+            Self::default_algorithm(),
+            Self::default_ln_prior(),
+            Self::default_inits_bounds(),
+        )
     }
 }
 
@@ -190,65 +297,13 @@ impl<T> FitInitsBoundsTrait<T, NPARAMS> for VillarFit
 where
     T: Float,
 {
-    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> FitInitsBounds<NPARAMS> {
-        let t_min: f64 = ts.t.get_min().value_into().unwrap();
-        let t_max: f64 = ts.t.get_max().value_into().unwrap();
-        let t_amplitude = t_max - t_min;
-        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
-        let m_min: f64 = ts.m.get_min().value_into().unwrap();
-        let m_max: f64 = ts.m.get_max().value_into().unwrap();
-        let m_amplitude = m_max - m_min;
-
-        let a_init = 0.5 * m_amplitude;
-        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
-
-        let c_init = m_min;
-        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
-
-        // t0 is not a peak time, but something before the peak
-        let t0_init = t_peak;
-        let (t0_lower, t0_upper) = (t_min - 20.0 * t_amplitude, t_max + 10.0 * t_amplitude);
-
-        let tau_rise_init = 0.5 * t_amplitude;
-        let (tau_rise_lower, tau_rise_upper) = (0.0, 10.0 * t_amplitude);
-
-        let tau_fall_init = 0.5 * t_amplitude;
-        let (tau_fall_lower, tau_fall_upper) = (0.0, 10.0 * t_amplitude);
-
-        let nu_init = 0.0;
-        let (nu_lower, nu_upper) = (0.0, 1.0);
-
-        let gamma_init = 0.1 * t_amplitude;
-        let (gamma_lower, gamma_upper) = (0.0, 10.0 * t_amplitude);
-
-        FitInitsBounds {
-            init: [
-                a_init,
-                c_init,
-                t0_init,
-                tau_rise_init,
-                tau_fall_init,
-                nu_init,
-                gamma_init,
-            ],
-            lower: [
-                a_lower,
-                c_lower,
-                t0_lower,
-                tau_rise_lower,
-                tau_fall_lower,
-                nu_lower,
-                gamma_lower,
-            ],
-            upper: [
-                a_upper,
-                c_upper,
-                t0_upper,
-                tau_rise_upper,
-                tau_fall_upper,
-                nu_upper,
-                gamma_upper,
-            ],
+    fn init_and_bounds_from_ts(&self, ts: &mut TimeSeries<T>) -> FitInitsBoundsArrays<NPARAMS> {
+        match &self.inits_bounds {
+            VillarInitsBounds::Default => VillarInitsBounds::default_from_ts(ts),
+            VillarInitsBounds::Arrays(arrays) => arrays.as_ref().clone(),
+            VillarInitsBounds::OptionArrays(opt_arr) => {
+                opt_arr.unwrap_with(&VillarInitsBounds::default_from_ts(ts))
+            }
         }
     }
 }
@@ -535,6 +590,7 @@ mod tests {
         villar_fit_noisy(VillarFit::new(
             LmsderCurveFit::new(6).into(),
             LnPrior::none(),
+            VillarInitsBounds::Default,
         ));
     }
 
@@ -542,7 +598,11 @@ mod tests {
     fn villar_fit_noizy_mcmc_plus_lmsder() {
         let lmsder = LmsderCurveFit::new(1);
         let mcmc = McmcCurveFit::new(2048, Some(lmsder.into()));
-        villar_fit_noisy(VillarFit::new(mcmc.into(), LnPrior::none()));
+        villar_fit_noisy(VillarFit::new(
+            mcmc.into(),
+            LnPrior::none(),
+            VillarInitsBounds::Default,
+        ));
     }
 
     #[test]
@@ -558,7 +618,11 @@ mod tests {
         ]);
         let lmsder = LmsderCurveFit::new(1);
         let mcmc = McmcCurveFit::new(1024, Some(lmsder.into()));
-        villar_fit_noisy(VillarFit::new(mcmc.into(), prior));
+        villar_fit_noisy(VillarFit::new(
+            mcmc.into(),
+            prior,
+            VillarInitsBounds::Default,
+        ));
     }
 
     #[test]

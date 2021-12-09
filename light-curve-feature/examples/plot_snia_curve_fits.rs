@@ -21,25 +21,37 @@ fn main() {
     let features: Vec<(&str, Feature<_>)> = vec![
         (
             "BazinFit LMSDER",
-            BazinFit::new(LmsderCurveFit::default().into(), LnPrior::none()).into(),
+            BazinFit::new(
+                LmsderCurveFit::default().into(),
+                LnPrior::none(),
+                BazinFit::default_inits_bounds(),
+            )
+            .into(),
         ),
         (
             "BazinFit MCMC+LMSDER",
             BazinFit::new(
                 McmcCurveFit::new(1024, Some(LmsderCurveFit::default().into())).into(),
                 LnPrior::none(),
+                BazinFit::default_inits_bounds(),
             )
             .into(),
         ),
         (
             "VillarFit LMSDER",
-            VillarFit::new(LmsderCurveFit::default().into(), LnPrior::none()).into(),
+            VillarFit::new(
+                LmsderCurveFit::default().into(),
+                LnPrior::none(),
+                VillarFit::default_inits_bounds(),
+            )
+            .into(),
         ),
         (
             "VillarFit MCMC+LMSDER",
             VillarFit::new(
                 McmcCurveFit::new(1024, Some(LmsderCurveFit::default().into())).into(),
                 LnPrior::none(),
+                VillarFit::default_inits_bounds(),
             )
             .into(),
         ),

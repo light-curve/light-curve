@@ -8,6 +8,64 @@ use conv::ConvUtil;
 
 const NPARAMS: usize = 5;
 
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+pub enum BazinInitsBounds {
+    Default,
+    Arrays(Box<FitInitsBoundsArrays<NPARAMS>>),
+    OptionArrays(Box<OptionFitInitsBoundsArrays<NPARAMS>>),
+}
+
+impl Default for BazinInitsBounds {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+impl BazinInitsBounds {
+    pub fn arrays(init: [f64; NPARAMS], lower: [f64; NPARAMS], upper: [f64; NPARAMS]) -> Self {
+        Self::Arrays(FitInitsBoundsArrays::new(init, lower, upper).into())
+    }
+
+    pub fn option_arrays(
+        init: [Option<f64>; NPARAMS],
+        lower: [Option<f64>; NPARAMS],
+        upper: [Option<f64>; NPARAMS],
+    ) -> Self {
+        Self::OptionArrays(OptionFitInitsBoundsArrays::new(init, lower, upper).into())
+    }
+
+    fn default_from_ts<T: Float>(ts: &mut TimeSeries<T>) -> FitInitsBoundsArrays<NPARAMS> {
+        let t_min: f64 = ts.t.get_min().value_into().unwrap();
+        let t_max: f64 = ts.t.get_max().value_into().unwrap();
+        let t_amplitude = t_max - t_min;
+        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
+        let m_min: f64 = ts.m.get_min().value_into().unwrap();
+        let m_max: f64 = ts.m.get_max().value_into().unwrap();
+        let m_amplitude = m_max - m_min;
+
+        let a_init = 0.5 * m_amplitude;
+        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
+
+        let c_init = m_min;
+        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
+
+        let t0_init = t_peak;
+        let (t0_lower, t0_upper) = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
+
+        let rise_init = 0.5 * t_amplitude;
+        let (rise_lower, rise_upper) = (0.0, 10.0 * t_amplitude);
+
+        let fall_init = 0.5 * t_amplitude;
+        let (fall_lower, fall_upper) = (0.0, 10.0 * t_amplitude);
+
+        FitInitsBoundsArrays {
+            init: [a_init, c_init, t0_init, rise_init, fall_init].into(),
+            lower: [a_lower, c_lower, t0_lower, rise_lower, fall_lower].into(),
+            upper: [a_upper, c_upper, t0_upper, rise_upper, fall_upper].into(),
+        }
+    }
+}
+
 macro_const! {
     const DOC: &str = r#"
 Bazin function fit
@@ -35,6 +93,7 @@ Bazin et al. 2009 [DOI:10.1051/0004-6361/200911847](https://doi.org/10.1051/0004
 pub struct BazinFit {
     algorithm: CurveFitAlgorithm,
     ln_prior: LnPrior,
+    inits_bounds: BazinInitsBounds,
 }
 
 impl BazinFit {
@@ -47,10 +106,15 @@ impl BazinFit {
     ///
     /// `ln_prior` is an instance of [LnPrior] and specifies the natural logarithm of the prior to
     /// use. Some curve-fit algorithms doesn't support this and ignores the prior
-    pub fn new(algorithm: CurveFitAlgorithm, ln_prior: LnPrior) -> Self {
+    pub fn new(
+        algorithm: CurveFitAlgorithm,
+        ln_prior: LnPrior,
+        inits_bounds: BazinInitsBounds,
+    ) -> Self {
         Self {
             algorithm,
             ln_prior,
+            inits_bounds,
         }
     }
 
@@ -70,6 +134,11 @@ impl BazinFit {
         LnPrior::none()
     }
 
+    #[inline]
+    pub fn default_inits_bounds() -> BazinInitsBounds {
+        BazinInitsBounds::Default
+    }
+
     pub fn doc() -> &'static str {
         DOC
     }
@@ -77,7 +146,11 @@ impl BazinFit {
 
 impl Default for BazinFit {
     fn default() -> Self {
-        Self::new(Self::default_algorithm(), Self::default_ln_prior())
+        Self::new(
+            Self::default_algorithm(),
+            Self::default_ln_prior(),
+            Self::default_inits_bounds(),
+        )
     }
 }
 
@@ -196,34 +269,13 @@ impl<T> FitInitsBoundsTrait<T, NPARAMS> for BazinFit
 where
     T: Float,
 {
-    fn init_and_bounds_from_ts(ts: &mut TimeSeries<T>) -> FitInitsBounds<NPARAMS> {
-        let t_min: f64 = ts.t.get_min().value_into().unwrap();
-        let t_max: f64 = ts.t.get_max().value_into().unwrap();
-        let t_amplitude = t_max - t_min;
-        let t_peak: f64 = ts.get_t_max_m().value_into().unwrap();
-        let m_min: f64 = ts.m.get_min().value_into().unwrap();
-        let m_max: f64 = ts.m.get_max().value_into().unwrap();
-        let m_amplitude = m_max - m_min;
-
-        let a_init = 0.5 * m_amplitude;
-        let (a_lower, a_upper) = (0.0, 100.0 * m_amplitude);
-
-        let c_init = m_min;
-        let (c_lower, c_upper) = (m_min - 100.0 * m_amplitude, m_max + 100.0 * m_amplitude);
-
-        let t0_init = t_peak;
-        let (t0_lower, t0_upper) = (t_min - 10.0 * t_amplitude, t_max + 10.0 * t_amplitude);
-
-        let rise_init = 0.5 * t_amplitude;
-        let (rise_lower, rise_upper) = (0.0, 10.0 * t_amplitude);
-
-        let fall_init = 0.5 * t_amplitude;
-        let (fall_lower, fall_upper) = (0.0, 10.0 * t_amplitude);
-
-        FitInitsBounds {
-            init: [a_init, c_init, t0_init, rise_init, fall_init],
-            lower: [a_lower, c_lower, t0_lower, rise_lower, fall_lower],
-            upper: [a_upper, c_upper, t0_upper, rise_upper, fall_upper],
+    fn init_and_bounds_from_ts(&self, ts: &mut TimeSeries<T>) -> FitInitsBoundsArrays<NPARAMS> {
+        match &self.inits_bounds {
+            BazinInitsBounds::Default => BazinInitsBounds::default_from_ts(ts),
+            BazinInitsBounds::Arrays(arrays) => arrays.as_ref().clone(),
+            BazinInitsBounds::OptionArrays(opt_arr) => {
+                opt_arr.unwrap_with(&BazinInitsBounds::default_from_ts(ts))
+            }
         }
     }
 }
@@ -380,6 +432,7 @@ mod tests {
         bazin_fit_noisy(BazinFit::new(
             LmsderCurveFit::new(9).into(),
             LnPrior::none(),
+            BazinInitsBounds::Default,
         ));
     }
 
@@ -387,7 +440,11 @@ mod tests {
     fn bazin_fit_noizy_mcmc_plus_lmsder() {
         let lmsder = LmsderCurveFit::new(1);
         let mcmc = McmcCurveFit::new(512, Some(lmsder.into()));
-        bazin_fit_noisy(BazinFit::new(mcmc.into(), LnPrior::none()));
+        bazin_fit_noisy(BazinFit::new(
+            mcmc.into(),
+            LnPrior::none(),
+            BazinInitsBounds::Default,
+        ));
     }
 
     #[test]
@@ -400,7 +457,7 @@ mod tests {
             LnPrior1D::log_normal(f64::ln(30.0), 0.2),
         ]);
         let mcmc = McmcCurveFit::new(1024, None);
-        bazin_fit_noisy(BazinFit::new(mcmc.into(), prior));
+        bazin_fit_noisy(BazinFit::new(mcmc.into(), prior, BazinInitsBounds::Default));
     }
 
     #[test]
