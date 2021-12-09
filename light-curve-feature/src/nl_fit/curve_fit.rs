@@ -11,8 +11,8 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
-pub struct CurveFitResult<T> {
-    pub x: Vec<T>,
+pub struct CurveFitResult<T, const NPARAMS: usize> {
+    pub x: [T; NPARAMS],
     pub reduced_chi2: T,
     pub success: bool,
 }
@@ -27,7 +27,7 @@ pub trait CurveFitTrait: Clone + Debug + Serialize + DeserializeOwned {
         model: F,
         derivatives: DF,
         ln_prior: LP,
-    ) -> CurveFitResult<f64>
+    ) -> CurveFitResult<f64, NPARAMS>
     where
         F: 'static + Clone + Fn(f64, &[f64; NPARAMS]) -> f64,
         DF: 'static + Clone + Fn(f64, &[f64; NPARAMS], &mut [f64; NPARAMS]),

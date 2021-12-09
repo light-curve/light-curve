@@ -55,7 +55,7 @@ impl CurveFitTrait for LmsderCurveFit {
         model: F,
         derivatives: DF,
         _ln_prior: LP,
-    ) -> CurveFitResult<f64>
+    ) -> CurveFitResult<f64, NPARAMS>
     where
         F: 'static + Clone + Fn(f64, &[f64; NPARAMS]) -> f64,
         DF: 'static + Clone + Fn(f64, &[f64; NPARAMS], &mut [f64; NPARAMS]),
@@ -95,9 +95,14 @@ impl CurveFitTrait for LmsderCurveFit {
         let mut problem = NlsProblem::from_f_df(ts.t.len(), NPARAMS, f, df);
         problem.max_iter = self.niterations;
         let result = problem.solve(VectorF64::from_slice(x0).unwrap());
+        let x = {
+            let x = result.x();
+            let x: &[_; NPARAMS] = x.as_slice().unwrap().try_into().unwrap();
+            *x
+        };
 
         CurveFitResult {
-            x: result.x().as_slice().unwrap().iter().copied().collect(),
+            x,
             reduced_chi2: result.loss() / ((ts.t.len() - NPARAMS) as f64),
             success: result.status == Value::Success,
         }

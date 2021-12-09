@@ -65,7 +65,7 @@ impl CurveFitTrait for McmcCurveFit {
         model: F,
         derivatives: DF,
         ln_prior: LP,
-    ) -> CurveFitResult<f64>
+    ) -> CurveFitResult<f64, NPARAMS>
     where
         F: 'static + Clone + Fn(f64, &[f64; NPARAMS]) -> f64,
         DF: 'static + Clone + Fn(f64, &[f64; NPARAMS], &mut [f64; NPARAMS]),
@@ -144,7 +144,7 @@ impl CurveFitTrait for McmcCurveFit {
                 ln_prior,
             ),
             None => CurveFitResult {
-                x: best_x,
+                x: best_x.try_into().unwrap(),
                 reduced_chi2: -best_lnprob / ((nsamples - NPARAMS) as f64),
                 success: true,
             },
