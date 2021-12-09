@@ -142,23 +142,20 @@ where
     }
 }
 
-impl<T, U> FitModelTrait<T, U> for BazinFit
+impl<T, U> FitModelTrait<T, U, NPARAMS> for BazinFit
 where
     T: Float + Into<U>,
     U: LikeFloat,
 {
-    fn model(t: T, param: &[U]) -> U
+    fn model(t: T, param: &[U; NPARAMS]) -> U
     where
         T: Float + Into<U>,
         U: LikeFloat,
     {
         let t: U = t.into();
-        let x = param
-            .try_into()
-            .expect("input param slice has wrong length");
         let x = Params {
-            internal: &x,
-            external: Self::internal_to_dimensionless(&x),
+            internal: param,
+            external: Self::internal_to_dimensionless(param),
         };
         let minus_dt = x.t0() - t;
         x.b()
@@ -168,17 +165,14 @@ where
 
 impl<T> FitFunctionTrait<T, NPARAMS> for BazinFit where T: Float {}
 
-impl<T> FitDerivalivesTrait<T> for BazinFit
+impl<T> FitDerivalivesTrait<T, NPARAMS> for BazinFit
 where
     T: Float,
 {
-    fn derivatives(t: T, param: &[T], jac: &mut [T]) {
-        let x = param
-            .try_into()
-            .expect("input param slice has wrong length");
+    fn derivatives(t: T, param: &[T; NPARAMS], jac: &mut [T; NPARAMS]) {
         let x = Params {
-            internal: &x,
-            external: Self::internal_to_dimensionless(&x),
+            internal: param,
+            external: Self::internal_to_dimensionless(param),
         };
         let minus_dt = x.t0() - t;
         let exp_rise = T::exp(minus_dt / x.tau_rise());

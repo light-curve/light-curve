@@ -2,19 +2,19 @@ use crate::float_trait::Float;
 use crate::nl_fit::{data::NormalizedData, CurveFitAlgorithm, LikeFloat, LnPrior};
 use crate::time_series::TimeSeries;
 
-pub trait FitModelTrait<T, U>
+pub trait FitModelTrait<T, U, const NPARAMS: usize>
 where
     T: Float + Into<U>,
     U: LikeFloat,
 {
-    fn model(t: T, param: &[U]) -> U
+    fn model(t: T, param: &[U; NPARAMS]) -> U
     where
         T: Float + Into<U>,
         U: LikeFloat;
 }
 
 pub trait FitFunctionTrait<T: Float, const NPARAMS: usize>:
-    FitModelTrait<T, T> + FitParametersInternalDimlessTrait<T, NPARAMS>
+    FitModelTrait<T, T, NPARAMS> + FitParametersInternalDimlessTrait<T, NPARAMS>
 {
     fn f(t: T, values: &[T]) -> T {
         let internal = Self::dimensionless_to_internal(
@@ -26,8 +26,8 @@ pub trait FitFunctionTrait<T: Float, const NPARAMS: usize>:
     }
 }
 
-pub trait FitDerivalivesTrait<T: Float> {
-    fn derivatives(t: T, param: &[T], jac: &mut [T]);
+pub trait FitDerivalivesTrait<T: Float, const NPARAMS: usize> {
+    fn derivatives(t: T, param: &[T; NPARAMS], jac: &mut [T; NPARAMS]);
 }
 
 pub trait FitInitsBoundsTrait<T: Float, const NPARAMS: usize> {

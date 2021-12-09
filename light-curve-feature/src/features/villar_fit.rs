@@ -111,19 +111,16 @@ lazy_info!(
     sorting_required: true, // improve reproducibility
 );
 
-impl<T, U> FitModelTrait<T, U> for VillarFit
+impl<T, U> FitModelTrait<T, U, NPARAMS> for VillarFit
 where
     T: Float + Into<U>,
     U: LikeFloat,
 {
-    fn model(t: T, param: &[U]) -> U {
+    fn model(t: T, param: &[U; NPARAMS]) -> U {
         let t: U = t.into();
-        let x = param
-            .try_into()
-            .expect("input param slice has wrong length");
         let x = Params {
-            internal: &x,
-            external: Self::internal_to_dimensionless(&x),
+            internal: param,
+            external: Self::internal_to_dimensionless(param),
         };
         x.c() + x.a() * x.rise(t) * x.plateau(t) * x.fall(t)
     }
@@ -131,17 +128,14 @@ where
 
 impl<T> FitFunctionTrait<T, NPARAMS> for VillarFit where T: Float {}
 
-impl<T> FitDerivalivesTrait<T> for VillarFit
+impl<T> FitDerivalivesTrait<T, NPARAMS> for VillarFit
 where
     T: Float,
 {
-    fn derivatives(t: T, param: &[T], jac: &mut [T]) {
-        let x = param
-            .try_into()
-            .expect("input param slice has wrong length");
+    fn derivatives(t: T, param: &[T; NPARAMS], jac: &mut [T; NPARAMS]) {
         let x = Params {
-            internal: &x,
-            external: Self::internal_to_dimensionless(&x),
+            internal: param,
+            external: Self::internal_to_dimensionless(param),
         };
         let dt = x.dt(t);
         let t1 = x.t1();
@@ -151,8 +145,6 @@ where
         let fall = x.fall(t);
         let is_rise = t <= t1;
         let f_minus_c = x.a() * plateau * rise * fall;
-
-        let jac: &mut [T; NPARAMS] = jac.try_into().unwrap();
 
         // A
         jac[0] = x.sgn_a_internal() * plateau * rise * fall;
