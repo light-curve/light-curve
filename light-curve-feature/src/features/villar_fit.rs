@@ -282,12 +282,12 @@ where
 
 impl FitParametersInternalExternalTrait<NPARAMS> for VillarFit {}
 
-impl FitFeatureEvaluatorGettersTrait for VillarFit {
+impl FitFeatureEvaluatorGettersTrait<NPARAMS> for VillarFit {
     fn get_algorithm(&self) -> &CurveFitAlgorithm {
         &self.algorithm
     }
 
-    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior {
+    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior<NPARAMS> {
         self.ln_prior.ln_prior_from_ts(ts)
     }
 }
@@ -529,7 +529,7 @@ impl VillarInitsBounds {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum VillarLnPrior {
-    Fixed(Box<LnPrior>),
+    Fixed(Box<LnPrior<NPARAMS>>),
     /// Adopted from Hosseinzadeh, et al. 2020, table 2
     ///
     /// `time_units_in_day` specifies the units of time you use in yout `TimeSeries` object, it
@@ -542,7 +542,7 @@ pub enum VillarLnPrior {
 }
 
 impl VillarLnPrior {
-    pub fn fixed(ln_prior: LnPrior) -> Self {
+    pub fn fixed(ln_prior: LnPrior<NPARAMS>) -> Self {
         Self::Fixed(ln_prior.into())
     }
 
@@ -553,7 +553,7 @@ impl VillarLnPrior {
         }
     }
 
-    pub fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior {
+    pub fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior<NPARAMS> {
         match self {
             Self::Fixed(ln_prior) => ln_prior.as_ref().clone(),
             Self::Hosseinzadeh2020 {
@@ -565,7 +565,7 @@ impl VillarLnPrior {
                 let m_max: f64 = ts.m.get_max().value_into().unwrap();
                 let m_amplitude = m_max - m_min;
 
-                LnPrior::ind_components(vec![
+                LnPrior::ind_components([
                     LnPrior1D::log_uniform(f64::ln(*min_amplitude), f64::ln(100.0 * m_amplitude)), // amplitude
                     LnPrior1D::none(), // offset, not used in the original paper
                     LnPrior1D::uniform(t_peak - 50.0 * day, t_peak + 300.0 * day), // reference time
@@ -582,8 +582,8 @@ impl VillarLnPrior {
     }
 }
 
-impl From<LnPrior> for VillarLnPrior {
-    fn from(item: LnPrior) -> Self {
+impl From<LnPrior<NPARAMS>> for VillarLnPrior {
+    fn from(item: LnPrior<NPARAMS>) -> Self {
         Self::fixed(item)
     }
 }
@@ -674,7 +674,7 @@ mod tests {
 
     #[test]
     fn villar_fit_noizy_mcmc_with_prior() {
-        let prior = LnPrior::ind_components(vec![
+        let prior = LnPrior::ind_components([
             LnPrior1D::normal(1e4, 1e4),
             LnPrior1D::normal(1e3, 1e3),
             LnPrior1D::uniform(5.0, 30.0),

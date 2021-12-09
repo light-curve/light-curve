@@ -226,8 +226,8 @@ pub trait FitParametersInternalExternalTrait<const NPARAMS: usize>:
     }
 }
 
-pub trait FitFeatureEvaluatorGettersTrait {
+pub trait FitFeatureEvaluatorGettersTrait<const NPARAMS: usize> {
     fn get_algorithm(&self) -> &CurveFitAlgorithm;
 
-    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior;
+    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior<NPARAMS>;
 }

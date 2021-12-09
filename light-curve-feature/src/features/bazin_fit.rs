@@ -274,12 +274,12 @@ where
 
 impl FitParametersInternalExternalTrait<NPARAMS> for BazinFit {}
 
-impl FitFeatureEvaluatorGettersTrait for BazinFit {
+impl FitFeatureEvaluatorGettersTrait<NPARAMS> for BazinFit {
     fn get_algorithm(&self) -> &CurveFitAlgorithm {
         &self.algorithm
     }
 
-    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior {
+    fn ln_prior_from_ts<T: Float>(&self, ts: &mut TimeSeries<T>) -> LnPrior<NPARAMS> {
         self.ln_prior.ln_prior_from_ts(ts)
     }
 }
@@ -377,23 +377,23 @@ impl BazinInitsBounds {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum BazinLnPrior {
-    Fixed(Box<LnPrior>),
+    Fixed(Box<LnPrior<NPARAMS>>),
 }
 
 impl BazinLnPrior {
-    pub fn fixed(ln_prior: LnPrior) -> Self {
+    pub fn fixed(ln_prior: LnPrior<NPARAMS>) -> Self {
         Self::Fixed(ln_prior.into())
     }
 
-    pub fn ln_prior_from_ts<T: Float>(&self, _ts: &mut TimeSeries<T>) -> LnPrior {
+    pub fn ln_prior_from_ts<T: Float>(&self, _ts: &mut TimeSeries<T>) -> LnPrior<NPARAMS> {
         match self {
             Self::Fixed(ln_prior) => ln_prior.as_ref().clone(),
         }
     }
 }
 
-impl From<LnPrior> for BazinLnPrior {
-    fn from(item: LnPrior) -> Self {
+impl From<LnPrior<NPARAMS>> for BazinLnPrior {
+    fn from(item: LnPrior<NPARAMS>) -> Self {
         Self::fixed(item)
     }
 }
@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     fn bazin_fit_noizy_mcmc_with_prior() {
-        let prior = LnPrior::ind_components(vec![
+        let prior = LnPrior::ind_components([
             LnPrior1D::normal(1e4, 2e3),
             LnPrior1D::normal(1e3, 2e2),
             LnPrior1D::uniform(25.0, 35.0),
