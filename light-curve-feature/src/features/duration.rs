@@ -8,6 +8,8 @@ $$
 t_{N-1} - t_0.
 $$
 
+Note: cadence-dependent feature.
+
 - Depends on: **time**
 - Minimum number of observations: **1**
 - Number of features: **1**
@@ -41,7 +43,7 @@ lazy_info!(
 
 impl FeatureNamesDescriptionsTrait for Duration {
     fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_duration"]
+        vec!["duration"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {

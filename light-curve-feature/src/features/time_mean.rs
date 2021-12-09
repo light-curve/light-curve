@@ -8,6 +8,8 @@ $$
 \langle t \rangle \equiv \frac1{N} \sum_i {t_i}.
 $$
 
+Note: highly cadence-dependent feature.
+
 - Depends on: **time**
 - Minimum number of observations: **1**
 - Number of features: **1**
@@ -40,7 +42,7 @@ lazy_info!(
 );
 impl FeatureNamesDescriptionsTrait for TimeMean {
     fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_time_mean"]
+        vec!["time_mean"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {

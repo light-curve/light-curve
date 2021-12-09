@@ -2,23 +2,25 @@ use crate::evaluator::*;
 
 macro_const! {
     const DOC: &'static str = r#"
-Standard deviation of time moments
+Number of observations
 
 $$
-\sigma_t \equiv \frac{\sum_i {(t_i - \langle t \rangle)^2}}{N - 1}.
+N
 $$
 
-- Depends on: **time**
-- Minimum number of observations: **2**
+Note: cadence-dependent feature.
+
+- Depends on: nothing
+- Minimum number of observations: **0**
 - Number of features: **1**
 "#;
 }
 
 #[doc = DOC!()]
 #[derive(Clone, Default, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct TimeStandardDeviation {}
+pub struct ObservationCount {}
 
-impl TimeStandardDeviation {
+impl ObservationCount {
     pub fn new() -> Self {
         Self {}
     }
@@ -29,33 +31,33 @@ impl TimeStandardDeviation {
 }
 
 lazy_info!(
-    TIME_STANDARD_DEVIATION_INFO,
-    TimeStandardDeviation,
+    OBSERVATION_COUNT_INFO,
+    ObservationCount,
     size: 1,
-    min_ts_length: 2,
-    t_required: true,
+    min_ts_length: 0,
+    t_required: false,
     m_required: false,
     w_required: false,
     sorting_required: false,
 );
 
-impl FeatureNamesDescriptionsTrait for TimeStandardDeviation {
+impl FeatureNamesDescriptionsTrait for ObservationCount {
     fn get_names(&self) -> Vec<&str> {
-        vec!["ANTIFEATURE_time_standard_deviation"]
+        vec!["observation_count"]
     }
 
     fn get_descriptions(&self) -> Vec<&str> {
-        vec!["standard deviation of time moments"]
+        vec!["observation count"]
     }
 }
 
-impl<T> FeatureEvaluator<T> for TimeStandardDeviation
+impl<T> FeatureEvaluator<T> for ObservationCount
 where
     T: Float,
 {
     fn eval(&self, ts: &mut TimeSeries<T>) -> Result<Vec<T>, EvaluatorError> {
         self.check_ts_length(ts)?;
-        Ok(vec![ts.t.get_std()])
+        Ok(vec![ts.lenf()])
     }
 }
 
@@ -66,12 +68,12 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    check_feature!(TimeStandardDeviation);
+    check_feature!(ObservationCount);
 
     feature_test!(
-        time_standard_deviation,
-        [TimeStandardDeviation::new()],
-        [1.5811388300841898],
+        observation_count,
+        [ObservationCount::new()],
+        [5.0],
         [0.0_f32, 1.0, 2.0, 3.0, 4.0],
     );
 }

@@ -1,7 +1,5 @@
 //! Feature sctructs implements [crate::FeatureEvaluator] trait
 
-pub mod antifeatures;
-
 mod amplitude;
 pub use amplitude::Amplitude;
 
@@ -19,6 +17,9 @@ pub use bins::Bins;
 
 mod cusum;
 pub use cusum::Cusum;
+
+mod duration;
+pub use duration::Duration;
 
 mod eta;
 pub use eta::Eta;
@@ -47,6 +48,12 @@ pub use magnitude_percentage_ratio::MagnitudePercentageRatio;
 mod maximum_slope;
 pub use maximum_slope::MaximumSlope;
 
+mod maximum_time_interval;
+pub use maximum_time_interval::MaximumTimeInterval;
+
+mod minimum_time_interval;
+pub use minimum_time_interval::MinimumTimeInterval;
+
 mod mean;
 pub use mean::Mean;
 
@@ -61,6 +68,9 @@ pub use median_absolute_deviation::MedianAbsoluteDeviation;
 
 mod median_buffer_range_percentage;
 pub use median_buffer_range_percentage::MedianBufferRangePercentage;
+
+mod observation_count;
+pub use observation_count::ObservationCount;
 
 mod percent_amplitude;
 pub use percent_amplitude::PercentAmplitude;
@@ -83,6 +93,12 @@ pub use standard_deviation::StandardDeviation;
 
 mod stetson_k;
 pub use stetson_k::StetsonK;
+
+mod time_mean;
+pub use time_mean::TimeMean;
+
+mod time_standard_deviation;
+pub use time_standard_deviation::TimeStandardDeviation;
 
 mod villar_fit;
 pub use villar_fit::VillarFit;
