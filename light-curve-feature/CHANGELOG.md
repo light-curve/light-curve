@@ -9,8 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+—
+
+### Changed
+
+—
+
+### Deprecated
+
+—
+
+### Removed
+
+—
+
+### Fixed
+
+—
+
+### Security
+
+—
+
+## [0.4.0]
+
+### Added
+
 - `prelude` module to allow a user importing all traits
-- `McmcCurveFit` uses new `LnPrior` objects which holds natural logarithm of priors for parameters. `BazinFit` and `VillarFit` accept this object
+- `McmcCurveFit` uses new `LnPrior` objects which holds natural logarithm of priors for parameters. `BazinFit` and `VillarFit` requires this object to be specified
 - `VillarFit` could use `VillarLnPrior::Hosseinzadeh2020` adopted from Hosseinzadeh et al 2020 paper (aka Superphot paper)
 - `FeatureExtractor::from_features()` as a specified version of `new()` required less if not none type annotations
 
@@ -25,22 +51,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BazinFit` and `VillarFit` have two new fields (and require two new argments in there `new` constructors): `ln_prior` and `inits_bounds`. The last one supports custom initial guess and boundaries for the optimization problem
 - MCMC uses more diverse initial guesses which take into account boundary conditions
 
-### Deprecated
-
-—
-
 ### Removed
 
-- `features::antifeatures` submodule is removed and all its features moved to `features` submodule
+- `features::antifeatures` submodule is removed and all its features moved to the parent `features` submodule
 
 ### Fixed
 
 - Update `clap` to `3.0.0-rc.0`, it is used for the example executable only
 - `EtaE` and `MaximumSlope` docs updated to highlight cadence dependency of these features
-
-### Security
-
-—
 
 ## [0.3.3]
 
