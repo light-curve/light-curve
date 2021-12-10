@@ -31,6 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 —
 
+## [0.4.1]
+
+### Changed
+
+- `BazinLnPrior`, `BazinInitsBounds`, `VillarLnPrior`, `VillarINitisBounds` are public now
+
+### Fixed
+
+- Fixed amplitude prior of `VillarLnPrior::Hosseinzadeh2020`
+- The example plotted wrong graphs for the Villar function
+
 ## [0.4.0]
 
 ### Added
