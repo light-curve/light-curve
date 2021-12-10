@@ -1,5 +1,6 @@
 use crate::error::EvaluatorError;
 use crate::evaluator::*;
+use crate::feature::Feature;
 use crate::float_trait::Float;
 use crate::time_series::TimeSeries;
 
@@ -64,6 +65,16 @@ where
 
     pub fn add_feature(&mut self, feature: F) {
         self.features.push(feature);
+    }
+}
+
+impl<T> FeatureExtractor<T, Feature<T>>
+where
+    T: Float,
+{
+    /// Specialized version of [FeatureExtractor::new] for [Feature]
+    pub fn from_features(features: Vec<Feature<T>>) -> Self {
+        Self::new(features)
     }
 }
 

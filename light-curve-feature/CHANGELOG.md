@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `prelude` module to allow a user importing all traits
 - `McmcCurveFit` uses new `LnPrior` objects which holds natural logarithm of priors for parameters. `BazinFit` and `VillarFit` accept this object
 - `VillarFit` could use `VillarLnPrior::Hosseinzadeh2020` adopted from Hosseinzadeh et al 2020 paper (aka Superphot paper)
+- `FeatureExtractor::from_features()` as a specified version of `new()` required less if not none type annotations
 
 ### Changed
 

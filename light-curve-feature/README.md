@@ -12,7 +12,10 @@ that multiple features interpret weight array as inversed squared observation er
 use light_curve_feature::prelude::*;
 
 // Let's find amplitude and reduced Chi-squared of the light curve
-let fe = FeatureExtractor::<_, Feature<_>>::new(vec![Amplitude::default().into(), ReducedChi2::default().into()]);
+let fe = FeatureExtractor::from_features(vec![
+    Amplitude::new().into(),
+    ReducedChi2::new().into()
+]);
 // Define light curve
 let time = [0.0, 1.0, 2.0, 3.0, 4.0];
 let magn = [-1.0, 2.0, 1.0, 3.0, 4.5];
@@ -39,7 +42,7 @@ let bins: Feature<_> = {
     bins.add_feature(max_slope.clone());
     bins.into()
 };
-let fe = FeatureExtractor::<_, Feature<_>>::new(vec![max_slope, bins]);
+let fe = FeatureExtractor::from_features(vec![max_slope, bins]);
 // Define light curve
 let time = [0.1, 0.2, 1.1, 2.1, 2.1];
 let magn = [10.0, 10.1, 10.5, 11.0, 10.9];
