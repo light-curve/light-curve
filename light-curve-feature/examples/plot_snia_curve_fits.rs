@@ -1,7 +1,7 @@
 use clap::Parser;
 use light_curve_feature::{
-    prelude::*, BazinFit, Feature, FeatureEvaluator, LmsderCurveFit, LnPrior, McmcCurveFit,
-    TimeSeries, VillarFit,
+    features::VillarLnPrior, prelude::*, BazinFit, Feature, FeatureEvaluator, LmsderCurveFit,
+    LnPrior, McmcCurveFit, TimeSeries, VillarFit,
 };
 use light_curve_feature_test_util::iter_sn1a_flux_ts;
 use ndarray::{Array1, ArrayView1};
@@ -55,9 +55,51 @@ fn main() {
             )
             .into(),
         ),
+        (
+            "VillarFit MCMC+prior",
+            VillarFit::new(
+                McmcCurveFit::new(1024, None).into(),
+                // We set minimum amplitude to be corresponded to 21 mag
+                VillarLnPrior::hosseinzadeh2020(1.0, f64::powf(10.0, -0.4 * 21.0)),
+                VillarInitsBounds::option_arrays(
+                    // init
+                    [
+                        None,        // amplitude
+                        None,        // offset
+                        None,        // t0
+                        Some(30.0),  // tau_rise
+                        Some(100.0), // tau_fall
+                        Some(0.0),   // nu
+                        Some(20.0),  // gamma
+                    ],
+                    // lower
+                    [
+                        None,
+                        None,
+                        None,
+                        Some(0.01),
+                        Some(1.0),
+                        Some(0.0),
+                        Some(0.0),
+                    ],
+                    // upper
+                    [
+                        None,
+                        None,
+                        None,
+                        Some(50.0),
+                        Some(300.0),
+                        Some(1.0),
+                        Some(180.0),
+                    ],
+                ),
+            )
+            .into(),
+        ),
     ];
     iter_sn1a_flux_ts()
         .take(n)
+        .filter(|(ztf_id, _)| ztf_id.starts_with("ZTF18aaxsioa"))
         .par_bridge()
         .for_each(|(ztf_id, mut ts)| {
             let filename = format!("{}.png", ztf_id);
@@ -84,10 +126,11 @@ fn fitted_model(
     feature: &Feature<f64>,
 ) -> (Array1<f64>, f64) {
     let values = feature.eval(ts).expect("Feature cannot be extracted");
+    println!("{:?}", values);
     let reduced_chi2 = values[values.len() - 1];
     let model: Box<dyn Fn(f64, &[f64]) -> f64> = match feature {
         Feature::BazinFit(..) => Box::new(BazinFit::f),
-        Feature::VillarFit(..) => Box::new(BazinFit::f),
+        Feature::VillarFit(..) => Box::new(VillarFit::f),
         _ => panic!("Unknown *Fit variant"),
     };
     let flux = t.mapv(|t| model(t, &values));
