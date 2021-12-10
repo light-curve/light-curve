@@ -566,7 +566,7 @@ impl VillarLnPrior {
                 let m_amplitude = m_max - m_min;
 
                 LnPrior::ind_components([
-                    LnPrior1D::log_uniform(f64::ln(*min_amplitude), f64::ln(100.0 * m_amplitude)), // amplitude
+                    LnPrior1D::log_uniform(*min_amplitude, 100.0 * m_amplitude), // amplitude
                     LnPrior1D::none(), // offset, not used in the original paper
                     LnPrior1D::uniform(t_peak - 50.0 * day, t_peak + 300.0 * day), // reference time
                     LnPrior1D::uniform(0.01 * day, 50.0 * day), // tau_rise
