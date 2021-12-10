@@ -1,15 +1,18 @@
 use crate::nl_fit::prior::ln_prior_1d::{LnPrior1D, LnPrior1DTrait};
 
+use enum_dispatch::enum_dispatch;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
+#[enum_dispatch]
 pub trait LnPriorTrait<const NPARAMS: usize>: Clone + Debug + Serialize + DeserializeOwned {
     fn ln_prior(&self, params: &[f64; NPARAMS]) -> f64;
 }
 
 /// Natural logarithm of prior for non-linear curve-fit problem
+#[enum_dispatch(LnPriorTrait<NPARAMS>)]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[non_exhaustive]
 pub enum LnPrior<const NPARAMS: usize> {
@@ -52,29 +55,6 @@ impl<const NPARAMS: usize> LnPrior<NPARAMS> {
         F: 'a + Clone + Fn(&[f64; NPARAMS]) -> [f64; NPARAMS],
     {
         move |params| self.ln_prior(&transform(params))
-    }
-}
-
-// Looks like enum_dispatch doesn't work with const generics yet
-// https://gitlab.com/antonok/enum_dispatch/-/issues/51
-impl<const NPARAMS: usize> LnPriorTrait<NPARAMS> for LnPrior<NPARAMS> {
-    fn ln_prior(&self, params: &[f64; NPARAMS]) -> f64 {
-        match self {
-            Self::None(x) => x.ln_prior(params),
-            Self::IndComponents(x) => x.ln_prior(params),
-        }
-    }
-}
-
-impl<const NPARAMS: usize> From<NoneLnPrior> for LnPrior<NPARAMS> {
-    fn from(item: NoneLnPrior) -> Self {
-        Self::None(item)
-    }
-}
-
-impl<const NPARAMS: usize> From<IndComponentsLnPrior<NPARAMS>> for LnPrior<NPARAMS> {
-    fn from(item: IndComponentsLnPrior<NPARAMS>) -> Self {
-        Self::IndComponents(item)
     }
 }
 

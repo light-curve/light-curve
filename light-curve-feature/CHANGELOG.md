@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-—
+- Use `enum_dispatch` crate to implement `LnPriorTrait` for `LnPrior`
 
 ### Deprecated
 
