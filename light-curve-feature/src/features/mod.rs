@@ -7,7 +7,7 @@ mod anderson_darling_normal;
 pub use anderson_darling_normal::AndersonDarlingNormal;
 
 mod bazin_fit;
-pub use bazin_fit::BazinFit;
+pub use bazin_fit::{BazinFit, BazinInitsBounds, BazinLnPrior};
 
 mod beyond_n_std;
 pub use beyond_n_std::BeyondNStd;
@@ -101,7 +101,7 @@ mod time_standard_deviation;
 pub use time_standard_deviation::TimeStandardDeviation;
 
 mod villar_fit;
-pub use villar_fit::VillarFit;
+pub use villar_fit::{VillarFit, VillarInitsBounds, VillarLnPrior};
 
 mod weighted_mean;
 pub use weighted_mean::WeightedMean;
