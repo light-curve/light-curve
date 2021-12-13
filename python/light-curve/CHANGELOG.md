@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-—
+- `gsl` is a default Cargo feature now, which means that GSL must be installed to build this package
 
 ### Deprecated
 

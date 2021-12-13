@@ -14,7 +14,7 @@ name = "light_curve"
 crate-type = ["cdylib"]
 
 [features]
-default = ["fftw-static"]
+default = ["fftw-static", "gsl"]
 fftw-static = ["light-curve-feature/fftw-source"]
 fftw-dynamic = ["light-curve-feature/fftw-system"]
 mkl = ["light-curve-feature/fftw-mkl"]
