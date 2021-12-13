@@ -4,7 +4,7 @@ use crate::np_array::{Arr, GenericFloatArray1};
 use crate::sorted::is_sorted;
 
 use const_format::formatcp;
-use light_curve_feature::{self as lcf, DataSample, FeatureEvaluator};
+use light_curve_feature::{self as lcf, prelude::*, DataSample};
 use ndarray::IntoNdProducer;
 use numpy::IntoPyArray;
 use pyo3::exceptions::PyValueError;
@@ -567,8 +567,18 @@ macro_rules! fit_evaluator {
                 Ok((
                     Self {},
                     PyFeatureEvaluator {
-                        feature_evaluator_f32: <$eval>::new(curve_fit_algorithm.clone()).into(),
-                        feature_evaluator_f64: <$eval>::new(curve_fit_algorithm).into(),
+                        feature_evaluator_f32: <$eval>::new(
+                            curve_fit_algorithm.clone(),
+                            <$eval>::default_ln_prior(),
+                            <$eval>::default_inits_bounds(),
+                        )
+                        .into(),
+                        feature_evaluator_f64: <$eval>::new(
+                            curve_fit_algorithm,
+                            <$eval>::default_ln_prior(),
+                            <$eval>::default_inits_bounds(),
+                        )
+                        .into(),
                     },
                 ))
             }
@@ -1192,32 +1202,14 @@ fit_evaluator!(VillarFit, lcf::VillarFit);
 
 evaluator!(WeightedMean, lcf::WeightedMean);
 
-evaluator!(Duration, lcf::antifeatures::Duration);
+evaluator!(Duration, lcf::Duration);
 
-evaluator!(MaximumTimeInterval, lcf::antifeatures::MaximumTimeInterval);
+evaluator!(MaximumTimeInterval, lcf::MaximumTimeInterval);
 
-evaluator!(MinimumTimeInterval, lcf::antifeatures::MinimumTimeInterval);
+evaluator!(MinimumTimeInterval, lcf::MinimumTimeInterval);
 
-evaluator!(ObservationCount, lcf::antifeatures::ObservationCount);
+evaluator!(ObservationCount, lcf::ObservationCount);
 
-evaluator!(TimeMean, lcf::antifeatures::TimeMean);
+evaluator!(TimeMean, lcf::TimeMean);
 
-evaluator!(
-    TimeStandardDeviation,
-    lcf::antifeatures::TimeStandardDeviation
-);
-
-/// Features highly dependent on time-series cadence
-///
-/// See feature interface documentation in the top-level module
-#[pymodule]
-pub fn antifeatures(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Duration>()?;
-    m.add_class::<MaximumTimeInterval>()?;
-    m.add_class::<MinimumTimeInterval>()?;
-    m.add_class::<ObservationCount>()?;
-    m.add_class::<TimeMean>()?;
-    m.add_class::<TimeStandardDeviation>()?;
-
-    Ok(())
-}
+evaluator!(TimeStandardDeviation, lcf::TimeStandardDeviation);

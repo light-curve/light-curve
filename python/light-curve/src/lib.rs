@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use pyo3::wrap_pymodule;
 
 mod cont_array;
 
@@ -9,7 +8,7 @@ use dmdt::DmDt;
 mod errors;
 
 mod features;
-use features::*;
+use features as f;
 
 mod np_array;
 
@@ -53,44 +52,45 @@ fn light_curve(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<DmDt>()?;
 
-    m.add_class::<PyFeatureEvaluator>()?;
+    m.add_class::<f::PyFeatureEvaluator>()?;
 
-    m.add_class::<Extractor>()?;
+    m.add_class::<f::Extractor>()?;
 
-    m.add_class::<Amplitude>()?;
-    m.add_class::<AndersonDarlingNormal>()?;
-    m.add_class::<BazinFit>()?;
-    m.add_class::<BeyondNStd>()?;
-    m.add_class::<Bins>()?;
-    m.add_class::<Cusum>()?;
-    m.add_class::<Eta>()?;
-    m.add_class::<EtaE>()?;
-    m.add_class::<ExcessVariance>()?;
-    m.add_class::<InterPercentileRange>()?;
-    m.add_class::<Kurtosis>()?;
-    m.add_class::<LinearFit>()?;
-    m.add_class::<LinearTrend>()?;
-    m.add_class::<MagnitudePercentageRatio>()?;
-    m.add_class::<MaximumSlope>()?;
-    m.add_class::<Mean>()?;
-    m.add_class::<MeanVariance>()?;
-    m.add_class::<Median>()?;
-    m.add_class::<MedianAbsoluteDeviation>()?;
-    m.add_class::<MedianBufferRangePercentage>()?;
-    m.add_class::<PercentAmplitude>()?;
-    m.add_class::<PercentDifferenceMagnitudePercentile>()?;
-    m.add_class::<Periodogram>()?;
-    m.add_class::<ReducedChi2>()?;
-    m.add_class::<Skew>()?;
-    m.add_class::<StandardDeviation>()?;
-    m.add_class::<StetsonK>()?;
-    m.add_class::<VillarFit>()?;
-    m.add_class::<WeightedMean>()?;
-
-    #[cfg(feature = "nonlinear-fit")]
-    m.add_class::<BazinFit>()?;
-
-    m.add_wrapped(wrap_pymodule!(antifeatures))?;
+    m.add_class::<f::Amplitude>()?;
+    m.add_class::<f::AndersonDarlingNormal>()?;
+    m.add_class::<f::BazinFit>()?;
+    m.add_class::<f::BeyondNStd>()?;
+    m.add_class::<f::Bins>()?;
+    m.add_class::<f::Cusum>()?;
+    m.add_class::<f::Duration>()?;
+    m.add_class::<f::Eta>()?;
+    m.add_class::<f::EtaE>()?;
+    m.add_class::<f::ExcessVariance>()?;
+    m.add_class::<f::InterPercentileRange>()?;
+    m.add_class::<f::Kurtosis>()?;
+    m.add_class::<f::LinearFit>()?;
+    m.add_class::<f::LinearTrend>()?;
+    m.add_class::<f::ObservationCount>()?;
+    m.add_class::<f::MagnitudePercentageRatio>()?;
+    m.add_class::<f::MaximumSlope>()?;
+    m.add_class::<f::MaximumTimeInterval>()?;
+    m.add_class::<f::Mean>()?;
+    m.add_class::<f::MeanVariance>()?;
+    m.add_class::<f::Median>()?;
+    m.add_class::<f::MedianAbsoluteDeviation>()?;
+    m.add_class::<f::MedianBufferRangePercentage>()?;
+    m.add_class::<f::MinimumTimeInterval>()?;
+    m.add_class::<f::PercentAmplitude>()?;
+    m.add_class::<f::PercentDifferenceMagnitudePercentile>()?;
+    m.add_class::<f::Periodogram>()?;
+    m.add_class::<f::ReducedChi2>()?;
+    m.add_class::<f::Skew>()?;
+    m.add_class::<f::StandardDeviation>()?;
+    m.add_class::<f::StetsonK>()?;
+    m.add_class::<f::TimeMean>()?;
+    m.add_class::<f::TimeStandardDeviation>()?;
+    m.add_class::<f::VillarFit>()?;
+    m.add_class::<f::WeightedMean>()?;
 
     Ok(())
 }
