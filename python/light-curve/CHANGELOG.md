@@ -13,8 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `gsl` is a default Cargo feature now, which means that GSL must be installed to build this package
-- `light-curve-feature` 0.3 -> 0.4.1 transition brings MCMC improvements, changing feature names of `BazinFit` and significant changes of `VillarFit` feature set
+—
 
 ### Deprecated
 
@@ -22,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `antifeatures` submodule of the Rust implementation
+—
 
 ### Fixed
 
@@ -31,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 —
+
+## [0.5.0]
+
+### Changed
+
+- `gsl` is a default Cargo feature now, which means that GSL must be installed to build this package
+- `light-curve-feature` 0.3 -> 0.4.1 transition brings MCMC improvements, changing feature names of `BazinFit` and significant changes of `VillarFit` feature set
+
+### Removed
+
+- `antifeatures` submodule of the Rust implementation
 
 ## [0.4.0]
 
