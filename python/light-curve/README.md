@@ -38,14 +38,24 @@ linear_fit = lc.LinearFit()
 extractor = lc.Extractor(amplitude, beyond_std, linear_fit)
 
 # Array with all 5 extracted features
-result = extractor(t, m, err)
+result = extractor(t, m, err, sorted=True, check=False)
 
 print('\n'.join("{} = {:.2f}".format(name, value) for name, value in zip(extractor.names, result)))
 
 # Run in parallel for multiple light curves:
-results = amplitude.many([(t[:i], m[:i], err[:i]) for i in range(int(0.5 * n), n)], n_jobs=-1)
+results = amplitude.many(
+    [(t[:i], m[:i], err[:i]) for i in range(int(0.5 * n), n)],
+    n_jobs=-1,
+    sorted=True,
+    check=False,
+)
 print("Amplitude of amplitude is {:.2f}".format(np.ptp(results)))
 ```
+
+If you confident in your inputs you could use `sorted = True` (`t` is in ascending order)
+and `check = False` (no NaNs in inputs, no infs in `t` or `m`) for better performance.
+Note that if your inputs are not valid and are not validated by
+`sorted=None` and `check=True` (default values) then all kind of bad things could happen.
 
 Print feature classes list
 ```python

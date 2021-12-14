@@ -1,5 +1,8 @@
 use crate::errors::{Exception, Res};
+
 use itertools::Itertools;
+use light_curve_feature::Float;
+use ndarray::{ArrayView1, Zip};
 
 pub fn is_sorted<T>(a: &[T]) -> bool
 where
@@ -26,5 +29,32 @@ where
                 )))
             }
         }
+    }
+}
+
+pub fn check_finite<T>(a: ArrayView1<'_, T>) -> Res<()>
+where
+    T: Float,
+{
+    if Zip::from(a).all(|x| x.is_finite()) {
+        Ok(())
+    } else {
+        Err(Exception::ValueError(String::from(
+            "t and m values must be finite",
+        )))
+    }
+}
+
+pub fn check_no_nans<T>(a: ArrayView1<'_, T>) -> Res<()>
+where
+    T: Float,
+{
+    // There are no Zip::any
+    if Zip::from(a).all(|x| !x.is_nan()) {
+        Ok(())
+    } else {
+        Err(Exception::ValueError(String::from(
+            "input arrays must not contain any NaNs",
+        )))
     }
 }

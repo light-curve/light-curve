@@ -1,7 +1,7 @@
+use crate::check::{check_finite, check_no_nans, is_sorted};
 use crate::cont_array::ContCowArray;
 use crate::errors::{Exception, Res};
 use crate::np_array::{Arr, GenericFloatArray1};
-use crate::sorted::is_sorted;
 
 use const_format::formatcp;
 use light_curve_feature::{self as lcf, prelude::*, DataSample};
@@ -22,7 +22,7 @@ descriptions : list of str
 
 const METHOD_CALL_DOC: &str = r#"Methods
 -------
-__call__(t, m, sigma=None, sorted=None, fill_value=None)
+__call__(t, m, sigma=None, sorted=None, check=True, fill_value=None)
     Extract features and return them as a numpy array
 
     Parameters
@@ -39,6 +39,8 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
         True is for certainly sorted, False is for unsorted.
         If None is specified than sorting is checked and an exception is
         raised for unsorted `t`
+    check : bool, optional
+        Check all input arrays for NaNs, `t` and `m` for infinite values
     fill_value : float or None, optional
         Value to fill invalid feature values, for example if count of
         observations is not enough to find a proper value.
@@ -50,7 +52,7 @@ __call__(t, m, sigma=None, sorted=None, fill_value=None)
         Extracted feature array"#;
 
 const METHOD_MANY_DOC: &str = r#"
-many(lcs, sorted=None, fill_value=None, n_jobs=-1)
+many(lcs, sorted=None, check=True, fill_value=None, n_jobs=-1)
     Parallel light curve feature extraction
 
     It is a parallel executed equivalent of
@@ -67,6 +69,8 @@ many(lcs, sorted=None, fill_value=None, n_jobs=-1)
     sorted : bool or None, optional
         Specifies if input array are sorted by time moments, see __call__
         documentation for details
+    check : bool, optional
+        Check all input arrays for NaNs, `t` and `m` for infinite values
     fill_value : float or None, optional
         Fill invalid values by this or raise an exception if None
     n_jobs : int
@@ -104,6 +108,7 @@ impl PyFeatureEvaluator {
         m: &'a Arr<'a, T>,
         sigma: &'a Option<Arr<'a, T>>,
         sorted: Option<bool>,
+        check: bool,
         is_t_required: bool,
     ) -> Res<lcf::TimeSeries<'a, T>>
     where
@@ -123,7 +128,11 @@ impl PyFeatureEvaluator {
         }
 
         let mut t: lcf::DataSample<_> = if is_t_required || t.is_contiguous() {
-            t.as_array().into()
+            let t = t.as_array();
+            if check {
+                check_finite(t)?;
+            }
+            t.into()
         } else {
             T::array0_unity().broadcast(t.len()).unwrap().into()
         };
@@ -144,20 +153,31 @@ impl PyFeatureEvaluator {
         }
 
         let m: lcf::DataSample<_> = if feature_evaluator.is_m_required() || m.is_contiguous() {
-            m.as_array().into()
+            let m = m.as_array();
+            if check {
+                check_finite(m)?;
+            }
+            m.into()
         } else {
             T::array0_unity().broadcast(m.len()).unwrap().into()
         };
 
-        let w = sigma.as_ref().and_then(|sigma| {
-            if feature_evaluator.is_w_required() {
-                let mut a = sigma.to_owned_array();
-                a.mapv_inplace(|x| x.powi(-2));
-                Some(a)
-            } else {
-                None
+        let w = match sigma.as_ref() {
+            Some(sigma) => {
+                if feature_evaluator.is_w_required() {
+                    let sigma = sigma.as_array();
+                    if check {
+                        check_no_nans(sigma)?;
+                    }
+                    let mut a = sigma.to_owned();
+                    a.mapv_inplace(|x| x.powi(-2));
+                    Some(a)
+                } else {
+                    None
+                }
             }
-        });
+            None => None,
+        };
 
         let ts = match w {
             Some(w) => lcf::TimeSeries::new(t, m, w),
@@ -167,19 +187,29 @@ impl PyFeatureEvaluator {
         Ok(ts)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn call_impl<T>(
         feature_evaluator: &lcf::Feature<T>,
         t: Arr<T>,
         m: Arr<T>,
         sigma: Option<Arr<T>>,
         sorted: Option<bool>,
+        check: bool,
         is_t_required: bool,
         fill_value: Option<T>,
     ) -> Res<ndarray::Array1<T>>
     where
         T: lcf::Float + numpy::Element,
     {
-        let mut ts = Self::ts_from_numpy(feature_evaluator, &t, &m, &sigma, sorted, is_t_required)?;
+        let mut ts = Self::ts_from_numpy(
+            feature_evaluator,
+            &t,
+            &m,
+            &sigma,
+            sorted,
+            check,
+            is_t_required,
+        )?;
 
         let result = match fill_value {
             Some(x) => feature_evaluator.eval_or_fill(&mut ts, x),
@@ -190,6 +220,7 @@ impl PyFeatureEvaluator {
         Ok(result.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn py_many<'a, T>(
         &self,
         feature_evaluator: &lcf::Feature<T>,
@@ -200,6 +231,7 @@ impl PyFeatureEvaluator {
             Option<GenericFloatArray1<'a>>,
         )>,
         sorted: Option<bool>,
+        check: bool,
         fill_value: Option<T>,
         n_jobs: i64,
     ) -> Res<PyObject>
@@ -229,6 +261,7 @@ impl PyFeatureEvaluator {
             feature_evaluator,
             wrapped_lcs,
             sorted,
+            check,
             self.is_t_required(sorted),
             fill_value,
             n_jobs,
@@ -241,6 +274,7 @@ impl PyFeatureEvaluator {
         feature_evaluator: &lcf::Feature<T>,
         lcs: Vec<PyLightCurve<T>>,
         sorted: Option<bool>,
+        check: bool,
         is_t_required: bool,
         fill_value: Option<T>,
         n_jobs: i64,
@@ -255,7 +289,7 @@ impl PyFeatureEvaluator {
         let mut tss = lcs
             .iter()
             .map(|(t, m, sigma)| {
-                Self::ts_from_numpy(feature_evaluator, t, m, sigma, sorted, is_t_required)
+                Self::ts_from_numpy(feature_evaluator, t, m, sigma, sorted, check, is_t_required)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -302,8 +336,16 @@ impl PyFeatureEvaluator {
 
 #[pymethods]
 impl PyFeatureEvaluator {
+    #[allow(clippy::too_many_arguments)]
     #[call]
-    #[args(t, m, sigma = "None", sorted = "None", fill_value = "None")]
+    #[args(
+        t,
+        m,
+        sigma = "None",
+        sorted = "None",
+        check = "true",
+        fill_value = "None"
+    )]
     fn __call__(
         &self,
         py: Python,
@@ -311,6 +353,7 @@ impl PyFeatureEvaluator {
         m: GenericFloatArray1,
         sigma: Option<GenericFloatArray1>,
         sorted: Option<bool>,
+        check: bool,
         fill_value: Option<f64>,
     ) -> Res<PyObject> {
         match (t, m) {
@@ -330,6 +373,7 @@ impl PyFeatureEvaluator {
                     m,
                     sigma,
                     sorted,
+                    check,
                     self.is_t_required(sorted),
                     fill_value.map(|v| v as f32),
                 )?
@@ -352,6 +396,7 @@ impl PyFeatureEvaluator {
                     m,
                     sigma,
                     sorted,
+                    check,
                     self.is_t_required(sorted),
                     fill_value,
                 )?
@@ -362,7 +407,7 @@ impl PyFeatureEvaluator {
         }
     }
 
-    #[args(lcs, sorted = "None", fill_value = "None", n_jobs = -1)]
+    #[args(lcs, sorted = "None", check = "true", fill_value = "None", n_jobs = -1)]
     fn many(
         &self,
         py: Python,
@@ -372,6 +417,7 @@ impl PyFeatureEvaluator {
             Option<GenericFloatArray1>,
         )>,
         sorted: Option<bool>,
+        check: bool,
         fill_value: Option<f64>,
         n_jobs: i64,
     ) -> Res<PyObject> {
@@ -384,6 +430,7 @@ impl PyFeatureEvaluator {
                     py,
                     lcs,
                     sorted,
+                    check,
                     fill_value.map(|v| v as f32),
                     n_jobs,
                 ),
@@ -392,6 +439,7 @@ impl PyFeatureEvaluator {
                     py,
                     lcs,
                     sorted,
+                    check,
                     fill_value,
                     n_jobs,
                 ),

@@ -15,15 +15,16 @@ def test_normalize():
 def test_fill_zero_division():
     t = [1, 1, 3, 4]
     feature = MaximumSlope()
-    actual = feature(t, t, None, sorted=False, fill_value=[1.0])
+    actual = feature(t, t, None, sorted=False, fill_value=1.0)
     desired = 1.0
     assert actual == desired
 
 
-def test_fill_nan_values():
-    t = [np.nan, 1, 3, 4]
+def test_fill_inf_values():
+    t = [0, 1e-300]
+    m = [0, 1e300]
     feature = MaximumSlope()
-    actual = feature(t, t, None, sorted=False, fill_value=[1.0])
+    actual = feature(t, m, None, sorted=True, fill_value=1.0)
     desired = 1.0
     assert actual == desired
 

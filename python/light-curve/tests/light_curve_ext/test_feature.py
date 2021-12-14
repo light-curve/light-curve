@@ -92,3 +92,43 @@ def test_fill_value_not_enough_observations():
 @pytest.mark.parametrize("cls", all_feature_classes)
 def test_nonempty_docstring(cls):
     assert len(cls.__doc__) > 10
+
+
+@pytest.mark.parametrize("cls", non_param_feature_classes)
+def test_check_t(cls):
+    n_obs = 128
+    t, m, sigma = gen_lc(n_obs)
+    t[0] = np.nan
+    feature = cls()
+    with pytest.raises(ValueError):
+        feature(t, m, sigma, check=True)
+    t[0] = np.inf
+    with pytest.raises(ValueError):
+        feature(t, m, sigma, check=True)
+
+
+@pytest.mark.parametrize("cls", non_param_feature_classes)
+def test_check_m(cls):
+    n_obs = 128
+    t, m, sigma = gen_lc(n_obs)
+    m[0] = np.nan
+    feature = cls()
+    with pytest.raises(ValueError):
+        feature(t, m, sigma, check=True)
+    m[0] = np.inf
+    with pytest.raises(ValueError):
+        feature(t, m, sigma, check=True)
+
+
+# We need evaluators which use sigma
+@pytest.mark.parametrize("cls", (lc.ExcessVariance, lc.LinearFit, lc.ReducedChi2, lc.StetsonK, lc.WeightedMean))
+def test_check_sigma(cls):
+    n_obs = 128
+    t, m, sigma = gen_lc(n_obs)
+    sigma[0] = np.nan
+    feature = cls()
+    with pytest.raises(ValueError):
+        feature(t, m, sigma, check=True)
+    # infinite values are allowed for sigma
+    sigma[0] = np.inf
+    feature(t, m, sigma, check=True)

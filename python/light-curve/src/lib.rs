@@ -12,7 +12,7 @@ use features as f;
 
 mod np_array;
 
-mod sorted;
+mod check;
 
 /// High-performance time-series feature extractor
 ///

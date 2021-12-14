@@ -1,7 +1,7 @@
+use crate::check::check_sorted;
 use crate::cont_array::{ContArray, ContCowArray};
 use crate::errors::{Exception, Res};
 use crate::np_array::{Arr, GenericFloatArray1};
-use crate::sorted::check_sorted;
 
 use conv::{ApproxFrom, ApproxInto, ConvAsUtil};
 use enumflags2::{bitflags, BitFlags};

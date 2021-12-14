@@ -72,7 +72,7 @@ class _Test:
         t, m, sigma = self.generate_data()
 
         benchmark.group = str(type(self).__name__)
-        benchmark(self.rust, t, m, sigma, sorted=True)
+        benchmark(self.rust, t, m, sigma, sorted=True, check=False)
 
     def test_benchmark_lc_py(self, benchmark):
         if self.py_feature is None:
@@ -81,7 +81,7 @@ class _Test:
         t, m, sigma = self.generate_data()
 
         benchmark.group = str(type(self).__name__)
-        benchmark(self.py_feature, t, m, sigma, sorted=True)
+        benchmark(self.py_feature, t, m, sigma, sorted=True, check=False)
 
     def test_close_to_naive(self):
         if self.naive is None:
