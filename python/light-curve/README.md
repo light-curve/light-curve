@@ -14,8 +14,8 @@ Pre-built wheels for these platforms are available on [pypi.org](https://pypi.or
 
 ## Feature evaluators
 
-Most of the classes implement various feature evaluators useful for astrophysical sources classification and
-characterisation using their light curves.
+Most of the classes implement various feature evaluators useful for light-curve based
+astrophysical source classification and characterisation.
 
 ```python
 import light_curve as lc
@@ -44,7 +44,7 @@ print('\n'.join("{} = {:.2f}".format(name, value) for name, value in zip(extract
 
 # Run in parallel for multiple light curves:
 results = amplitude.many(
-    [(t[:i], m[:i], err[:i]) for i in range(int(0.5 * n), n)],
+    [(t[:i], m[:i], err[:i]) for i in range(n // 2, n)],
     n_jobs=-1,
     sorted=True,
     check=False,
