@@ -143,7 +143,7 @@ if lc_ext._built_with_gsl:
 
     class TestBazinFit(_Test):
         name = "BazinFit"
-        args = ("mcmc-lmsder",)
+        args = ("lmsder", None, 20)
         rtol = 1e-4  # Precision used in the feature implementation
 
         add_to_all_features = False  # in All* random data is used
@@ -154,12 +154,12 @@ if lc_ext._built_with_gsl:
             return b + a * np.exp(-dt / fall) / (1.0 + np.exp(-dt / rise))
 
         def _params(self):
-            a = 1000
-            b = 100
+            a = 100
+            c = 100
             t0 = 0.5 * (self.t_min + self.t_max)
             rise = 0.1 * (self.t_max - self.t_min)
             fall = 0.2 * (self.t_max - self.t_min)
-            return a, b, t0, rise, fall
+            return a, c, t0, rise, fall
 
         # Random data yields to random results because target function has a lot of local minima
         # BTW, this test shouldn't use fixed random seed because the curve has good enough S/N to be fitted for any give
@@ -167,8 +167,9 @@ if lc_ext._built_with_gsl:
         def generate_data(self):
             rng = np.random.default_rng(0)
             t = np.linspace(self.t_min, self.t_max, self.n_obs)
-            sigma = np.ones_like(t)
-            m = self._model(t, *self._params()) + sigma * rng.normal(size=self.n_obs)
+            model = self._model(t, *self._params())
+            sigma = np.sqrt(model)
+            m = model + sigma * rng.normal(size=self.n_obs)
             return t, m, sigma
 
         def naive(self, t, m, sigma):
@@ -179,7 +180,9 @@ if lc_ext._built_with_gsl:
                 sigma=sigma,
                 xtol=self.rtol,
                 # We give really good parameters estimation!
-                p0=self._params(),
+                # p0=self._params(),
+                # The same parameter estimations we use in Rust
+                p0=(0.5 * np.ptp(m), np.min(m), t[np.argmax(m)], 0.5 * np.ptp(t), 0.5 * np.ptp(t)),
             )
             reduced_chi2 = np.sum(np.square((self._model(t, *params) - m) / sigma)) / (t.size - params.size)
             return_value = tuple(params) + (reduced_chi2,)
