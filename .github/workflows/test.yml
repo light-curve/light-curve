@@ -103,8 +103,8 @@ jobs:
         toolchain: stable
     - name: Install maturin, tox and black
       run: pip install maturin tox black
-    - name: Build package with static FFTW
-      run: maturin build
+    - name: Build package with default features
+      run: maturin build --manylinux=off
     - name: Build package with dynamic FFTW and GSL
       run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,gsl"
     - name: Build package with dynamic MKL and GSL
