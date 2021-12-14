@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `gsl` is a default Cargo feature now, which means that GSL must be installed to build this package
+- `gsl` is a default Cargo feature now, which means that GSL must be installed to build this package by standard Python tools like `pip install`
 - `light-curve-feature` 0.3 -> 0.4.1 transition brings MCMC improvements, changing feature names of `BazinFit` and significant changes of `VillarFit` feature set
 
 ### Removed
