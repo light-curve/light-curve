@@ -59,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `antifeatures` submodule of the Rust implementation
 
+## [0.4.1]
+
+### Fixed
+
+- Fix implementation of `OtsuSplit`, see [issue #150](https://github.com/light-curve/light-curve/issues/150)
+
 ## [0.4.0]
 
 ### Added
