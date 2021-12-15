@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Python 3.10 support and binary wheels for supported platforms
+—
 
 ### Changed
 
-- Update `pyo3` to 0.15.1 and `rust-numpy` to 0.15.0
+—
 
 ### Deprecated
 
@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 —
+
+## [0.5.3]
+
+### Added
+
+- Python 3.10 support and binary wheels for supported platforms
+
+### Changed
+
+- Update `pyo3` to 0.15.1 and `rust-numpy` to 0.15.0
 
 ## [0.5.2]
 
