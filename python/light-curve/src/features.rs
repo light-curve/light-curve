@@ -337,7 +337,6 @@ impl PyFeatureEvaluator {
 #[pymethods]
 impl PyFeatureEvaluator {
     #[allow(clippy::too_many_arguments)]
-    #[call]
     #[args(
         t,
         m,
