@@ -24,6 +24,7 @@ class OtsuSplit(BaseFeature):
     def _eval(self, t, m, sigma=None):
         n = len(m)
         amounts = np.arange(1, n)
+        m = np.sorted(m)
 
         w0 = amounts / n
         w1 = 1 - w0
