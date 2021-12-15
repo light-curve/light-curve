@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 —
 
+## [0.5.1]
+
+### Added
+
+- `init` and `bounds` arguments of `BazinFit` and `VillarFit` constructors
+
 ## [0.5.0]
 
 ### Added

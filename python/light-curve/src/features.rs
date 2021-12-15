@@ -553,9 +553,9 @@ const SUPPORTED_ALGORITHMS_CURVE_FIT: [&str; N_ALGO_CURVE_FIT] = [
 ];
 
 macro_rules! fit_evaluator {
-    ($name: ident, $eval: ty $(,)?) => {
+    ($name: ident, $eval: ty, $ib: ty, $nparam: literal $(,)?) => {
         #[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
-        #[pyo3(text_signature = "(algorithm, mcmc_niter=None, lmsder_niter=None)")]
+        #[pyo3(text_signature = "(algorithm, mcmc_niter=None, lmsder_niter=None, init=None, bounds=None)")]
         pub struct $name {}
 
         impl $name {
@@ -577,11 +577,19 @@ macro_rules! fit_evaluator {
         #[pymethods]
         impl $name {
             #[new]
-            #[args(algorithm, mcmc_niter = "None", lmsder_niter = "None")]
+            #[args(
+                algorithm,
+                mcmc_niter = "None",
+                lmsder_niter = "None",
+                init = "None",
+                bounds = "None"
+            )]
             fn __new__(
                 algorithm: &str,
                 mcmc_niter: Option<u32>,
                 lmsder_niter: Option<u16>,
+                init: Option<Vec<Option<f64>>>,
+                bounds: Option<Vec<(Option<f64>, Option<f64>)>>,
             ) -> PyResult<(Self, PyFeatureEvaluator)> {
                 let mcmc_niter = mcmc_niter.unwrap_or_else(lcf::McmcCurveFit::default_niterations);
 
@@ -596,6 +604,33 @@ macro_rules! fit_evaluator {
                         "Compiled without GSL support, lmsder_niter is not supported",
                     ));
                 }
+
+                let init_bounds = match (init, bounds) {
+                    (Some(init), Some(bounds)) => Some((init, bounds)),
+                    (Some(init), None) => {
+                        let size = init.len();
+                        Some((init, (0..size).map(|_| (None, None)).collect()))
+                    }
+                    (None, Some(bounds)) => Some((bounds.iter().map(|_| None).collect(), bounds)),
+                    (None, None) => None,
+                };
+                let init_bounds = match init_bounds {
+                    Some((init, bounds)) => {
+                        let (lower, upper): (Vec<_>, Vec<_>) = bounds.into_iter().unzip();
+                        <$ib>::option_arrays(
+                            init.try_into().map_err(|_| {
+                                Exception::ValueError("init has a wrong size".into())
+                            })?,
+                            lower.try_into().map_err(|_| {
+                                Exception::ValueError("bounds has a wrong size".into())
+                            })?,
+                            upper.try_into().map_err(|_| {
+                                Exception::ValueError("bounds has a wrong size".into())
+                            })?,
+                        )
+                    }
+                    None => <$ib>::default(),
+                };
 
                 let curve_fit_algorithm: lcf::CurveFitAlgorithm = match algorithm {
                     "mcmc" => lcf::McmcCurveFit::new(mcmc_niter, None).into(),
@@ -618,13 +653,13 @@ macro_rules! fit_evaluator {
                         feature_evaluator_f32: <$eval>::new(
                             curve_fit_algorithm.clone(),
                             <$eval>::default_ln_prior(),
-                            <$eval>::default_inits_bounds(),
+                            init_bounds.clone(),
                         )
                         .into(),
                         feature_evaluator_f64: <$eval>::new(
                             curve_fit_algorithm,
                             <$eval>::default_ln_prior(),
-                            <$eval>::default_inits_bounds(),
+                            init_bounds,
                         )
                         .into(),
                     },
@@ -677,7 +712,16 @@ algorithm : str
     {supported_algo}.
 mcmc_niter : int, optional
     Number of MCMC iterations, default is {mcmc_niter}
-{lmsder_niter}
+{lmsder_niter}init : list or None, optional
+    Initial conditions, must be `None` or a `list` of `float`s or `None`s.
+    The length of the list must be {nparam}, `None` values will be replaced
+    with some defauls values. It is supported by MCMC only
+bounds : list of tuples or None, optional
+    Boundary conditions, must be `None` or a `list` of `tuple`s of `float`s or
+    `None`s. The length of the list must be {nparam}, boundary conditions must
+    include initial conditions, `None` values will be replaced with some broad
+    defaults. It is supported by MCMC only
+
 {attr}
 supported_algorithms : list of str
     Available argument values for the constructor
@@ -721,6 +765,7 @@ Examples
                     attr = ATTRIBUTES_DOC,
                     methods = METHODS_DOC,
                     feature = stringify!($name),
+                    nparam = $nparam,
                 )
             }
         }
@@ -765,7 +810,7 @@ nstd : positive float
     }
 }
 
-fit_evaluator!(BazinFit, lcf::BazinFit);
+fit_evaluator!(BazinFit, lcf::BazinFit, lcf::BazinInitsBounds, 5);
 
 #[pyclass(extends = PyFeatureEvaluator, module="light_curve.light_curve_ext")]
 #[pyo3(text_signature = "(features, window, offset)")]
@@ -1246,7 +1291,7 @@ evaluator!(StandardDeviation, lcf::StandardDeviation);
 
 evaluator!(StetsonK, lcf::StetsonK);
 
-fit_evaluator!(VillarFit, lcf::VillarFit);
+fit_evaluator!(VillarFit, lcf::VillarFit, lcf::VillarInitsBounds, 7);
 
 evaluator!(WeightedMean, lcf::WeightedMean);
 
