@@ -9,7 +9,7 @@ classifier = ["Intended Audience :: Science/Research", "License :: OSI Approved 
 
 [tool.black]
 line-length = 120
-target-version = ['py36', 'py37', 'py38']
+target-version = ['py36', 'py37', 'py38', 'py39', 'py310']
 include = '\.py$'
 
 [tool.pytest.ini_options]
