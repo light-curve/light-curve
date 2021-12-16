@@ -15,8 +15,7 @@ Please refer to a specific repository in this organisation to find a code you ne
 - `light-curve-dmdt` ![Crates.io](https://img.shields.io/crates/v/light-curve-dmdt) [![docs.rs badge](https://docs.rs/light-curve-dmdt/badge.svg)](https://docs.rs/light-curve-dmdt) [dm-dt](https://arxiv.org/abs/1709.06257) (currently in this repo) mapper crate and executable
 - `light-curve-feature` ![Crates.io](https://img.shields.io/crates/v/light-curve-feature) [![docs.rs badge](https://docs.rs/light-curve-feature/badge.svg)](https://docs.rs/light-curve-feature) (currently in this repo) A collection of features to be extracted from light curves
 - `light-curve-interpol`**WIP** (currently in this repo) Light curve interpolation tools. Currently it includes linear interpolation only
-[![PyPI version](https://badge.fury.io/py/light-curve.svg)](https://pypi.org/project/light-curve/)
-- [`light-curve-python`](https://github.com/light-curve/light-curve-python) Python `light-curve` and `light-curve-python` packages, a Python interface to `light-curve-feature` and `light-curve-dmdt` Cargo crates. It also contains a few features implemented in Python
+- [`light-curve-python`](https://github.com/light-curve/light-curve-python) [![PyPI version](https://badge.fury.io/py/light-curve.svg)](https://pypi.org/project/light-curve/) Python `light-curve` and `light-curve-python` packages, a Python interface to `light-curve-feature` and `light-curve-dmdt` Cargo crates. It also contains a few features implemented in Python
 - [`test-data`](https://github.com/light-curve/test-data) Light-curve data required for testing, benchmarking and development of the new features
 
 ### Versioning
