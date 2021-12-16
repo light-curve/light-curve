@@ -14,15 +14,6 @@ repos:
     -   id: check-case-conflict # checks for files that would conflict in case-insensitive filesystems
     # Git
     -   id: check-merge-conflict # checks for files that contain merge conflict strings
-    # Python
-    -   id: check-docstring-first # checks a common error of defining a docstring after code
-    -   id: debug-statements # checks for debugger imports and py37+ `breakpoint()` calls in python source
--   repo: https://github.com/psf/black
-    rev: 21.12b0
-    hooks:
-    -   id: black
-        name: black
-        args: [--config=python/light-curve/pyproject.toml, ./python/light-curve]
 -   repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
