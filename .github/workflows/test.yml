@@ -23,21 +23,6 @@ jobs:
       with:
         command: build
         args: --workspace --all-targets
-    - name: Build light-curve-feature gsl+fftw-source
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-source
-    - name: Build light-curve-feature gsl+fftw-system
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-system
-    - name: Build light-curve-feature gsl+fftw-mkl
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --manifest-path=light-curve-feature/Cargo.toml --all-targets --no-default-features --features gsl,fftw-mkl
     - name: Check light-curve-dmdt/{README.md,example.png}
       working-directory: light-curve-dmdt
       run: |
@@ -48,11 +33,6 @@ jobs:
       with:
         command: test
         args: --workspace
-    - name: Run examples
-      uses: actions-rs/cargo@v1
-      with:
-        command: run
-        args: --example plot_snia_curve_fits -- -n=1
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
