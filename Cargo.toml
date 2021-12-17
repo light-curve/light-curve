@@ -2,7 +2,6 @@
 members = [
     "light-curve",
     "light-curve-common",
-    "light-curve-dmdt",
     "light-curve-interpol",
 ]
 
