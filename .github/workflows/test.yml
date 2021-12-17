@@ -33,11 +33,6 @@ jobs:
       with:
         command: test
         args: --workspace
-    - name: Run examples
-      uses: actions-rs/cargo@v1
-      with:
-        command: run
-        args: --example plot_snia_curve_fits -- -n=1
     - name: Check formatting
       uses: actions-rs/cargo@v1
       with:
