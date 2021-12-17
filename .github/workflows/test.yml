@@ -22,7 +22,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: --workspace --all-targets --exclude light-curve-python
+        args: --workspace --all-targets
     - name: Build light-curve-feature gsl+fftw-source
       uses: actions-rs/cargo@v1
       with:
@@ -47,7 +47,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --workspace --exclude light-curve-python
+        args: --workspace
     - name: Run examples
       uses: actions-rs/cargo@v1
       with:
@@ -62,74 +62,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: clippy
-        args: --workspace --exclude light-curve-python --all-targets -- -D warnings
-
-
-  python:
-
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: python/light-curve
-
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Install FFTW
-      run: |
-        sudo apt-get update
-        sudo apt-get install libfftw3-dev
-    - name: Set up Python 3.6
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.6'
-    - name: Set up Python 3.7
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.7'
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.8'
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.9'
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.10'
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: Install maturin, tox and black
-      run: pip install maturin tox black
-    - name: Build package with default features
-      run: maturin build --manylinux=off
-    - name: Build package with dynamic FFTW and GSL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features fftw-dynamic,gsl"
-    - name: Build package with dynamic MKL and GSL
-      run: maturin build --manylinux=off --cargo-extra-args="--no-default-features --features mkl,gsl"
-    - name: Check Rust formatting
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --package=light-curve-python -- --check
-    - name: Run Rust code analysis
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --package=light-curve-python --all-targets -- -D warnings
-    - name: Check Python formatting
-      run: black --check .
-    - name: Run Python tests
-      run: tox -p -q
-    - name: Check Python formatting
-      run: black --check --diff .
-
+        args: --workspace --all-targets -- -D warnings
 
   arm:
 
@@ -139,8 +72,5 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: true
-    - name: build all but python
-      run: cargo build --workspace --all-targets --exclude light-curve-python
-    - name: build python
-      run: maturin build
-      working-directory: python/light-curve
+    - name: build
+      run: cargo build --workspace --all-targets
