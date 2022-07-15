@@ -9,7 +9,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - run: rust build --workspace --all-targets
+    - run: cargo build --workspace --all-targets
     - run: cargo test --workspace
     - run: cargo fmt -- --check
     - run: cargo clippy --workspace --all-targets -- -D warnings
