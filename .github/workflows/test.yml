@@ -9,29 +9,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --workspace --all-targets
-    - name: Run tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --workspace
-    - name: Check formatting
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: -- --check
-    - name: Run code analysis
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --workspace --all-targets -- -D warnings
+    - run: cargo build --workspace --all-targets
+    - run: cargo test --workspace
+    - run: cargo fmt -- --check
+    - run: cargo clippy --workspace --all-targets -- -D warnings
 
   arm:
 
