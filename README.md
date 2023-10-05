@@ -1,3 +1,5 @@
+# Python Package code is moved to [`light-curve-python`](https://github.com/light-curve/light-curve-python)
+
 # `light-curve`
 
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/light-curve/light-curve/master.svg)](https://results.pre-commit.ci/latest/github/light-curve/light-curve/master)
