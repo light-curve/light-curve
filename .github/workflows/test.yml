@@ -14,11 +14,3 @@ jobs:
     - run: cargo fmt -- --check
     - run: cargo clippy --workspace --all-targets -- -D warnings
 
-  arm:
-
-    runs-on: [self-hosted, linux, ARM64]
-
-    steps:
-    - uses: actions/checkout@v3
-    - name: build
-      run: cargo build --workspace --all-targets
